@@ -143,6 +143,11 @@ pinakes compile --root .
 #### Compiled Output Structure:
 ```
 records/
+├── lexicons/                          # The universe's Lexicon schema documents
+│   ├── <nsid>.scene.json
+│   ├── <nsid>.character.stateEvent.json
+│   ├── <nsid>.character.profile.json
+│   └── <nsid>.place.json
 ├── book1/
 │   ├── scenes.json                    # Lexicon: *.scene
 │   └── character_state_events.json    # Lexicon: *.character.stateEvent
@@ -150,6 +155,35 @@ records/
     ├── places.json                    # Lexicon: *.place
     └── character_profiles.json        # Lexicon: *.character.profile
 ```
+
+#### Schema Validation
+
+`compile` writes a Lexicon document for every record type it emits, namespaced
+under your `project.nsid`, and validates each record against it before the file
+is written. Validation uses [`@atproto/lex`](https://www.npmjs.com/package/@atproto/lex),
+so records are held to the real AT Protocol data model rather than to a
+`$type` string we stamped on ourselves. A record that doesn't match its Lexicon
+fails the build:
+
+```
+📁 records/book1/scenes.json:
+       [lexicon-validation] 🔴 ERROR: scene.book1.ch1: Invalid datetime (got "2026-10-04") at $.createdAt
+
+FAIL — 1 record(s) do not match their Lexicon.
+```
+
+Two consequences worth knowing about, because they are what the data model
+actually requires:
+
+* **There is no null.** An optional field with no value is *omitted*, not set
+  to `null`. Consumers should read `record.pov ?? fallback`, not `record.pov !== null`.
+* **`createdAt` is story time.** It is the RFC3339 datetime for midnight UTC on
+  the scene's `storyDate`, not the moment the file compiled — otherwise every
+  recompile would reorder the stream.
+
+The `records/lexicons/` directory is meant to be committed. It is the portable
+contract for your universe: anything that consumes your records can read the
+schemas without reading Pinakes.
 
 ---
 

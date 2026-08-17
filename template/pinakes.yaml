@@ -3,6 +3,10 @@ spec: 0.1
 project:
   name: "[Your Universe Name]"
   nsid: "example.universe"
+  # Chapter frontmatter key naming the sequence a chapter belongs to — the
+  # grouping between book and chapter. Rename to match your universe
+  # (a meal, an arc, a case, a session); records carry it as `sequence`.
+  sequenceField: "sequence"
 paths:
   registry: "codex/entities.yaml"
   nonEntities: "codex/non_entities.yaml"

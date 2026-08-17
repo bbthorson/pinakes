@@ -1,6 +1,6 @@
 {
   "name": "@bbthorson/pinakes",
-  "version": "0.1.1",
+  "version": "0.2.0",
   "description": "Fictional continuity linter and AT Protocol record compiler",
   "main": "dist/cli.js",
   "bin": {
@@ -16,17 +16,21 @@
     "start": "node dist/cli.js"
   },
   "dependencies": {
+    "@atproto/lex": "^0.3.6",
     "commander": "^11.1.0",
-    "yaml": "^2.3.4",
-    "zod": "^3.22.4",
-    "unified": "^11.0.4",
-    "remark-parse": "^11.0.0",
+    "glob": "^10.3.10",
     "remark-frontmatter": "^5.0.0",
+    "remark-parse": "^11.0.0",
+    "unified": "^11.0.4",
     "unist-util-visit": "^5.0.0",
-    "glob": "^10.3.10"
+    "yaml": "^2.3.4",
+    "zod": "^3.22.4"
   },
   "devDependencies": {
     "@types/node": "^20.11.0",
     "typescript": "^5.3.3"
+  },
+  "engines": {
+    "node": ">=22"
   }
 }
