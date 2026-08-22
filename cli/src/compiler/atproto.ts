@@ -2,7 +2,8 @@ import fs from 'fs';
 import path from 'path';
 import { Config } from '../config.js';
 import { Registry } from '../registry/entities.js';
-import { ChapterData, LinterEngine } from '../linter/engine.js';
+import { ChapterData, Diagnostic, LinterEngine } from '../linter/engine.js';
+import { buildLexiconDocs, compileLexiconDocs, validateRecords, writeLexiconDocs } from '../lexicons/index.js';
 
 function getBookKey(storyDir: string): string {
   const base = path.basename(storyDir);
@@ -13,9 +14,42 @@ function getBookKey(storyDir: string): string {
   return base.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
 }
 
-function getOverviewOneline(filePath: string): string | null {
-  if (!fs.existsSync(filePath)) return null;
-  const content = fs.readFileSync(filePath, 'utf-8');
+const DATE_ONLY = /^\d{4}-\d{2}-\d{2}$/;
+
+/**
+ * Projects an in-story date onto the RFC3339 datetime the Lexicon `datetime`
+ * format requires. Fictional records are ordered by story time, so midnight UTC
+ * on the story date is the record's `createdAt` — authoring time is not a
+ * property of the narrative and would reorder the stream on every recompile.
+ *
+ * A malformed date is passed through untouched so Lexicon validation reports it
+ * against the record, rather than this silently minting a plausible timestamp.
+ */
+function storyDateToDatetime(storyDate: string): string {
+  return DATE_ONLY.test(storyDate) ? `${storyDate}T00:00:00.000Z` : storyDate;
+}
+
+/**
+ * Drops absent keys.
+ *
+ * The AT Protocol data model has no null: an optional field is either present
+ * with a value or not present at all. Emitting `"pov": null` produces a record
+ * that fails its own schema, so absence is expressed by omission.
+ */
+function compact<T extends Record<string, unknown>>(obj: T): T {
+  const out: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(obj)) {
+    if (value !== null && value !== undefined) out[key] = value;
+  }
+  return out as T;
+}
+
+/** Non-empty arrays only — an empty list is absence, not data. */
+function present<T>(list: T[]): T[] | undefined {
+  return list.length > 0 ? list : undefined;
+}
+
+function getOverviewOneline(content: string): string | undefined {
   const lines = content.split(/\r?\n/);
   for (let i = 0; i < lines.length; i++) {
     if (lines[i].trim().toLowerCase() === '## overview') {
@@ -27,7 +61,29 @@ function getOverviewOneline(filePath: string): string | null {
       }
     }
   }
-  return null;
+  return undefined;
+}
+
+/**
+ * Reads the publishable surface of a character's codex file: the handle it
+ * claims in frontmatter, and the one-line summary under its Overview heading.
+ */
+function readCharacterFile(
+  filePath: string,
+  engine: LinterEngine
+): { handle?: string; oneLine?: string } {
+  if (!filePath || !fs.existsSync(filePath)) return {};
+  const content = fs.readFileSync(filePath, 'utf-8');
+  const { data } = engine.parseFrontmatter(content);
+  const handle = data && data.handle ? String(data.handle).replace(/^@/, '') : undefined;
+  return { handle, oneLine: getOverviewOneline(content) };
+}
+
+/** Frontmatter is hand-written, so a sequence may arrive as `2` or as `"2"`. */
+function asInteger(value: unknown): number | undefined {
+  if (typeof value === 'number' && Number.isInteger(value)) return value;
+  if (typeof value === 'string' && /^\d+$/.test(value.trim())) return parseInt(value, 10);
+  return undefined;
 }
 
 function splitRegister(value: string): { register: string; expr: string } {
@@ -43,15 +99,36 @@ export interface CompilationResult {
   count: number;
 }
 
+export interface CompilationReport {
+  results: CompilationResult[];
+  /** Lexicon documents written alongside the records. */
+  lexiconFiles: string[];
+  /** Records that failed validation against the universe's own Lexicons. */
+  diagnostics: Diagnostic[];
+}
+
 export function compileProject(
   projectRoot: string,
   config: Config,
   registry: Registry,
   engine: LinterEngine
-): CompilationResult[] {
+): CompilationReport {
   const NS = config.project.nsid;
   const outputDir = path.resolve(projectRoot, config.paths.output);
   const results: CompilationResult[] = [];
+  const diagnostics: Diagnostic[] = [];
+
+  const lexiconDocs = buildLexiconDocs(NS);
+  const schemas = compileLexiconDocs(lexiconDocs);
+
+  /** Validates, then writes — invalid records are still written so the author can inspect them. */
+  const writeRecords = (filePath: string, records: unknown[]) => {
+    const relative = path.relative(projectRoot, filePath);
+    diagnostics.push(...validateRecords(records, schemas, relative));
+    fs.mkdirSync(path.dirname(filePath), { recursive: true });
+    fs.writeFileSync(filePath, JSON.stringify(records, null, 2) + '\n', 'utf-8');
+    results.push({ file: relative, count: records.length });
+  };
 
   const stories = engine.getStories();
   const allPlaces: any[] = [];
@@ -69,9 +146,10 @@ export function compileProject(
     for (const ch of chapters) {
       if (ch.dates.length === 0) continue;
       const storyDate = ch.dates[0];
-      const storyDateEnd = ch.dates.length > 1 ? ch.dates[ch.dates.length - 1] : null;
+      const storyDateEnd = ch.dates.length > 1 ? ch.dates[ch.dates.length - 1] : undefined;
       const chRef = `${book}#ch${ch.chapterNum}`;
       const sceneId = `scene.${book}.ch${ch.chapterNum}`;
+      const createdAt = storyDateToDatetime(storyDate);
 
       // Resolve locations
       const placeRefs: string[] = [];
@@ -102,33 +180,27 @@ export function compileProject(
         return ids;
       };
 
-      const participants = resolvePeople(ch.charactersPresent);
-      const referenced = resolvePeople(ch.charactersReferenced);
-      const povId = ch.pov ? registry.resolve(ch.pov, 'character')?.id || null : null;
-
-      const scene: any = {
-        $type: `${NS}.scene`,
-        id: sceneId,
-        storyDate,
-        chapterRefs: [chRef],
-        title: ch.title,
-        part: ch.frontmatter.part !== undefined ? ch.frontmatter.part : null,
-        beat: ch.frontmatter.beat || null,
-        placeRefs,
-        placeText: placeText.length > 0 ? placeText : null,
-        pov: povId,
-        participants,
-        referenced,
-        primaryEvent: ch.beatPurpose,
-        createdAt: storyDate,
-        sourceFile: ch.relativeFilePath,
-      };
-
-      if (storyDateEnd) {
-        scene.storyDateEnd = storyDateEnd;
-      }
-
-      scenes.push(scene);
+      scenes.push(
+        compact({
+          $type: `${NS}.scene`,
+          id: sceneId,
+          storyDate,
+          storyDateEnd,
+          chapterRefs: [chRef],
+          title: ch.title,
+          part: ch.frontmatter.part !== undefined ? ch.frontmatter.part : undefined,
+          sequence: asInteger(ch.frontmatter[config.project.sequenceField]),
+          beat: ch.frontmatter.beat || undefined,
+          placeRefs: present(placeRefs),
+          placeText: present(placeText),
+          pov: ch.pov ? registry.resolve(ch.pov, 'character')?.id : undefined,
+          participants: present(resolvePeople(ch.charactersPresent)),
+          referenced: present(resolvePeople(ch.charactersReferenced)),
+          primaryEvent: ch.beatPurpose || undefined,
+          createdAt,
+          sourceFile: ch.relativeFilePath,
+        })
+      );
 
       // Registers / state events
       for (const [name, val] of Object.entries(ch.registers)) {
@@ -136,29 +208,23 @@ export function compileProject(
         if (!resolved) continue;
 
         const { register, expr } = splitRegister(val);
-        const eventId = `stateEvent.${resolved.id.split('.', 2)[1]}.${book}.ch${ch.chapterNum}`;
 
-        const ev: any = {
-          $type: `${NS}.character.stateEvent`,
-          id: eventId,
-          subject: resolved.id,
-          storyDate,
-          register,
-          state: val,
-          chapterRef: chRef,
-          sceneRef: sceneId,
-          createdAt: storyDate,
-          sourceFile: ch.relativeFilePath,
-        };
-
-        if (expr !== register) {
-          ev.registerExpr = expr;
-        }
-        if (storyDateEnd) {
-          ev.storyDateEnd = storyDateEnd;
-        }
-
-        events.push(ev);
+        events.push(
+          compact({
+            $type: `${NS}.character.stateEvent`,
+            id: `stateEvent.${resolved.id.split('.', 2)[1]}.${book}.ch${ch.chapterNum}`,
+            subject: resolved.id,
+            storyDate,
+            storyDateEnd,
+            register,
+            registerExpr: expr !== register ? expr : undefined,
+            state: val,
+            chapterRef: chRef,
+            sceneRef: sceneId,
+            createdAt,
+            sourceFile: ch.relativeFilePath,
+          })
+        );
       }
     }
 
@@ -169,17 +235,9 @@ export function compileProject(
       return a.chapterRef.localeCompare(b.chapterRef);
     });
 
-    // Write story files
     const bookDir = path.join(outputDir, book);
-    fs.mkdirSync(bookDir, { recursive: true });
-
-    const scenesPath = path.join(bookDir, 'scenes.json');
-    fs.writeFileSync(scenesPath, JSON.stringify(scenes, null, 2) + '\n', 'utf-8');
-    results.push({ file: path.relative(projectRoot, scenesPath), count: scenes.length });
-
-    const eventsPath = path.join(bookDir, 'character_state_events.json');
-    fs.writeFileSync(eventsPath, JSON.stringify(events, null, 2) + '\n', 'utf-8');
-    results.push({ file: path.relative(projectRoot, eventsPath), count: events.length });
+    writeRecords(path.join(bookDir, 'scenes.json'), scenes);
+    writeRecords(path.join(bookDir, 'character_state_events.json'), events);
   }
 
   // 2. Locations / places compile
@@ -195,16 +253,18 @@ export function compileProject(
       const { data } = engine.parseFrontmatter(content);
 
       if (data && data.id && String(data.id).startsWith('place.')) {
-        allPlaces.push({
-          $type: `${NS}.place`,
-          id: data.id,
-          name: data.title || '',
-          status: data.status || 'active',
-          region: data.region || null,
-          firstAppearance: data.first_appearance || null,
-          schedule: data.schedule || null,
-          sourceFile: path.relative(projectRoot, filePath),
-        });
+        allPlaces.push(
+          compact({
+            $type: `${NS}.place`,
+            id: data.id,
+            name: data.title || '',
+            status: data.status || 'active',
+            region: data.region || data.neighborhood || undefined,
+            firstAppearance: data.first_appearance || undefined,
+            schedule: data.schedule || undefined,
+            sourceFile: path.relative(projectRoot, filePath),
+          })
+        );
       }
     }
   }
@@ -213,34 +273,31 @@ export function compileProject(
   for (const ent of registry.allEntities) {
     if (ent.type === 'character' && ent.status === 'active') {
       const srcFile = ent.sourceFile ? path.resolve(projectRoot, ent.sourceFile) : '';
-      const oneLine = srcFile ? getOverviewOneline(srcFile) : null;
+      const { handle, oneLine } = readCharacterFile(srcFile, engine);
 
-      allProfiles.push({
-        $type: `${NS}.character.profile`,
-        id: `profile.${ent.id.split('.', 2)[1]}`,
-        subject: ent.id,
-        displayName: ent.displayName,
-        oneLine,
-        sourceFile: ent.sourceFile || '',
-      });
+      allProfiles.push(
+        compact({
+          $type: `${NS}.character.profile`,
+          id: `profile.${ent.id.split('.', 2)[1]}`,
+          subject: ent.id,
+          displayName: ent.displayName,
+          handle,
+          oneLine,
+          sourceFile: ent.sourceFile || '',
+        })
+      );
     }
   }
 
-  // Write series files
   const seriesDir = path.join(outputDir, 'series');
-  fs.mkdirSync(seriesDir, { recursive: true });
-
   if (allPlaces.length > 0) {
-    const placesPath = path.join(seriesDir, 'places.json');
-    fs.writeFileSync(placesPath, JSON.stringify(allPlaces, null, 2) + '\n', 'utf-8');
-    results.push({ file: path.relative(projectRoot, placesPath), count: allPlaces.length });
+    writeRecords(path.join(seriesDir, 'places.json'), allPlaces);
   }
-
   if (allProfiles.length > 0) {
-    const profilesPath = path.join(seriesDir, 'character_profiles.json');
-    fs.writeFileSync(profilesPath, JSON.stringify(allProfiles, null, 2) + '\n', 'utf-8');
-    results.push({ file: path.relative(projectRoot, profilesPath), count: allProfiles.length });
+    writeRecords(path.join(seriesDir, 'character_profiles.json'), allProfiles);
   }
 
-  return results;
+  const lexiconFiles = writeLexiconDocs(outputDir, lexiconDocs).map(f => path.relative(projectRoot, f));
+
+  return { results, lexiconFiles, diagnostics };
 }

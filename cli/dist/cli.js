@@ -12,7 +12,7 @@ const program = new Command();
 program
     .name('pinakes')
     .description('Fictional continuity linter and AT Protocol record compiler')
-    .version('0.1.0');
+    .version('0.2.0');
 program
     .command('lint')
     .description('Verify story continuity and entity resolution')
@@ -61,14 +61,23 @@ program
         const { config } = loadConfig(root);
         const registry = new Registry(root, config.paths.registry, config.paths.nonEntities);
         const engine = new LinterEngine(root, config, registry);
-        const results = compileProject(root, config, registry, engine);
+        const { results, lexiconFiles, diagnostics } = compileProject(root, config, registry, engine);
         console.log('='.repeat(68));
         console.log('PINAKES COMPILATION — repo -> records');
         console.log('='.repeat(68));
         for (const res of results) {
             console.log(`  ${res.count.toString().padStart(4)} records -> ${res.file}`);
         }
-        console.log('\nOK — compilation complete.');
+        for (const file of lexiconFiles) {
+            console.log(`       lexicon -> ${file}`);
+        }
+        if (diagnostics.length > 0) {
+            console.log('');
+            reportDiagnostics(diagnostics);
+            console.log(`\nFAIL — ${diagnostics.length} record(s) do not match their Lexicon.`);
+            process.exit(1);
+        }
+        console.log('\nOK — compilation complete, all records match their Lexicons.');
         process.exit(0);
     }
     catch (e) {

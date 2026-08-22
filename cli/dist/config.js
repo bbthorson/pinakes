@@ -7,6 +7,13 @@ export const ConfigSchema = z.object({
     project: z.object({
         name: z.string(),
         nsid: z.string(),
+        /**
+         * Chapter frontmatter key naming the sequence a chapter belongs to — the
+         * grouping between "book" and "chapter". Universes name this differently
+         * (a meal, an arc, a case, a session), so the key is configurable and the
+         * compiled records carry it under the neutral name `sequence`.
+         */
+        sequenceField: z.string().default('sequence'),
     }),
     paths: z.object({
         registry: z.string().default('protocol/entities/entities.yaml'),
