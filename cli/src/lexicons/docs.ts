@@ -45,6 +45,17 @@ const localId = (description: string): LexProp => ({
 });
 
 /**
+ * Free-form labels carried through from the source file's `tags` frontmatter.
+ * They are the author's own vocabulary — `main-cast`, `location` — so nothing
+ * here constrains the values.
+ */
+const tags = (description: string): LexProp => ({
+  type: 'array',
+  description,
+  items: { type: 'string', maxLength: 128 },
+});
+
+/**
  * Record keys in a repository are the record's own `id`, so every record type
  * uses `key: 'any'` rather than `tid` — a scene's identity is its stable story
  * coordinate (`scene.book1.ch1`), not its creation order.
@@ -95,6 +106,7 @@ function scene(ns: string): LexiconDoc {
               minimum: 0,
             },
             beat: { type: 'string', description: 'Story beat label.', maxLength: 512 },
+            tags: tags("Labels from the chapter's `tags` frontmatter."),
             placeRefs: {
               type: 'array',
               description: 'Registry ids of resolved locations.',
@@ -216,10 +228,23 @@ function profile(ns: string): LexiconDoc {
                 "The character's handle, without an `@`. A bare label such as `emmacooks` until the universe is bound to a domain; consumers qualify it themselves.",
               maxLength: 253,
             },
+            description: {
+              type: 'string',
+              description:
+                "One-line summary the author wrote in the codex file's `description` frontmatter. `oneLine` is the same idea lifted from the file's Overview prose; a surface that wants one line should read `description` and fall back to `oneLine`.",
+              maxLength: 3000,
+            },
             oneLine: {
               type: 'string',
               description: "One-line character summary, lifted from the codex file's Overview.",
               maxLength: 3000,
+            },
+            tags: tags("Labels from the codex file's `tags` frontmatter, e.g. `main-cast`."),
+            status: {
+              type: 'string',
+              description:
+                "Where the character stands in the series, from the codex file's `status` frontmatter, falling back to the registry entry's status.",
+              maxLength: 64,
             },
             sourceFile: { type: 'string', description: 'Repository-relative codex path.', maxLength: 1024 },
           },
@@ -245,6 +270,18 @@ function place(ns: string): LexiconDoc {
           properties: {
             id: localId('Stable place id, e.g. `place.mcgolrick-market`.'),
             name: { type: 'string', description: 'Display name.', maxLength: 640 },
+            kind: {
+              type: 'string',
+              description:
+                "What sort of place this is — home, shop, public space — from the `**Type:**` line in the location file's body. Frontmatter `type:` is the knowledge-graph document type and is always `Location`.",
+              maxLength: 256,
+            },
+            description: {
+              type: 'string',
+              description: "One-line summary from the location file's `description` frontmatter.",
+              maxLength: 3000,
+            },
+            tags: tags("Labels from the location file's `tags` frontmatter."),
             status: {
               type: 'string',
               description: 'Lifecycle of the location within the series.',
