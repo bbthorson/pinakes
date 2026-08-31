@@ -6,7 +6,7 @@ Every chapter file begins with a YAML frontmatter block. The frontmatter is the 
 
 ### Spec
 
-**Required:** `chapter`, `title`, `part`, `beat`, `date`, `pov`, `characters_present`, `registers`, `threads`, `beat_purpose`. **Optional:** `day`, `time`, `location`, `characters_referenced`, `clues`, `audit_notes` (include when they apply).
+**Required:** `chapter`, `title`, `part`, `beat`, `date`, `pov`, `characters_present`, `registers`, `threads`, `beat_purpose`. **Optional:** `day`, `time`, `location`, `tags`, `characters_referenced`, `clues`, `audit_notes` (include when they apply).
 
 ```yaml
 ---
@@ -14,6 +14,7 @@ chapter: 13
 title: "[Chapter Title]"
 part: 3
 beat: "[Structural beat — e.g., Bad Guys Close In]"
+tags: ["[label]"]                         # free-form labels; carried onto the scene record (optional)
 day: "Monday → Wednesday"                 # human-readable (optional)
 date: "2026-10-12 to 2026-10-14"          # ISO, absolute (required). Spans: "A to B" or ISO interval "A/B" — tooling reads the ISO dates, not the separator.
 time: "Mon morning → Wed midday"          # time-of-day or span (optional)

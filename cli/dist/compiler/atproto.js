@@ -41,6 +41,39 @@ function compact(obj) {
 function present(list) {
     return list.length > 0 ? list : undefined;
 }
+/**
+ * A trimmed scalar, or absence. Frontmatter is hand-written, so a value that
+ * should be a string may arrive as a number or a bare word; a blank one is
+ * absence, not an empty string.
+ */
+function text(value) {
+    if (value === null || value === undefined || typeof value === 'object')
+        return undefined;
+    const str = String(value).trim();
+    return str ? str : undefined;
+}
+/**
+ * A tag list, however it was written. YAML gives `[main-cast, food]` as a
+ * sequence, but authors also type `tags: main-cast, food` on one line.
+ */
+function tagList(value) {
+    let raw;
+    if (Array.isArray(value))
+        raw = value;
+    else if (typeof value === 'string')
+        raw = value.split(',');
+    else if (value === null || value === undefined)
+        raw = [];
+    else
+        raw = [value];
+    const tags = [];
+    for (const item of raw) {
+        const tag = text(item);
+        if (tag && !tags.includes(tag))
+            tags.push(tag);
+    }
+    return present(tags);
+}
 function getOverviewOneline(content) {
     const lines = content.split(/\r?\n/);
     for (let i = 0; i < lines.length; i++) {
@@ -57,16 +90,32 @@ function getOverviewOneline(content) {
     return undefined;
 }
 /**
- * Reads the publishable surface of a character's codex file: the handle it
- * claims in frontmatter, and the one-line summary under its Overview heading.
+ * Reads the publishable surface of a character's codex file: the frontmatter a
+ * reader surface renders from, plus the one-line summary under its Overview
+ * heading.
  */
 function readCharacterFile(filePath, engine) {
     if (!filePath || !fs.existsSync(filePath))
         return {};
     const content = fs.readFileSync(filePath, 'utf-8');
     const { data } = engine.parseFrontmatter(content);
-    const handle = data && data.handle ? String(data.handle).replace(/^@/, '') : undefined;
-    return { handle, oneLine: getOverviewOneline(content) };
+    const handleRaw = text(data?.handle);
+    return {
+        handle: handleRaw ? handleRaw.replace(/^@/, '') : undefined,
+        oneLine: getOverviewOneline(content),
+        description: text(data?.description),
+        tags: tagList(data?.tags),
+        status: text(data?.status),
+    };
+}
+/**
+ * The kind of place a location file describes, from its body (`**Type:** Bar`).
+ * Frontmatter `type:` is the knowledge-graph document type — always
+ * `Location` — so what the place actually *is* lives in the body line.
+ */
+function getPlaceKind(content) {
+    const match = content.match(/^\s*\*\*Type:\*\*\s*(.+)$/im);
+    return match ? text(match[1]) : undefined;
 }
 /** Frontmatter is hand-written, so a sequence may arrive as `2` or as `"2"`. */
 function asInteger(value) {
@@ -155,6 +204,7 @@ export function compileProject(projectRoot, config, registry, engine) {
                 part: ch.frontmatter.part !== undefined ? ch.frontmatter.part : undefined,
                 sequence: asInteger(ch.frontmatter[config.project.sequenceField]),
                 beat: ch.frontmatter.beat || undefined,
+                tags: tagList(ch.frontmatter.tags),
                 placeRefs: present(placeRefs),
                 placeText: present(placeText),
                 pov: ch.pov ? registry.resolve(ch.pov, 'character')?.id : undefined,
@@ -213,6 +263,9 @@ export function compileProject(projectRoot, config, registry, engine) {
                     $type: `${NS}.place`,
                     id: data.id,
                     name: data.title || '',
+                    kind: getPlaceKind(content),
+                    description: text(data.description),
+                    tags: tagList(data.tags),
                     status: data.status || 'active',
                     region: data.region || data.neighborhood || undefined,
                     firstAppearance: data.first_appearance || undefined,
@@ -226,14 +279,19 @@ export function compileProject(projectRoot, config, registry, engine) {
     for (const ent of registry.allEntities) {
         if (ent.type === 'character' && ent.status === 'active') {
             const srcFile = ent.sourceFile ? path.resolve(projectRoot, ent.sourceFile) : '';
-            const { handle, oneLine } = readCharacterFile(srcFile, engine);
+            const codex = readCharacterFile(srcFile, engine);
             allProfiles.push(compact({
                 $type: `${NS}.character.profile`,
                 id: `profile.${ent.id.split('.', 2)[1]}`,
                 subject: ent.id,
                 displayName: ent.displayName,
-                handle,
-                oneLine,
+                handle: codex.handle,
+                description: codex.description,
+                oneLine: codex.oneLine,
+                tags: codex.tags,
+                // The codex file is the finer-grained statement of where a character
+                // stands; the registry entry is the fallback for one without a file.
+                status: codex.status ?? text(ent.status),
                 sourceFile: ent.sourceFile || '',
             }));
         }
