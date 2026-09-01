@@ -1,6 +1,6 @@
 {
   "name": "@bbthorson/pinakes",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Fictional continuity linter and AT Protocol record compiler",
   "main": "dist/cli.js",
   "bin": {
