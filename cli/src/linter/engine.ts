@@ -12,6 +12,19 @@ export interface Diagnostic {
   message: string;
 }
 
+/**
+ * One hand-off recorded in a chapter's `custody:` block. Names are as the
+ * author typed them; the compiler resolves them against the registry.
+ */
+export interface CustodyEntry {
+  item: string;
+  holder: string;
+  /** Previous holder. Absent when the item enters the story here. */
+  from?: string;
+  /** One-line description of the hand-off. */
+  event?: string;
+}
+
 export interface ChapterData {
   filePath: string;
   relativeFilePath: string;
@@ -25,6 +38,7 @@ export interface ChapterData {
   charactersReferenced: string[];
   pov: string | null;
   registers: Record<string, string>;
+  custody: CustodyEntry[];
   beatPurpose: string | null;
 }
 
@@ -122,6 +136,25 @@ export class LinterEngine {
         }
       }
 
+      // Custody hand-offs. A list rather than a map (unlike `registers:`)
+      // because one chapter can pass the same item twice, and each entry
+      // carries a previous holder and a description of its own.
+      const custody: CustodyEntry[] = [];
+      if (Array.isArray(data.custody)) {
+        for (const raw of data.custody) {
+          if (!raw || typeof raw !== 'object') continue;
+          const itemName = raw.item !== undefined ? String(raw.item) : '';
+          const holderName = raw.holder !== undefined ? String(raw.holder) : '';
+          if (!itemName || !holderName) continue;
+          custody.push({
+            item: itemName,
+            holder: holderName,
+            from: raw.from !== undefined && raw.from !== null ? String(raw.from) : undefined,
+            event: raw.event !== undefined && raw.event !== null ? String(raw.event) : undefined,
+          });
+        }
+      }
+
       chapters.push({
         filePath,
         relativeFilePath,
@@ -135,6 +168,7 @@ export class LinterEngine {
         charactersReferenced,
         pov: data.pov ? String(data.pov) : null,
         registers,
+        custody,
         beatPurpose: data.beat_purpose || null,
       });
     }
@@ -188,6 +222,16 @@ export class LinterEngine {
           // Registers check
           for (const char of Object.keys(ch.registers)) {
             this.checkEntity(char, 'character', ch, 'registers keys', severity, diagnostics);
+          }
+
+          // Custody check — an unregistered item or holder would otherwise be
+          // dropped silently by the compiler, losing the hand-off.
+          for (const entry of ch.custody) {
+            this.checkEntity(entry.item, 'item', ch, 'custody item', severity, diagnostics);
+            this.checkEntity(entry.holder, 'character', ch, 'custody holder', severity, diagnostics);
+            if (entry.from) {
+              this.checkEntity(entry.from, 'character', ch, 'custody from', severity, diagnostics);
+            }
           }
         }
       }
@@ -298,7 +342,7 @@ export class LinterEngine {
 
   private checkEntity(
     name: string,
-    type: 'character' | 'place',
+    type: 'character' | 'place' | 'item',
     ch: ChapterData,
     field: string,
     severity: 'error' | 'warning',

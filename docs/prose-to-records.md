@@ -37,11 +37,8 @@ a one-line change followed by a recompile.
 `sequenceField` names the grouping between book and chapter in *your*
 vocabulary. Records always carry it as `sequence`.
 
-**Set every `paths` key explicitly.** The defaults in `cli/src/config.ts` still
-describe the pre-migration layout (`protocol/entities/entities.yaml`,
-`canon library/locations`, `protocol/records`) rather than the `codex/` and
-`records/` layout the README documents, so omitting a key gets you a path that
-no current project uses.
+The `paths` defaults match the layout above, so a project using the standard
+layout can omit any key it does not move.
 
 ## The chapter frontmatter contract
 
@@ -102,8 +99,44 @@ beat_purpose: "The empty Saturday stall plus the Paolo precedent turn one disapp
 | `characters_present` | `scene.participants` | Resolved; this is what co-presence reasons over |
 | `characters_referenced` | `scene.referenced` | Resolved; mentioned, not present |
 | `registers` | one `character.stateEvent` each | The map's keys are character names |
+| `custody` | one `custodyEvent` each | A list; see below |
 | `beat_purpose` | `scene.primaryEvent` | |
 | `tags` | `scene.tags` | Accepts `[a, b]` or a hand-typed `a, b` |
+
+### Recording a hand-off
+
+`custody:` is a list rather than a map, because one chapter can pass the same
+object twice and each entry carries its own previous holder and description:
+
+```yaml
+custody:
+  - item: "the bottle"
+    holder: "Jasper"
+    from: "Emma"
+    event: "Jasper palms the bottle from Emma's counter on his way out, and packs it for the PA journey."
+```
+
+`item`, `holder`, and `from` are resolved against the registry like every other
+name, so `"the bottle"` resolves through the aliases on `item.heritage-bottle`.
+`from` is optional — omit it when the object enters the story here, or when the
+prior holder is deliberately unnamed. `event` is your own one-line description
+and is carried through verbatim.
+
+An entry whose `item` or `holder` does not resolve is reported by `lint` as an
+`unresolved-entities` error and is dropped by `compile` rather than becoming a
+record pointing at nothing.
+
+Items themselves are not declared in frontmatter. They live in the registry's
+`items:` group alongside characters and places:
+
+```yaml
+items:
+  - id: item.heritage-bottle
+    type: item
+    displayName: Heritage Hot Sauce Bottle
+    aliases: ["the bottle", "heritage bottle", "Jasper's bottle"]
+    status: active
+```
 
 ### What the compiler ignores
 
@@ -243,12 +276,16 @@ PINAKES COMPILATION — repo -> records
 ====================================================================
     25 records -> records/book1/scenes.json
     97 records -> records/book1/character_state_events.json
+     3 records -> records/book1/custody_events.json
     14 records -> records/series/places.json
     13 records -> records/series/character_profiles.json
+     1 records -> records/series/items.json
        lexicon -> records/lexicons/site.supperclub.scene.json
        lexicon -> records/lexicons/site.supperclub.character.stateEvent.json
        lexicon -> records/lexicons/site.supperclub.character.profile.json
        lexicon -> records/lexicons/site.supperclub.place.json
+       lexicon -> records/lexicons/site.supperclub.item.json
+       lexicon -> records/lexicons/site.supperclub.custodyEvent.json
 
 OK — compilation complete, all records match their Lexicons.
 ```

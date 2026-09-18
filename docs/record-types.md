@@ -1,13 +1,13 @@
 # Record types
 
-`pinakes compile` emits four record types and writes a Lexicon document for each
+`pinakes compile` emits six record types and writes a Lexicon document for each
 one. This guide covers what they are, why the set is shaped this way, and where
 identity fits.
 
 Examples are from [Supper Club Secrets](https://github.com/bbthorson/supper_club_secrets),
 whose `project.nsid` is `site.supperclub`.
 
-## The four types
+## The six types
 
 | Record type | Grain | Emitted to | Book 1 count |
 | --- | --- | --- | --- |
@@ -15,8 +15,10 @@ whose `project.nsid` is `site.supperclub`.
 | `<nsid>.character.stateEvent` | One per character per chapter they appear in | `records/<book>/character_state_events.json` | 97 |
 | `<nsid>.scene` | One per chapter | `records/<book>/scenes.json` | 25 |
 | `<nsid>.place` | One per location | `records/series/places.json` | 14 |
+| `<nsid>.item` | One per tracked object | `records/series/items.json` | 1 |
+| `<nsid>.custodyEvent` | One per hand-off | `records/<book>/custody_events.json` | 3 |
 
-Two are series-wide and two are per-book. That split is not cosmetic: a
+Three are series-wide and three are per-book. That split is not cosmetic: a
 character's identity and a location's description are properties of the
 universe, while what happened and how someone felt are properties of a
 particular story inside it. Book 2 will add
@@ -32,8 +34,12 @@ cast and the standing set. They change slowly, between books rather than between
 chapters, and they are what a reader-facing surface renders a character page or
 a location page from.
 
-**What and how are events.** `scene` and `character.stateEvent` are dated,
-append-only, and ordered by story time. They are the stream.
+**What and how are events.** `scene`, `character.stateEvent`, and
+`custodyEvent` are dated, append-only, and ordered by story time. They are the
+stream.
+
+The same split runs through objects: `item` is the standing prop, `custodyEvent`
+is where it went.
 
 The reason there is a separate `stateEvent` type at all — rather than a
 `currentRegister` field on the profile — is the whole modelling argument. In
@@ -203,7 +209,9 @@ records/lexicons/
 ├── site.supperclub.scene.json
 ├── site.supperclub.character.stateEvent.json
 ├── site.supperclub.character.profile.json
-└── site.supperclub.place.json
+├── site.supperclub.place.json
+├── site.supperclub.item.json
+└── site.supperclub.custodyEvent.json
 ```
 
 These are ordinary AT Protocol Lexicon JSON documents. They are generated rather
@@ -269,53 +277,75 @@ reversible, and testable; DIDs require a purchased domain, real accounts, and
 DNS. Supper Club Secrets is working through exactly that sequence in its own
 `protocol/SERIALIZED_PUBLISHING.md`.
 
-## The two record types that do not exist yet
+## `item` and `custodyEvent`
 
-The root README lists **item custody** among the dimensions Pinakes checks, and
-Supper Club Secrets has both files committed:
+Tracked objects work the same way characters do: a standing record from the
+registry, and a dated stream of what happened to it.
+
+### `item`
+
+One record per registry entry with `type: item` and `status: active` — the same
+registry-driven loop that produces character profiles.
+
+```json
+{
+  "$type": "site.supperclub.item",
+  "id": "item.heritage-bottle",
+  "displayName": "Heritage Hot Sauce Bottle",
+  "status": "active",
+  "firstAppearance": "book1#ch1"
+}
+```
+
+An item usually has no codex file of its own — a registry entry is the whole of
+it — so `description`, `tags`, and `sourceFile` are all optional and simply
+absent for an item without one. `firstAppearance` is **derived**: it is the
+chapter of the earliest custody event recorded for the item, across every book,
+so it is absent for an item whose custody nothing has recorded yet.
+
+### `custodyEvent`
+
+One record per hand-off, projected from a chapter's `custody:` block.
 
 ```json
 {
   "$type": "site.supperclub.custodyEvent",
-  "id": "custodyEvent.heritage-bottle.ch1",
+  "id": "custodyEvent.heritage-bottle.book1.ch17",
   "item": "item.heritage-bottle",
-  "storyDate": "2026-10-04",
-  "holder": "char.emma",
-  "fromHolder": null,
-  "chapterRef": "book.1#ch1",
-  "event": "Dorothy gives Emma the bottle 'just in case'.",
-  "createdAt": "2026-10-04"
+  "storyDate": "2026-10-14",
+  "storyDateEnd": "2026-10-16",
+  "holder": "char.jasper",
+  "fromHolder": "char.emma",
+  "event": "Jasper palms the bottle from Emma's counter on his way out, and packs it for the PA journey.",
+  "chapterRef": "book1#ch17",
+  "sceneRef": "scene.book1.ch17",
+  "createdAt": "2026-10-14T00:00:00.000Z",
+  "sourceFile": "stories/01. The Case of the Missing Hot Sauce/chapters/m3_17_sharpening_the_knives.md"
 }
 ```
 
-No Pinakes command produces this. `records/book1/items.json` and
-`records/book1/custody_events.json` were written by the repository's own
-pre-Pinakes extraction scripts and were left in place by the migration. Four
-consequences follow, and they are a good illustration of what the pipeline buys
-you by contrast:
+`holder` is who has it *after* the event; `fromHolder` is who had it before, and
+is **omitted** — never null — when the item enters the story here or when the
+prior holder is deliberately unnamed. Records are sorted by item, then story
+date, then chapter, so the file reads as one object's journey at a time.
 
-1. **No Lexicon exists** for `site.supperclub.item` or
-   `site.supperclub.custodyEvent`, so `records/lexicons/` has four files, not
-   six, and nothing validates these records.
-2. **They would fail validation if it ran.** `"fromHolder": null` violates the
-   no-null rule, and `"createdAt": "2026-10-04"` is a date where the `datetime`
-   format requires an RFC3339 timestamp.
-3. **`chapterRef` uses a different convention** — `book.1#ch1` here versus
-   `book1#ch1` in every compiled record.
-4. **The drift gate cannot catch any of it.** `compile` never writes those
-   paths, so `git diff --exit-code -- records/` sees no change and passes. The
-   files are invisible to the check that exists precisely to catch stale
-   records.
+`sceneRef` ties each hand-off to the scene it happened in, which is what lets a
+reader-facing surface put a clue's movement on the same timeline as everything
+else.
 
-Meanwhile the reader-facing site imports `custody_events.json` at build time.
-So these are not dead files — they are live, unvalidated, hand-maintained inputs
-sitting inside a directory whose entire premise is that it is disposable build
-output.
+### Why custody is worth modelling separately
 
-Adding `item` and `custodyEvent` to `buildLexiconDocs()` and to the compiler is
-the obvious next piece of work. The tracking data they would be projected from
-(`stories/*/tracking/subplot_threads.md`) is already structured and already
-committed.
+For a mystery, custody *is* the plot. Book 1's single tracked object — the
+bottle Dorothy presses on Emma in chapter 1 — moves three times, and each move
+is a beat: it is given, it is taken without asking, it is returned with an
+apology. Three records carry an arc that no amount of prose parsing would
+reliably recover.
+
+It is also the clearest case for deriving records rather than writing them. The
+same three hand-offs were once maintained by hand in this file, and the
+hand-written version had chapter 17 on 2026-10-15; the chapter itself spans
+2026-10-14 to 2026-10-16. The compiler takes the dates from the chapter, so the
+record cannot disagree with the prose it describes.
 
 ## Where to go next
 
