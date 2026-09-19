@@ -63,7 +63,7 @@ const tags = (description: string): LexProp => ({
 const RECORD_KEY = 'any';
 
 export function buildLexiconDocs(nsid: string): LexiconDoc[] {
-  return [scene(nsid), stateEvent(nsid), profile(nsid), place(nsid)];
+  return [scene(nsid), stateEvent(nsid), profile(nsid), place(nsid), post(nsid)];
 }
 
 function scene(ns: string): LexiconDoc {
@@ -247,6 +247,79 @@ function profile(ns: string): LexiconDoc {
               maxLength: 64,
             },
             sourceFile: { type: 'string', description: 'Repository-relative codex path.', maxLength: 1024 },
+          },
+        },
+      },
+    },
+  };
+}
+
+/**
+ * The one record type authored rather than extracted.
+ *
+ * Every other type is projected out of finished prose, so it cannot contradict
+ * the story. A post is new in-world content written *as* the character, which
+ * makes it canon-bearing and puts it under the same review the prose gets. It
+ * is emitted from `posts/` files beside a story's `chapters/`, one file per
+ * post, so each one is reviewable and diffable on its own.
+ *
+ * Two fields are gates rather than metadata, and they answer different
+ * questions. `publishDate` decides whether a post exists yet — absent means
+ * released, matching the chapter rule. `chapterRef` decides whether a given
+ * reader has earned it, resolved against whatever reading-position the
+ * consuming surface keeps. During a live serialized run the two coincide. They
+ * diverge the moment the run ends and a new reader starts at chapter one, which
+ * is why `chapterRef` is required: a post with no reveal gate is a post that
+ * cannot be shown safely to a reader who arrived late.
+ */
+function post(ns: string): LexiconDoc {
+  return {
+    lexicon: 1,
+    id: `${ns}.character.post`,
+    description: 'A short in-world post authored as a character, anchored to a point in story time.',
+    defs: {
+      main: {
+        type: 'record',
+        key: RECORD_KEY,
+        description: 'A character post record.',
+        record: {
+          type: 'object',
+          required: ['id', 'author', 'text', 'storyDate', 'chapterRef', 'createdAt', 'sourceFile'],
+          properties: {
+            id: localId('Stable post id, e.g. `post.book1.ch12.emma.1`.'),
+            author: localId('Registry id of the character speaking.'),
+            text: {
+              type: 'string',
+              description: "The post body, in the character's own voice.",
+              maxLength: 3000,
+            },
+            storyDate: { type: 'string', description: 'In-story date, `YYYY-MM-DD`.', maxLength: 10 },
+            storyTime: {
+              type: 'string',
+              description: 'Informal in-story time of day from the source frontmatter, e.g. `late evening`.',
+              maxLength: 128,
+            },
+            chapterRef: {
+              type: 'string',
+              description:
+                'Reveal gate: the chapter a reader must have reached before this post is safe to show, e.g. `book1#ch12`.',
+              maxLength: 256,
+            },
+            publishDate: {
+              type: 'string',
+              description: 'Release gate: real-world date the post becomes servable. Absent means released.',
+              maxLength: 10,
+            },
+            inReplyTo: localId('Post id this one answers, so a thread reads as a thread.'),
+            mentions: {
+              type: 'array',
+              description: 'Registry ids of characters named in the post.',
+              items: localId('A character id.'),
+            },
+            placeRef: localId('Place id the post is pinned to, so it also surfaces on that location.'),
+            tags: tags('Labels carried through from the source frontmatter.'),
+            createdAt: { type: 'string', description: 'Story time as an RFC3339 datetime.', format: 'datetime' },
+            sourceFile: { type: 'string', description: 'Repository-relative post path.', maxLength: 1024 },
           },
         },
       },

@@ -10,7 +10,7 @@ leaves alone.
 
 | Guide | What it covers |
 | --- | --- |
-| [Record types](record-types.md) | The four record types `compile` emits, the Lexicon documents it generates for them, and how identity works |
+| [Record types](record-types.md) | The five record types `compile` emits, the Lexicon documents it generates for them, and how identity works |
 | [Prose to records](prose-to-records.md) | The frontmatter contract, the resolution rules, and what never leaves the repo |
 | [Continuity and drift](continuity-and-drift.md) | The lint rules, Lexicon validation, the CI drift gate, and the judgment passes that stay outside CI |
 
@@ -29,9 +29,9 @@ compiles to 149 records:
    13 records -> records/series/character_profiles.json
 ```
 
-Its NSID root is `site.supperclub`, so its scene records are
-`site.supperclub.scene` and its Lexicon documents land in
-`records/lexicons/site.supperclub.*.json`.
+Its NSID root is `com.supperclubsecrets`, so its scene records are
+`com.supperclubsecrets.scene` and its Lexicon documents land in
+`records/lexicons/com.supperclubsecrets.*.json`.
 
 Where these guides describe something the code does not do yet, they say so
 rather than describing the intent. The [known gaps](#known-gaps) section below

@@ -5,6 +5,58 @@ import { Registry } from '../registry/entities.js';
 import { ChapterData, Diagnostic, LinterEngine } from '../linter/engine.js';
 import { buildLexiconDocs, compileLexiconDocs, validateRecords, writeLexiconDocs } from '../lexicons/index.js';
 
+interface PostSource {
+  relativeFilePath: string;
+  frontmatter: any;
+  body: string;
+}
+
+/**
+ * Splits a source file into its frontmatter block and everything after it.
+ * `parseFrontmatter` hands back the YAML but not the prose, and a post's prose
+ * *is* the record's payload, so the body is recovered here rather than by
+ * re-deriving line offsets at each call site.
+ */
+function splitBody(content: string): string {
+  const lines = content.split(/\r?\n/);
+  if (lines[0]?.trim() !== '---') return content.trim();
+  for (let i = 1; i < lines.length; i++) {
+    if (lines[i].trim() === '---') return lines.slice(i + 1).join('\n').trim();
+  }
+  return content.trim();
+}
+
+/**
+ * Posts live in `posts/` beside a story's `chapters/`, one file per post:
+ * frontmatter carries the anchors, the body is the text the character said.
+ *
+ * One file per post rather than one per character. Each post is dated, gated
+ * and reviewed on its own, and a file holding twenty of them hides which one a
+ * diff touched — the same reason chapters are not one file per book.
+ *
+ * Files are read in filename order, which is the order sequence numbers are
+ * assigned in, so ids stay stable across recompiles. `00_`-prefixed files are
+ * templates and guides, matching the convention the rest of the tree uses.
+ */
+function loadPosts(projectRoot: string, storyDir: string, engine: LinterEngine): PostSource[] {
+  const dir = path.join(storyDir, 'posts');
+  if (!fs.existsSync(dir)) return [];
+  return fs
+    .readdirSync(dir)
+    .filter((f) => f.endsWith('.md') && !f.startsWith('00_'))
+    .sort()
+    .map((fileName) => {
+      const filePath = path.join(dir, fileName);
+      const content = fs.readFileSync(filePath, 'utf-8');
+      const { data } = engine.parseFrontmatter(content);
+      return {
+        relativeFilePath: path.relative(projectRoot, filePath),
+        frontmatter: data || {},
+        body: splitBody(content),
+      };
+    });
+}
+
 function getBookKey(storyDir: string): string {
   const base = path.basename(storyDir);
   const m = base.match(/^0*(\d+)/);
@@ -288,6 +340,86 @@ export function compileProject(
       if (a.storyDate !== b.storyDate) return a.storyDate.localeCompare(b.storyDate);
       return a.chapterRef.localeCompare(b.chapterRef);
     });
+
+    // Posts: authored, not extracted. Emitted only when a story actually has a
+    // `posts/` directory, so a universe that never writes any gets no empty
+    // artifact to commit.
+    const postSources = loadPosts(projectRoot, storyDir, engine);
+    if (postSources.length > 0) {
+      const posts: any[] = [];
+      // Sequence within (chapter, author), so a second Emma post in chapter 12
+      // is `.2`. Keyed rather than global so adding a post for one character
+      // never renumbers another's.
+      const seq = new Map<string, number>();
+
+      for (const src of postSources) {
+        const fm = src.frontmatter;
+        const authorName = text(fm.author);
+        const resolvedAuthor = authorName ? registry.resolve(authorName, 'character') : undefined;
+        if (!resolvedAuthor) {
+          diagnostics.push({
+            file: src.relativeFilePath,
+            rule: 'post-author',
+            severity: 'error',
+            message: authorName
+              ? `Post author '${authorName}' does not resolve to a registry character.`
+              : 'Post is missing an `author` in frontmatter.',
+          });
+          continue;
+        }
+
+        const storyDate = text(fm.date) ?? '';
+        const chapterNum = asInteger(fm.chapter);
+        const chRef = chapterNum !== undefined ? `${book}#ch${chapterNum}` : undefined;
+        const slug = resolvedAuthor.id.split('.', 2)[1];
+        const key = `${chapterNum ?? 'x'}.${slug}`;
+        const n = (seq.get(key) ?? 0) + 1;
+        seq.set(key, n);
+
+        // `location` is a list on chapters and a scalar here — a post happens in
+        // one place — but accept either so the frontmatter reads the same way.
+        const locRaw = Array.isArray(fm.location) ? fm.location[0] : fm.location;
+        const locName = text(locRaw);
+        const placeRef = locName ? registry.resolve(locName, 'place')?.id : undefined;
+
+        const mentionNames = Array.isArray(fm.mentions)
+          ? fm.mentions
+          : typeof fm.mentions === 'string'
+            ? fm.mentions.split(',')
+            : [];
+        const mentions: string[] = [];
+        for (const raw of mentionNames) {
+          const name = text(raw);
+          const hit = name ? registry.resolve(name, 'character') : undefined;
+          if (hit && !mentions.includes(hit.id)) mentions.push(hit.id);
+        }
+
+        posts.push(
+          compact({
+            $type: `${NS}.character.post`,
+            id: `post.${book}.ch${chapterNum ?? 0}.${slug}.${n}`,
+            author: resolvedAuthor.id,
+            text: src.body || undefined,
+            storyDate,
+            storyTime: text(fm.time),
+            chapterRef: chRef,
+            publishDate: text(fm.publish),
+            inReplyTo: text(fm.reply_to),
+            mentions: present(mentions),
+            placeRef,
+            tags: tagList(fm.tags),
+            createdAt: storyDateToDatetime(storyDate),
+            sourceFile: src.relativeFilePath,
+          })
+        );
+      }
+
+      posts.sort((a, b) => {
+        if (a.storyDate !== b.storyDate) return a.storyDate.localeCompare(b.storyDate);
+        return a.id.localeCompare(b.id);
+      });
+      writeRecords(path.join(outputDir, book, 'character_posts.json'), posts);
+    }
 
     const bookDir = path.join(outputDir, book);
     writeRecords(path.join(bookDir, 'scenes.json'), scenes);
