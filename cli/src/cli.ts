@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 
+import { createRequire } from 'module';
 import { fileURLToPath } from 'url';
 import { Command } from 'commander';
 import path from 'path';
@@ -10,12 +11,20 @@ import { LinterEngine, Diagnostic } from './linter/engine.js';
 import { YamlRulesLoader } from './linter/yaml-loader.js';
 import { compileProject } from './compiler/atproto.js';
 
+/**
+ * The version comes from package.json rather than a literal here. A
+ * hand-maintained copy drifts: `--version` reported 0.2.0 against a 0.2.1
+ * package because a release bumped one and not the other. `../package.json`
+ * resolves to cli/package.json from both `dist/cli.js` and `src/cli.ts`.
+ */
+const { version } = createRequire(import.meta.url)('../package.json');
+
 const program = new Command();
 
 program
   .name('pinakes')
   .description('Fictional continuity linter and AT Protocol record compiler')
-  .version('0.2.0');
+  .version(version);
 
 program
   .command('lint')

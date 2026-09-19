@@ -104,15 +104,37 @@ is narrower: it only supports `field: register`, and it tests the base register
 with any transition arrow stripped, so `private → under-pressure` is checked as
 `private`.
 
-That example is a good fit for character-driven work, because a fixed register
-vocabulary is exactly the kind of convention that erodes silently across six
-books. Supper Club Secrets defines precisely such a three-register framework in
-its voice guide.
+That example looks like a good fit for character-driven work, because a fixed
+register vocabulary is exactly the kind of convention that erodes silently
+across six books. Supper Club Secrets defines precisely such a three-register
+framework in its voice guide.
 
-It does not currently enforce it. `paths.rules` is unset in its `pinakes.yaml`,
-`pinakes init` scaffolds no `rules/` directory, and there is no `rules/` folder
-in either repository. The feature works; nothing leads an author to it. If you
-are setting up a new universe, this is the cheapest continuity win available.
+**As written, it does not work.** Run that exact rule against Book 1 and it
+reports 86 failures out of 99 register annotations, every one of them a false
+positive, while the three genuinely off-vocabulary values pass clean. Two
+separate limits cause that:
+
+- **The parenthetical is never stripped.** The compiler's `splitRegister` strips
+  `(...)` before recording a register; the linter's `stateEvent` path only
+  splits on the arrow. So `private (sentiment flipping in real time)` is tested
+  in full against `^(public|private|under-pressure)$` and fails.
+- **Only the term left of the arrow is checked.** `private → briefly animated`
+  passes, because the check never looks at `briefly animated`.
+
+There is also a configuration trap. `paths.rules` is a **glob, not a
+directory**. Setting `rules: "rules"` matches the directory itself, throws
+`EISDIR` internally, prints a warning, loads zero rules — and then reports:
+
+```
+OK — all checks passed cleanly.
+```
+
+You would reasonably believe the rule was enforcing. It needs `rules/*.yaml`.
+
+So custom rules are usable today for `selector: chapter` checks on frontmatter
+fields, which is where the feature is sound. Treat `selector: stateEvent` as
+unfinished until the linter strips parentheticals and walks the whole
+transition.
 
 ## Drift: records that no longer match the prose
 
@@ -180,12 +202,18 @@ compiled output and fail the gate on a pull request that touched nothing.
 Upgrading is a deliberate act: bump the variable, recompile locally, commit the
 regenerated records in the same pull request.
 
-**The gate only sees paths `compile` writes.** Files sitting in `records/` that
-no Pinakes command produces are invisible to it — they never change, so they
-never diff. Supper Club Secrets' `records/book1/items.json` and
-`custody_events.json` are exactly this: hand-maintained, unvalidated, consumed
-by the site at build time, and passing a check designed to catch stale records.
-See [record-types.md](record-types.md#the-two-record-types-that-do-not-exist-yet).
+**The gate only sees paths `compile` writes.** A file sitting in `records/`
+that no Pinakes command produces is invisible to it — it never changes, so it
+never diffs, and it sails through a check whose entire purpose is catching stale
+records.
+
+This is not hypothetical. Supper Club Secrets carried hand-written
+`records/book1/items.json` and `custody_events.json` for months in exactly that
+state: unvalidated, schema-less, consumed by the site at build time, and green
+on every run. Both are compiled records now, but the lesson generalises — if you
+hand-write anything into `records/`, the gate is not protecting it. The check to
+add, if you want one, is for files under `records/` that a fresh `compile` into
+an empty directory does not produce.
 
 ## The passes that stay out of CI
 

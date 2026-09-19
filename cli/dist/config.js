@@ -16,12 +16,17 @@ export const ConfigSchema = z.object({
         sequenceField: z.string().default('sequence'),
     }),
     paths: z.object({
-        registry: z.string().default('protocol/entities/entities.yaml'),
-        nonEntities: z.string().default('protocol/entities/non_entities.yaml'),
+        registry: z.string().default('codex/entities.yaml'),
+        nonEntities: z.string().default('codex/non_entities.yaml'),
         stories: z.string().default('stories'),
-        locations: z.string().default('canon library/locations'),
-        characters: z.string().default('canon library/characters'),
-        output: z.string().default('protocol/records'),
+        locations: z.string().default('codex/locations'),
+        characters: z.string().default('codex/characters'),
+        output: z.string().default('records'),
+        /**
+         * Glob matching the custom rule files, e.g. `rules/*.yaml`. This is a
+         * glob, not a directory: a bare `rules` matches the directory itself and
+         * loads nothing.
+         */
         rules: z.string().optional(),
     }),
     rules: z.record(z.union([z.literal('error'), z.literal('warning'), z.literal('off')])).default({

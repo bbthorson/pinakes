@@ -82,6 +82,26 @@ export class LinterEngine {
                     registers[k] = String(v);
                 }
             }
+            // Custody hand-offs. A list rather than a map (unlike `registers:`)
+            // because one chapter can pass the same item twice, and each entry
+            // carries a previous holder and a description of its own.
+            const custody = [];
+            if (Array.isArray(data.custody)) {
+                for (const raw of data.custody) {
+                    if (!raw || typeof raw !== 'object')
+                        continue;
+                    const itemName = raw.item !== undefined ? String(raw.item) : '';
+                    const holderName = raw.holder !== undefined ? String(raw.holder) : '';
+                    if (!itemName || !holderName)
+                        continue;
+                    custody.push({
+                        item: itemName,
+                        holder: holderName,
+                        from: raw.from !== undefined && raw.from !== null ? String(raw.from) : undefined,
+                        event: raw.event !== undefined && raw.event !== null ? String(raw.event) : undefined,
+                    });
+                }
+            }
             chapters.push({
                 filePath,
                 relativeFilePath,
@@ -95,6 +115,7 @@ export class LinterEngine {
                 charactersReferenced,
                 pov: data.pov ? String(data.pov) : null,
                 registers,
+                custody,
                 beatPurpose: data.beat_purpose || null,
             });
         }
@@ -141,6 +162,15 @@ export class LinterEngine {
                     for (const char of Object.keys(ch.registers)) {
                         this.checkEntity(char, 'character', ch, 'registers keys', severity, diagnostics);
                     }
+                    // Custody check — an unregistered item or holder would otherwise be
+                    // dropped silently by the compiler, losing the hand-off.
+                    for (const entry of ch.custody) {
+                        this.checkEntity(entry.item, 'item', ch, 'custody item', severity, diagnostics);
+                        this.checkEntity(entry.holder, 'character', ch, 'custody holder', severity, diagnostics);
+                        if (entry.from) {
+                            this.checkEntity(entry.from, 'character', ch, 'custody from', severity, diagnostics);
+                        }
+                    }
                 }
             }
             // 2. Built-in: Sequential dates check
@@ -180,10 +210,23 @@ export class LinterEngine {
             // 3. Built-in: Co-presence conflicts check (same character in different locations on same date range)
             if (this.config.rules['co-presence-conflict'] !== 'off') {
                 const severity = this.config.rules['co-presence-conflict'];
-                // Match characters present in each chapter against other chapters occurring on overlapping dates
+                // Match characters present in each chapter against other chapters occurring on overlapping dates.
+                // Chapters are compared by their RESOLVED place ids: a chapter whose location entries
+                // resolve to no registry place (a distributed montage, transit, or unlocated chapter)
+                // pins its characters to no particular place, so it cannot co-presence-conflict (#12).
+                // Resolving also makes alias spellings of the same place compare equal.
+                const resolvedPlaceIds = (fmLocation) => {
+                    const locs = fmLocation ? (Array.isArray(fmLocation) ? fmLocation : [fmLocation]) : [];
+                    return locs
+                        .map((l) => this.registry.resolve(String(l), 'place')?.id)
+                        .filter((id) => Boolean(id));
+                };
                 for (let i = 0; i < chapters.length; i++) {
                     const chA = chapters[i];
                     if (chA.dates.length === 0)
+                        continue;
+                    const placeIdsA = resolvedPlaceIds(chA.frontmatter.location);
+                    if (placeIdsA.length === 0)
                         continue;
                     const startA = chA.dates[0];
                     const endA = chA.dates[chA.dates.length - 1];
@@ -196,14 +239,10 @@ export class LinterEngine {
                         // Overlap check
                         const overlaps = (startA <= endB) && (startB <= endA);
                         if (overlaps) {
-                            // If locations are different
-                            const locsA = chA.frontmatter.location ? (Array.isArray(chA.frontmatter.location) ? chA.frontmatter.location : [chA.frontmatter.location]) : [];
-                            const locsB = chB.frontmatter.location ? (Array.isArray(chB.frontmatter.location) ? chB.frontmatter.location : [chB.frontmatter.location]) : [];
-                            const normalizedLocsA = locsA.map((l) => this.registry.normalize(l));
-                            const normalizedLocsB = locsB.map((l) => this.registry.normalize(l));
-                            // Only trigger if location references are entirely distinct
-                            const hasSharedLocation = normalizedLocsA.some((l) => normalizedLocsB.includes(l));
-                            if (!hasSharedLocation && normalizedLocsA.length > 0 && normalizedLocsB.length > 0) {
+                            const placeIdsB = resolvedPlaceIds(chB.frontmatter.location);
+                            // Only trigger if both chapters resolve to places and share none of them
+                            const hasSharedLocation = placeIdsA.some((id) => placeIdsB.includes(id));
+                            if (!hasSharedLocation && placeIdsB.length > 0) {
                                 // Resolve character IDs for both
                                 const idsA = chA.charactersPresent.map(c => this.registry.resolve(c, 'character')?.id).filter(Boolean);
                                 const idsB = chB.charactersPresent.map(c => this.registry.resolve(c, 'character')?.id).filter(Boolean);
