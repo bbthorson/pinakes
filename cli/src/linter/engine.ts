@@ -40,6 +40,13 @@ export interface ChapterData {
   registers: Record<string, string>;
   custody: CustodyEntry[];
   beatPurpose: string | null;
+  /**
+   * The chapter's prose, everything after the closing frontmatter fence. The
+   * linter reads frontmatter, not prose, by design; `prose-check` is the one
+   * consumer that needs the body, and loading it here keeps a single chapter
+   * loader rather than a second one that could drift from this.
+   */
+  body: string;
 }
 
 export interface PostSource {
@@ -61,10 +68,10 @@ export class LinterEngine {
   }
 
   // Parses the frontmatter between the first two '---' fences
-  public parseFrontmatter(content: string): { data: any; text: string; lineOffset: number } {
+  public parseFrontmatter(content: string): { data: any; text: string; lineOffset: number; body: string } {
     const lines = content.split(/\r?\n/);
     if (lines.length === 0 || lines[0].trim() !== '---') {
-      return { data: {}, text: '', lineOffset: 0 };
+      return { data: {}, text: '', lineOffset: 0, body: content.trim() };
     }
 
     const fmLines: string[] = [];
@@ -78,15 +85,16 @@ export class LinterEngine {
     }
 
     if (closingIndex === -1) {
-      return { data: {}, text: '', lineOffset: 0 };
+      return { data: {}, text: '', lineOffset: 0, body: content.trim() };
     }
 
     const fmText = fmLines.join('\n');
+    const body = lines.slice(closingIndex + 1).join('\n').trim();
     try {
       const data = YAML.parse(fmText) || {};
-      return { data, text: fmText, lineOffset: 1 };
+      return { data, text: fmText, lineOffset: 1, body };
     } catch (e) {
-      return { data: null, text: fmText, lineOffset: 1 };
+      return { data: null, text: fmText, lineOffset: 1, body };
     }
   }
 
@@ -106,7 +114,7 @@ export class LinterEngine {
       const relativeFilePath = path.relative(this.projectRoot, filePath);
       const content = fs.readFileSync(filePath, 'utf-8');
 
-      const { data, text } = this.parseFrontmatter(content);
+      const { data, text, body } = this.parseFrontmatter(content);
       if (data === null) {
         // Handle malformed frontmatter elsewhere as diagnostic
         continue;
@@ -177,6 +185,7 @@ export class LinterEngine {
         registers,
         custody,
         beatPurpose: data.beat_purpose || null,
+        body,
       });
     }
 

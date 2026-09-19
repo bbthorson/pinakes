@@ -14,7 +14,7 @@ export class LinterEngine {
     parseFrontmatter(content) {
         const lines = content.split(/\r?\n/);
         if (lines.length === 0 || lines[0].trim() !== '---') {
-            return { data: {}, text: '', lineOffset: 0 };
+            return { data: {}, text: '', lineOffset: 0, body: content.trim() };
         }
         const fmLines = [];
         let closingIndex = -1;
@@ -26,15 +26,16 @@ export class LinterEngine {
             fmLines.push(lines[i]);
         }
         if (closingIndex === -1) {
-            return { data: {}, text: '', lineOffset: 0 };
+            return { data: {}, text: '', lineOffset: 0, body: content.trim() };
         }
         const fmText = fmLines.join('\n');
+        const body = lines.slice(closingIndex + 1).join('\n').trim();
         try {
             const data = YAML.parse(fmText) || {};
-            return { data, text: fmText, lineOffset: 1 };
+            return { data, text: fmText, lineOffset: 1, body };
         }
         catch (e) {
-            return { data: null, text: fmText, lineOffset: 1 };
+            return { data: null, text: fmText, lineOffset: 1, body };
         }
     }
     // Scan stories and load metadata
@@ -50,7 +51,7 @@ export class LinterEngine {
             const filePath = path.join(chaptersPath, file);
             const relativeFilePath = path.relative(this.projectRoot, filePath);
             const content = fs.readFileSync(filePath, 'utf-8');
-            const { data, text } = this.parseFrontmatter(content);
+            const { data, text, body } = this.parseFrontmatter(content);
             if (data === null) {
                 // Handle malformed frontmatter elsewhere as diagnostic
                 continue;
@@ -117,6 +118,7 @@ export class LinterEngine {
                 registers,
                 custody,
                 beatPurpose: data.beat_purpose || null,
+                body,
             });
         }
         return chapters;

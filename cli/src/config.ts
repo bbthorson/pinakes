@@ -43,6 +43,41 @@ export const ConfigSchema = z.object({
       publicRegisters: z.array(z.string()).default(['public']),
     })
     .default({ publicRegisters: ['public'] }),
+  /**
+   * `prose-check` configuration. Every field is optional: the defaults are the
+   * AI-tells catalogue itself, so the command is useful before a universe
+   * configures anything.
+   *
+   * `signals` replaces the built-in list when given — a universe whose voice
+   * legitimately earns a catalogued word ("leverage" in a corporate satire,
+   * "symphony" in a lyrical one) should not be made to read that column forever.
+   * `carveOuts` names terms the voice guide has already catalogued as designed:
+   * they are reported for subtraction, never suppressed, because the judgment
+   * pass needs both the raw count and the designed share.
+   */
+  prose: z
+    .object({
+      signals: z
+        .array(
+          z.object({
+            label: z.string(),
+            pattern: z.string(),
+            note: z.string().optional(),
+          })
+        )
+        .optional(),
+      carveOuts: z
+        .array(
+          z.object({
+            term: z.string(),
+            character: z.string().optional(),
+            note: z.string().optional(),
+          })
+        )
+        .default([]),
+      closerMaxWords: z.number().default(12),
+    })
+    .default({ carveOuts: [], closerMaxWords: 12 }),
   rules: z.record(z.union([z.literal('error'), z.literal('warning'), z.literal('off')])).default({
     'unresolved-entities': 'error',
     'non-sequential-dates': 'error',

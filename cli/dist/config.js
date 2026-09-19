@@ -16,37 +16,49 @@ export const ConfigSchema = z.object({
         sequenceField: z.string().default('sequence'),
     }),
     paths: z.object({
-        registry: z.string().default('codex/entities.yaml'),
-        nonEntities: z.string().default('codex/non_entities.yaml'),
+        registry: z.string().default('protocol/entities/entities.yaml'),
+        nonEntities: z.string().default('protocol/entities/non_entities.yaml'),
         stories: z.string().default('stories'),
-        locations: z.string().default('codex/locations'),
-        characters: z.string().default('codex/characters'),
-        output: z.string().default('records'),
-        /**
-         * Glob matching the custom rule files, e.g. `rules/*.yaml`. This is a
-         * glob, not a directory: a bare `rules` matches the directory itself and
-         * loads nothing.
-         */
+        locations: z.string().default('canon library/locations'),
+        characters: z.string().default('canon library/characters'),
+        output: z.string().default('protocol/records'),
         rules: z.string().optional(),
     }),
     /**
-     * Posts are the one authored record type, so they are the one place an author
-     * can contradict the prose rather than be derived from it. `publicRegisters`
-     * names the register values that permit a character to post at all; every
-     * other value means the character is holding something back and should be
-     * silent. Which words those are is a property of the universe's own register
-     * vocabulary, so it is configured rather than assumed.
+     * `prose-check` configuration. Every field is optional: the defaults are the
+     * AI-tells catalogue itself, so the command is useful before a universe
+     * configures anything.
+     *
+     * `signals` replaces the built-in list when given — a universe whose voice
+     * legitimately earns a catalogued word ("leverage" in a corporate satire,
+     * "symphony" in a lyrical one) should not be made to read that column forever.
+     * `carveOuts` names terms the voice guide has already catalogued as designed:
+     * they are reported for subtraction, never suppressed, because the judgment
+     * pass needs both the raw count and the designed share.
      */
-    posts: z
+    prose: z
         .object({
-        publicRegisters: z.array(z.string()).default(['public']),
+        signals: z
+            .array(z.object({
+            label: z.string(),
+            pattern: z.string(),
+            note: z.string().optional(),
+        }))
+            .optional(),
+        carveOuts: z
+            .array(z.object({
+            term: z.string(),
+            character: z.string().optional(),
+            note: z.string().optional(),
+        }))
+            .default([]),
+        closerMaxWords: z.number().default(12),
     })
-        .default({ publicRegisters: ['public'] }),
+        .default({ carveOuts: [], closerMaxWords: 12 }),
     rules: z.record(z.union([z.literal('error'), z.literal('warning'), z.literal('off')])).default({
         'unresolved-entities': 'error',
         'non-sequential-dates': 'error',
         'co-presence-conflict': 'warning',
-        'post-register': 'error',
     }),
 });
 export function loadConfig(projectRoot) {
