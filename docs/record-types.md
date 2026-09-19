@@ -1,13 +1,13 @@
 # Record types
 
-`pinakes compile` emits six record types and writes a Lexicon document for each
+`pinakes compile` emits seven record types and writes a Lexicon document for each
 one. This guide covers what they are, why the set is shaped this way, and where
 identity fits.
 
 Examples are from [Supper Club Secrets](https://github.com/bbthorson/supper_club_secrets),
-whose `project.nsid` is `site.supperclub`.
+whose `project.nsid` is `com.supperclubsecrets`.
 
-## The six types
+## The seven types
 
 | Record type | Grain | Emitted to | Book 1 count |
 | --- | --- | --- | --- |
@@ -17,17 +17,21 @@ whose `project.nsid` is `site.supperclub`.
 | `<nsid>.place` | One per location | `records/series/places.json` | 14 |
 | `<nsid>.item` | One per tracked object | `records/series/items.json` | 1 |
 | `<nsid>.custodyEvent` | One per hand-off | `records/<book>/custody_events.json` | 3 |
+| `<nsid>.character.post` | One per authored post | `records/<book>/character_posts.json` | 0 |
 
-Three are series-wide and three are per-book. That split is not cosmetic: a
+Six of the seven are projected out of finished prose. `character.post` is the
+exception and is covered on its own below.
+
+Three are series-wide and four are per-book. That split is not cosmetic: a
 character's identity and a location's description are properties of the
 universe, while what happened and how someone felt are properties of a
 particular story inside it. Book 2 will add
 `records/book2/scenes.json` without touching `records/series/`.
 
-## Why these four
+## Why these six are projected
 
-The set decomposes a character-driven narrative along the two axes that actually
-have to stay continuous.
+The six extracted types decompose a character-driven narrative along the two
+axes that actually have to stay continuous.
 
 **Who and where are stable.** `character.profile` and `place` are the standing
 cast and the standing set. They change slowly, between books rather than between
@@ -74,7 +78,7 @@ never published.
 
 ```json
 {
-  "$type": "site.supperclub.character.profile",
+  "$type": "com.supperclubsecrets.character.profile",
   "id": "profile.emma",
   "subject": "char.emma",
   "displayName": "Emma Hartley",
@@ -108,7 +112,7 @@ One register annotation, at one point in story time.
 
 ```json
 {
-  "$type": "site.supperclub.character.stateEvent",
+  "$type": "com.supperclubsecrets.character.stateEvent",
   "id": "stateEvent.brenda-marquez.book1.ch10",
   "subject": "char.brenda-marquez",
   "storyDate": "2026-10-09",
@@ -140,7 +144,7 @@ A dated beat, with its cast and its places resolved to ids.
 
 ```json
 {
-  "$type": "site.supperclub.scene",
+  "$type": "com.supperclubsecrets.scene",
   "id": "scene.book1.ch1",
   "storyDate": "2026-10-04",
   "chapterRefs": ["book1#ch1"],
@@ -177,7 +181,7 @@ lets a consumer read any Pinakes universe without knowing its vocabulary.
 
 ```json
 {
-  "$type": "site.supperclub.place",
+  "$type": "com.supperclubsecrets.place",
   "id": "place.elijahs-apartment",
   "name": "Elijah's Apartment",
   "description": "Elijah's quiet, orderly one-bedroom in Bed-Stuy; appears in Ch8, but the group has never been inside — a deliberate seed for the Book 6 hosting payoff.",
@@ -200,23 +204,92 @@ makes a midweek scene there read as an empty green rather than a market. Nothing
 in the linter enforces schedules today — it is carried for the surfaces and for
 the author.
 
+### `character.post`
+
+The one type that is authored rather than projected. Every other record is
+extracted from finished prose and therefore cannot contradict it. A post is new
+in-world content written *as* the character, which makes it canon-bearing and
+puts it under the same review the prose gets.
+
+Posts live in `posts/` beside a story's `chapters/`, one file per post:
+frontmatter carries the anchors, the body is the text.
+
+```markdown
+---
+author: "Emma"
+date: "2026-10-04"
+time: "evening"
+chapter: 4
+location: "Emma's Apartment"
+mentions: ["Olivia", "Jasper"]
+---
+six people, one pot of squash soup, zero agreement on what's missing from it.
+```
+
+compiles to:
+
+```json
+{
+  "$type": "com.supperclubsecrets.character.post",
+  "id": "post.book1.ch4.emma.1",
+  "author": "char.emma",
+  "text": "six people, one pot of squash soup, zero agreement on what's missing from it.",
+  "storyDate": "2026-10-04",
+  "storyTime": "evening",
+  "chapterRef": "book1#ch4",
+  "mentions": ["char.olivia", "char.jasper"],
+  "placeRef": "place.emmas-apartment",
+  "createdAt": "2026-10-04T00:00:00.000Z",
+  "sourceFile": "stories/01. .../posts/2026-10-04-emma-01.md"
+}
+```
+
+One file per post rather than one per character. Each post is dated, gated and
+reviewed on its own, and a file holding twenty of them hides which one a diff
+touched — the same reason chapters are not one file per book. Files are read in
+filename order and sequence numbers are assigned per `(chapter, author)`, so
+`emma.2` is Emma's second post in chapter 4 and adding a post for one character
+never renumbers another's.
+
+`author` must resolve through the registry, like any other character reference.
+An unresolvable author is an error and the post is not emitted, rather than a
+record being written with a dangling name.
+
+**Two fields are gates, and they answer different questions.**
+
+- `publishDate` is the **release** gate: whether the post exists yet. Absent
+  means released.
+- `chapterRef` is the **reveal** gate: whether a given reader has earned it,
+  resolved against whatever reading position the consuming surface keeps.
+
+During a live serialized run the two coincide, because everyone is reading
+along. They diverge the moment the run ends and a new reader starts at chapter
+one. That is why `chapterRef` is required: a post with no reveal gate cannot be
+shown safely to a reader who arrived late.
+
+Nothing in Pinakes decides *what* a character may say. That is a judgment pass,
+and a universe whose plot turns on information discipline will want a rule about
+which posts are safe to write at all — see
+[Continuity and drift](continuity-and-drift.md) for where such a check belongs.
+
 ## The Lexicon documents
 
 Every compile writes the universe's own Lexicon documents alongside its records:
 
 ```
 records/lexicons/
-├── site.supperclub.scene.json
-├── site.supperclub.character.stateEvent.json
-├── site.supperclub.character.profile.json
-├── site.supperclub.place.json
-├── site.supperclub.item.json
-└── site.supperclub.custodyEvent.json
+├── com.supperclubsecrets.scene.json
+├── com.supperclubsecrets.character.stateEvent.json
+├── com.supperclubsecrets.character.profile.json
+├── com.supperclubsecrets.place.json
+├── com.supperclubsecrets.item.json
+├── com.supperclubsecrets.custodyEvent.json
+└── com.supperclubsecrets.character.post.json
 ```
 
 These are ordinary AT Protocol Lexicon JSON documents. They are generated rather
 than checked in as fixtures because the NSID authority comes from your
-`pinakes.yaml` — one universe publishes `site.supperclub.scene`, another
+`pinakes.yaml` — one universe publishes `com.supperclubsecrets.scene`, another
 publishes `com.example.scene`, and the schema is otherwise identical.
 
 **Commit this directory.** It is the portable contract for your universe:
@@ -289,7 +362,7 @@ registry-driven loop that produces character profiles.
 
 ```json
 {
-  "$type": "site.supperclub.item",
+  "$type": "com.supperclubsecrets.item",
   "id": "item.heritage-bottle",
   "displayName": "Heritage Hot Sauce Bottle",
   "status": "active",
@@ -309,7 +382,7 @@ One record per hand-off, projected from a chapter's `custody:` block.
 
 ```json
 {
-  "$type": "site.supperclub.custodyEvent",
+  "$type": "com.supperclubsecrets.custodyEvent",
   "id": "custodyEvent.heritage-bottle.book1.ch17",
   "item": "item.heritage-bottle",
   "storyDate": "2026-10-14",

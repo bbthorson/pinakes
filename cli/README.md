@@ -35,7 +35,7 @@ The working detail behind the tour above — what the compiler reads, what it
 emits, and what keeps the two in step — lives in [`docs/`](https://github.com/bbthorson/pinakes/tree/main/docs), worked
 through against a real six-book universe:
 
-* **[Record types](https://github.com/bbthorson/pinakes/blob/main/docs/record-types.md)** — the four types `compile` emits, the Lexicon documents generated for them, and how identity works today
+* **[Record types](https://github.com/bbthorson/pinakes/blob/main/docs/record-types.md)** — the five types `compile` emits, the Lexicon documents generated for them, and how identity works today
 * **[Prose to records](https://github.com/bbthorson/pinakes/blob/main/docs/prose-to-records.md)** — the frontmatter contract, name resolution, and what never leaves the repo
 * **[Continuity and drift](https://github.com/bbthorson/pinakes/blob/main/docs/continuity-and-drift.md)** — the lint rules, Lexicon validation, the CI drift gate, and the judgment passes kept out of CI
 

@@ -17,7 +17,7 @@ layout and the compiler. Supper Club Secrets' file in full:
 spec: 0.1
 project:
   name: "Supper Club Secrets"
-  nsid: "site.supperclub"
+  nsid: "com.supperclubsecrets"
   # A "meal" is this series' sequence unit: several chapters share one dinner.
   sequenceField: "meal"
 paths:
@@ -280,12 +280,12 @@ PINAKES COMPILATION — repo -> records
     14 records -> records/series/places.json
     13 records -> records/series/character_profiles.json
      1 records -> records/series/items.json
-       lexicon -> records/lexicons/site.supperclub.scene.json
-       lexicon -> records/lexicons/site.supperclub.character.stateEvent.json
-       lexicon -> records/lexicons/site.supperclub.character.profile.json
-       lexicon -> records/lexicons/site.supperclub.place.json
-       lexicon -> records/lexicons/site.supperclub.item.json
-       lexicon -> records/lexicons/site.supperclub.custodyEvent.json
+       lexicon -> records/lexicons/com.supperclubsecrets.scene.json
+       lexicon -> records/lexicons/com.supperclubsecrets.character.stateEvent.json
+       lexicon -> records/lexicons/com.supperclubsecrets.character.profile.json
+       lexicon -> records/lexicons/com.supperclubsecrets.place.json
+       lexicon -> records/lexicons/com.supperclubsecrets.item.json
+       lexicon -> records/lexicons/com.supperclubsecrets.custodyEvent.json
 
 OK — compilation complete, all records match their Lexicons.
 ```

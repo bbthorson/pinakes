@@ -30,10 +30,24 @@ export const ConfigSchema = z.object({
      */
     rules: z.string().optional(),
   }),
+  /**
+   * Posts are the one authored record type, so they are the one place an author
+   * can contradict the prose rather than be derived from it. `publicRegisters`
+   * names the register values that permit a character to post at all; every
+   * other value means the character is holding something back and should be
+   * silent. Which words those are is a property of the universe's own register
+   * vocabulary, so it is configured rather than assumed.
+   */
+  posts: z
+    .object({
+      publicRegisters: z.array(z.string()).default(['public']),
+    })
+    .default({ publicRegisters: ['public'] }),
   rules: z.record(z.union([z.literal('error'), z.literal('warning'), z.literal('off')])).default({
     'unresolved-entities': 'error',
     'non-sequential-dates': 'error',
     'co-presence-conflict': 'warning',
+    'post-register': 'error',
   }),
 });
 

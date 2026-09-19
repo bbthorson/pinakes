@@ -339,6 +339,86 @@ export function compileProject(
       return a.chapterRef.localeCompare(b.chapterRef);
     });
 
+    // Posts: authored, not extracted. Emitted only when a story actually has a
+    // `posts/` directory, so a universe that never writes any gets no empty
+    // artifact to commit.
+    const postSources = engine.loadPosts(storyDir);
+    if (postSources.length > 0) {
+      const posts: any[] = [];
+      // Sequence within (chapter, author), so a second Emma post in chapter 12
+      // is `.2`. Keyed rather than global so adding a post for one character
+      // never renumbers another's.
+      const seq = new Map<string, number>();
+
+      for (const src of postSources) {
+        const fm = src.frontmatter;
+        const authorName = text(fm.author);
+        const resolvedAuthor = authorName ? registry.resolve(authorName, 'character') : undefined;
+        if (!resolvedAuthor) {
+          diagnostics.push({
+            file: src.relativeFilePath,
+            rule: 'post-author',
+            severity: 'error',
+            message: authorName
+              ? `Post author '${authorName}' does not resolve to a registry character.`
+              : 'Post is missing an `author` in frontmatter.',
+          });
+          continue;
+        }
+
+        const storyDate = text(fm.date) ?? '';
+        const chapterNum = asInteger(fm.chapter);
+        const chRef = chapterNum !== undefined ? `${book}#ch${chapterNum}` : undefined;
+        const slug = resolvedAuthor.id.split('.', 2)[1];
+        const key = `${chapterNum ?? 'x'}.${slug}`;
+        const n = (seq.get(key) ?? 0) + 1;
+        seq.set(key, n);
+
+        // `location` is a list on chapters and a scalar here — a post happens in
+        // one place — but accept either so the frontmatter reads the same way.
+        const locRaw = Array.isArray(fm.location) ? fm.location[0] : fm.location;
+        const locName = text(locRaw);
+        const placeRef = locName ? registry.resolve(locName, 'place')?.id : undefined;
+
+        const mentionNames = Array.isArray(fm.mentions)
+          ? fm.mentions
+          : typeof fm.mentions === 'string'
+            ? fm.mentions.split(',')
+            : [];
+        const mentions: string[] = [];
+        for (const raw of mentionNames) {
+          const name = text(raw);
+          const hit = name ? registry.resolve(name, 'character') : undefined;
+          if (hit && !mentions.includes(hit.id)) mentions.push(hit.id);
+        }
+
+        posts.push(
+          compact({
+            $type: `${NS}.character.post`,
+            id: `post.${book}.ch${chapterNum ?? 0}.${slug}.${n}`,
+            author: resolvedAuthor.id,
+            text: src.body || undefined,
+            storyDate,
+            storyTime: text(fm.time),
+            chapterRef: chRef,
+            publishDate: text(fm.publish),
+            inReplyTo: text(fm.reply_to),
+            mentions: present(mentions),
+            placeRef,
+            tags: tagList(fm.tags),
+            createdAt: storyDateToDatetime(storyDate),
+            sourceFile: src.relativeFilePath,
+          })
+        );
+      }
+
+      posts.sort((a, b) => {
+        if (a.storyDate !== b.storyDate) return a.storyDate.localeCompare(b.storyDate);
+        return a.id.localeCompare(b.id);
+      });
+      writeRecords(path.join(outputDir, book, 'character_posts.json'), posts);
+    }
+
     const bookDir = path.join(outputDir, book);
     writeRecords(path.join(bookDir, 'scenes.json'), scenes);
     writeRecords(path.join(bookDir, 'character_state_events.json'), events);
