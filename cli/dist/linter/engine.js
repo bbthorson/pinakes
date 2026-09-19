@@ -100,6 +100,49 @@ export class LinterEngine {
         }
         return chapters;
     }
+    /**
+     * Splits a source file into its frontmatter block and everything after it.
+     * `parseFrontmatter` hands back the YAML but not the prose, and a post's
+     * prose *is* the record's payload.
+     */
+    splitBody(content) {
+        const lines = content.split(/\r?\n/);
+        if (lines[0]?.trim() !== '---')
+            return content.trim();
+        for (let i = 1; i < lines.length; i++) {
+            if (lines[i].trim() === '---')
+                return lines.slice(i + 1).join('\n').trim();
+        }
+        return content.trim();
+    }
+    /**
+     * Posts live in `posts/` beside a story's `chapters/`, one file per post:
+     * frontmatter carries the anchors, the body is the text the character said.
+     *
+     * Read in filename order, which is the order the compiler assigns sequence
+     * numbers in, so ids stay stable across recompiles. `00_`-prefixed files are
+     * templates, matching the convention the rest of the tree uses.
+     */
+    loadPosts(storyDir) {
+        const dir = path.join(storyDir, 'posts');
+        if (!fs.existsSync(dir))
+            return [];
+        return fs
+            .readdirSync(dir)
+            .filter((f) => f.endsWith('.md') && !f.startsWith('00_'))
+            .sort()
+            .map((fileName) => {
+            const filePath = path.join(dir, fileName);
+            const content = fs.readFileSync(filePath, 'utf-8');
+            const { data } = this.parseFrontmatter(content);
+            return {
+                filePath,
+                relativeFilePath: path.relative(this.projectRoot, filePath),
+                frontmatter: data || {},
+                body: this.splitBody(content),
+            };
+        });
+    }
     // Get active stories (non-templates)
     getStories() {
         const storiesPath = path.join(this.projectRoot, this.config.paths.stories);
@@ -227,6 +270,63 @@ export class LinterEngine {
                                     });
                                 }
                             }
+                        }
+                    }
+                }
+            }
+            // 4. Built-in: the public-register rule for authored posts.
+            //
+            // Every other record is projected out of prose and cannot contradict it.
+            // A post is written *as* the character and goes out on a permanent public
+            // feed, so it is the one place where the author can leak the plot.
+            //
+            // The rule: a post may be anchored only to a chapter where its author is
+            // in a public register, or to a chapter where the author has no register
+            // annotation at all (they are off-page, so nothing on the page can
+            // contradict them). A private or under-pressure state produces silence.
+            //
+            // This is checked at the chapter, not the day. A character can be public
+            // at the dinner table and private in a phone call three hours later, and
+            // the post belongs to the scene it is anchored to.
+            if (this.config.rules['post-register'] !== 'off') {
+                const severity = (this.config.rules['post-register'] ?? 'error');
+                const safe = this.config.posts.publicRegisters;
+                const posts = this.loadPosts(storyDir);
+                if (posts.length > 0) {
+                    // (chapter, resolved character id) -> the register annotation there.
+                    const registerAt = new Map();
+                    for (const ch of chapters) {
+                        for (const [name, val] of Object.entries(ch.registers)) {
+                            const hit = this.registry.resolve(name, 'character');
+                            if (!hit)
+                                continue;
+                            // The register is the first term: `public -> private (...)` is a
+                            // performance that begins in public, which is what the reader of
+                            // the feed sees.
+                            const first = String(val).split(/->|\u2192/)[0].trim().split('(')[0].trim();
+                            registerAt.set(`${ch.chapterNum}::${hit.id}`, first);
+                        }
+                    }
+                    for (const post of posts) {
+                        const authorName = post.frontmatter.author;
+                        const author = authorName ? this.registry.resolve(String(authorName), 'character') : undefined;
+                        if (!author)
+                            continue; // the compiler reports an unresolvable author
+                        const chapter = post.frontmatter.chapter;
+                        if (chapter === undefined || chapter === null)
+                            continue;
+                        const register = registerAt.get(`${chapter}::${author.id}`);
+                        if (register === undefined)
+                            continue; // off-page: no annotation to contradict
+                        if (!safe.includes(register)) {
+                            diagnostics.push({
+                                file: post.relativeFilePath,
+                                rule: 'post-register',
+                                severity,
+                                message: `Post is anchored to chapter ${chapter}, where ${author.id} is in the ` +
+                                    `'${register}' register. Only ${safe.map((r) => `'${r}'`).join(' or ')} ` +
+                                    `permits a post; anything else is silence.`,
+                            });
                         }
                     }
                 }

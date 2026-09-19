@@ -5,58 +5,6 @@ import { Registry } from '../registry/entities.js';
 import { ChapterData, Diagnostic, LinterEngine } from '../linter/engine.js';
 import { buildLexiconDocs, compileLexiconDocs, validateRecords, writeLexiconDocs } from '../lexicons/index.js';
 
-interface PostSource {
-  relativeFilePath: string;
-  frontmatter: any;
-  body: string;
-}
-
-/**
- * Splits a source file into its frontmatter block and everything after it.
- * `parseFrontmatter` hands back the YAML but not the prose, and a post's prose
- * *is* the record's payload, so the body is recovered here rather than by
- * re-deriving line offsets at each call site.
- */
-function splitBody(content: string): string {
-  const lines = content.split(/\r?\n/);
-  if (lines[0]?.trim() !== '---') return content.trim();
-  for (let i = 1; i < lines.length; i++) {
-    if (lines[i].trim() === '---') return lines.slice(i + 1).join('\n').trim();
-  }
-  return content.trim();
-}
-
-/**
- * Posts live in `posts/` beside a story's `chapters/`, one file per post:
- * frontmatter carries the anchors, the body is the text the character said.
- *
- * One file per post rather than one per character. Each post is dated, gated
- * and reviewed on its own, and a file holding twenty of them hides which one a
- * diff touched — the same reason chapters are not one file per book.
- *
- * Files are read in filename order, which is the order sequence numbers are
- * assigned in, so ids stay stable across recompiles. `00_`-prefixed files are
- * templates and guides, matching the convention the rest of the tree uses.
- */
-function loadPosts(projectRoot: string, storyDir: string, engine: LinterEngine): PostSource[] {
-  const dir = path.join(storyDir, 'posts');
-  if (!fs.existsSync(dir)) return [];
-  return fs
-    .readdirSync(dir)
-    .filter((f) => f.endsWith('.md') && !f.startsWith('00_'))
-    .sort()
-    .map((fileName) => {
-      const filePath = path.join(dir, fileName);
-      const content = fs.readFileSync(filePath, 'utf-8');
-      const { data } = engine.parseFrontmatter(content);
-      return {
-        relativeFilePath: path.relative(projectRoot, filePath),
-        frontmatter: data || {},
-        body: splitBody(content),
-      };
-    });
-}
-
 function getBookKey(storyDir: string): string {
   const base = path.basename(storyDir);
   const m = base.match(/^0*(\d+)/);
@@ -344,7 +292,7 @@ export function compileProject(
     // Posts: authored, not extracted. Emitted only when a story actually has a
     // `posts/` directory, so a universe that never writes any gets no empty
     // artifact to commit.
-    const postSources = loadPosts(projectRoot, storyDir, engine);
+    const postSources = engine.loadPosts(storyDir);
     if (postSources.length > 0) {
       const posts: any[] = [];
       // Sequence within (chapter, author), so a second Emma post in chapter 12
