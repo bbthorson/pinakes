@@ -1,0 +1,57 @@
+name: build-check
+
+# `cli/dist` is committed, and nothing until now checked that it matched
+# `cli/src`. It had in fact drifted: the co-presence fix in engine.ts was never
+# rebuilt into it.
+#
+# Publishing was never at risk — publish.yml rebuilds before `npm publish`, so
+# npm has always served a fresh build. The cost of drift is local and real
+# anyway: `git diff` on an unrelated change shows rebuilt output the author did
+# not write, which is how a genuine change hides inside noise.
+#
+# This job rebuilds from source and fails if the result differs from what is
+# committed. To fix a failure: `cd cli && npm ci && npm run build`, then commit
+# the regenerated dist.
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  dist-is-fresh:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: cli/package-lock.json
+
+      - name: Install
+        working-directory: cli
+        run: npm ci
+
+      - name: Rebuild
+        working-directory: cli
+        run: npm run build
+
+      - name: Committed dist must match a fresh build
+        run: |
+          if ! git diff --exit-code -- cli/dist; then
+            echo '::error::cli/dist is stale — run `cd cli && npm ci && npm run build` and commit the result.'
+            exit 1
+          fi
+          # `git diff` only sees tracked files, so a newly emitted output file
+          # would slip past the check above.
+          UNTRACKED=$(git ls-files --others --exclude-standard -- cli/dist)
+          if [ -n "$UNTRACKED" ]; then
+            echo "::error::Build produced files not committed to cli/dist:"
+            echo "$UNTRACKED"
+            exit 1
+          fi
