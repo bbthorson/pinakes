@@ -6,7 +6,7 @@ Every chapter file begins with a YAML frontmatter block. The frontmatter is the 
 
 ### Spec
 
-**Required:** `chapter`, `title`, `part`, `beat`, `date`, `pov`, `characters_present`, `registers`, `threads`, `beat_purpose`. **Optional:** `day`, `time`, `location`, `tags`, `characters_referenced`, `clues`, `audit_notes` (include when they apply).
+**Required:** `chapter`, `title`, `part`, `beat`, `date`, `pov`, `characters_present`, `registers`, `threads`, `beat_purpose`. **Optional:** `day`, `time`, `location`, `tags`, `characters_referenced`, `clues`, `custody`, `audit_notes` (include when they apply).
 
 ```yaml
 ---
@@ -33,6 +33,11 @@ registers:                                # voice register per PRESENT character
 clues:                                    # optional; powers plant/payoff tracing
   planted: []
   revealed: []
+custody:                                  # optional; one entry per object changing hands
+  - item: "[the object]"                  #   resolved against entities.yaml `items:`
+    holder: "[Character]"                 #   who holds it AFTER this chapter
+    from: "[Character]"                   #   omit when the object enters the story here
+    event: "[One line: how it changed hands.]"
 threads:                                  # must cross-reference tracking/subplot_threads.md
   active:
     - "[Thread]: [what moves in this chapter]"

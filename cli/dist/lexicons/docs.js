@@ -32,7 +32,15 @@ const tags = (description) => ({
  */
 const RECORD_KEY = 'any';
 export function buildLexiconDocs(nsid) {
-    return [scene(nsid), stateEvent(nsid), profile(nsid), place(nsid), post(nsid)];
+    return [
+        scene(nsid),
+        stateEvent(nsid),
+        profile(nsid),
+        place(nsid),
+        item(nsid),
+        custodyEvent(nsid),
+        post(nsid),
+    ];
 }
 function scene(ns) {
     return {
@@ -343,6 +351,84 @@ function place(ns) {
                     },
                     hours: { type: 'string', description: 'Human-readable hours.', maxLength: 256 },
                     note: { type: 'string', description: 'Caveat or seasonal exception.', maxLength: 512 },
+                },
+            },
+        },
+    };
+}
+function item(ns) {
+    return {
+        lexicon: 1,
+        id: `${ns}.item`,
+        description: 'A tracked object in the universe — one whose custody the narrative follows.',
+        defs: {
+            main: {
+                type: 'record',
+                key: RECORD_KEY,
+                description: 'An item record.',
+                record: {
+                    type: 'object',
+                    required: ['id', 'displayName'],
+                    properties: {
+                        id: localId('Stable item id, e.g. `item.heritage-bottle`.'),
+                        displayName: { type: 'string', description: 'Name as readers see it.', maxLength: 640 },
+                        description: {
+                            type: 'string',
+                            description: "One-line summary from the item's codex file, when it has one.",
+                            maxLength: 3000,
+                        },
+                        tags: tags("Labels from the item's `tags` frontmatter."),
+                        status: {
+                            type: 'string',
+                            description: "Lifecycle of the item within the series, from the registry entry.",
+                            maxLength: 64,
+                        },
+                        firstAppearance: {
+                            type: 'string',
+                            description: 'Chapter where the item first changes hands, e.g. `book1#ch1`. Derived from the earliest custody event, so it is absent for an item with no custody recorded yet.',
+                            maxLength: 256,
+                        },
+                        sourceFile: {
+                            type: 'string',
+                            description: "Repository-relative codex path, for an item that has a file of its own.",
+                            maxLength: 1024,
+                        },
+                    },
+                },
+            },
+        },
+    };
+}
+function custodyEvent(ns) {
+    return {
+        lexicon: 1,
+        id: `${ns}.custodyEvent`,
+        description: 'A change of custody: an item passing into someone\'s hands at a point in story time.',
+        defs: {
+            main: {
+                type: 'record',
+                key: RECORD_KEY,
+                description: 'A custody event record.',
+                record: {
+                    type: 'object',
+                    required: ['id', 'item', 'storyDate', 'holder', 'chapterRef', 'sceneRef', 'createdAt', 'sourceFile'],
+                    properties: {
+                        id: localId('Stable event id, e.g. `custodyEvent.heritage-bottle.book1.ch1`.'),
+                        item: localId('Registry id of the item changing hands.'),
+                        storyDate: { type: 'string', description: 'In-story date, `YYYY-MM-DD`.', maxLength: 10 },
+                        storyDateEnd: { type: 'string', description: 'End of the in-story span.', maxLength: 10 },
+                        holder: localId('Registry id of the character who holds the item after this event.'),
+                        fromHolder: localId('Registry id of the previous holder. Absent when the item enters the story here, or when the prior holder is deliberately unnamed — never null.'),
+                        event: {
+                            type: 'string',
+                            description: 'One-line description of the hand-off, in the author\'s words.',
+                            maxLength: 3000,
+                        },
+                        chapterRef: { type: 'string', description: 'Source chapter, e.g. `book1#ch1`.', maxLength: 256 },
+                        sceneRef: localId('Scene record this event belongs to.'),
+                        createdAt: { type: 'string', description: 'Story time as an RFC3339 datetime.', format: 'datetime' },
+                        sourceFile: { type: 'string', description: 'Repository-relative chapter path.', maxLength: 1024 },
+                    },
                 },
             },
         },

@@ -126,9 +126,14 @@ FAIL — pinakes found errors.
 * **Entity Resolution:** Verifies that every character, location, and item mentioned in chapter frontmatter exists in `entities.yaml` or is explicitly ignored in `non_entities.yaml`.
 * **Sequential Timelines:** Ensures start dates do not retrogress across sequential chapters.
 * **Co-Presence Conflicts:** Flags physical impossibilities, such as a character being marked as present in two distinct locations at the same time.
+* **Custody Resolution:** Verifies that every item and holder named in a chapter's `custody:` block resolves, so a hand-off is never silently dropped.
 
 #### Custom YAML Rules:
 Authors can write custom rules in the `rules/` directory to enforce style guidelines or state transitions:
+
+`paths.rules` is a **glob, not a directory** — use `rules/*.yaml`. A bare
+`rules` matches the directory itself, loads nothing, and still reports a clean
+pass.
 
 ```yaml
 # rules/voice-register.yaml
@@ -157,13 +162,17 @@ records/
 │   ├── <nsid>.scene.json
 │   ├── <nsid>.character.stateEvent.json
 │   ├── <nsid>.character.profile.json
-│   └── <nsid>.place.json
+│   ├── <nsid>.place.json
+│   ├── <nsid>.item.json
+│   └── <nsid>.custodyEvent.json
 ├── book1/
 │   ├── scenes.json                    # Lexicon: *.scene
-│   └── character_state_events.json    # Lexicon: *.character.stateEvent
+│   ├── character_state_events.json    # Lexicon: *.character.stateEvent
+│   └── custody_events.json            # Lexicon: *.custodyEvent
 └── series/
     ├── places.json                    # Lexicon: *.place
-    └── character_profiles.json        # Lexicon: *.character.profile
+    ├── character_profiles.json        # Lexicon: *.character.profile
+    └── items.json                     # Lexicon: *.item
 ```
 
 #### What the codex carries into records
@@ -177,6 +186,8 @@ consumers to re-parse the codex:
 | `*.character.profile` | `description`, `tags`, `status`, `handle` from the character file's frontmatter; `oneLine` from its Overview. `status` falls back to the registry entry for a character whose file doesn't state one. |
 | `*.place` | `description`, `tags`, `status`, `region`, `first_appearance`, `schedule` from the location file's frontmatter; `kind` from the `**Type:**` line in its body. |
 | `*.scene` | `tags` from the chapter's frontmatter, alongside the timeline and casting fields. |
+| `*.item` | `displayName` and `status` from the registry's `items:` entry; `description` and `tags` from its codex file when it has one; `firstAppearance` derived from the earliest custody event. |
+| `*.custodyEvent` | The chapter's `custody:` list — `item`, `holder`, `from` resolved against the registry, and `event` carried through verbatim. |
 
 `tags` accepts either a YAML sequence (`tags: [main-cast, cook]`) or one
 hand-typed line (`tags: main-cast, cook`). A field with no value is omitted from

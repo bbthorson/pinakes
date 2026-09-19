@@ -186,8 +186,16 @@ export function compileProject(
   const stories = engine.getStories();
   const allPlaces: any[] = [];
   const allProfiles: any[] = [];
+  const allItems: any[] = [];
+  /**
+   * Earliest recorded hand-off per item, across every book — the item record's
+   * `firstAppearance`. Items come from the registry (series-wide) while custody
+   * comes from chapters (per-book), so this is collected during the stories
+   * pass and read back after it.
+   */
+  const firstCustody = new Map<string, { storyDate: string; chapterRef: string }>();
 
-  // 1. Stories compile (scenes and state events)
+  // 1. Stories compile (scenes, state events, custody events)
   for (const storyDir of stories) {
     const book = getBookKey(storyDir);
     const chapters = engine.loadChapters(storyDir);
@@ -195,6 +203,7 @@ export function compileProject(
 
     const scenes: any[] = [];
     const events: any[] = [];
+    const custodyEvents: any[] = [];
 
     for (const ch of chapters) {
       if (ch.dates.length === 0) continue;
@@ -256,6 +265,41 @@ export function compileProject(
         })
       );
 
+      // Custody hand-offs
+      for (const entry of ch.custody) {
+        const itemEnt = registry.resolve(entry.item, 'item');
+        const holderEnt = registry.resolve(entry.holder, 'character');
+        // An unresolved item or holder is reported by `lint`; dropping it here
+        // keeps a malformed hand-off out of the record set rather than minting
+        // a custody event that points at nothing.
+        if (!itemEnt || !holderEnt) continue;
+
+        const itemSlug = itemEnt.id.split('.', 2)[1];
+        const fromEnt = entry.from ? registry.resolve(entry.from, 'character') : null;
+
+        const prior = firstCustody.get(itemEnt.id);
+        if (!prior || storyDate < prior.storyDate) {
+          firstCustody.set(itemEnt.id, { storyDate, chapterRef: chRef });
+        }
+
+        custodyEvents.push(
+          compact({
+            $type: `${NS}.custodyEvent`,
+            id: `custodyEvent.${itemSlug}.${book}.ch${ch.chapterNum}`,
+            item: itemEnt.id,
+            storyDate,
+            storyDateEnd,
+            holder: holderEnt.id,
+            fromHolder: fromEnt ? fromEnt.id : undefined,
+            event: text(entry.event),
+            chapterRef: chRef,
+            sceneRef: sceneId,
+            createdAt,
+            sourceFile: ch.relativeFilePath,
+          })
+        );
+      }
+
       // Registers / state events
       for (const [name, val] of Object.entries(ch.registers)) {
         const resolved = registry.resolve(name, 'character');
@@ -285,6 +329,12 @@ export function compileProject(
     // Sort events
     events.sort((a, b) => {
       if (a.subject !== b.subject) return a.subject.localeCompare(b.subject);
+      if (a.storyDate !== b.storyDate) return a.storyDate.localeCompare(b.storyDate);
+      return a.chapterRef.localeCompare(b.chapterRef);
+    });
+
+    custodyEvents.sort((a, b) => {
+      if (a.item !== b.item) return a.item.localeCompare(b.item);
       if (a.storyDate !== b.storyDate) return a.storyDate.localeCompare(b.storyDate);
       return a.chapterRef.localeCompare(b.chapterRef);
     });
@@ -372,6 +422,9 @@ export function compileProject(
     const bookDir = path.join(outputDir, book);
     writeRecords(path.join(bookDir, 'scenes.json'), scenes);
     writeRecords(path.join(bookDir, 'character_state_events.json'), events);
+    if (custodyEvents.length > 0) {
+      writeRecords(path.join(bookDir, 'custody_events.json'), custodyEvents);
+    }
   }
 
   // 2. Locations / places compile
@@ -431,12 +484,44 @@ export function compileProject(
     }
   }
 
+  // 4. Items compile — registry-derived and series-wide, like profiles. An
+  // item's codex file is optional (most tracked objects are a registry entry
+  // and nothing more), so absent frontmatter simply yields a leaner record.
+  for (const ent of registry.allEntities) {
+    if (ent.type !== 'item' || ent.status !== 'active') continue;
+
+    let codex: { description?: string; tags?: string[] } = {};
+    if (ent.sourceFile) {
+      const srcFile = path.resolve(projectRoot, ent.sourceFile);
+      if (fs.existsSync(srcFile)) {
+        const { data } = engine.parseFrontmatter(fs.readFileSync(srcFile, 'utf-8'));
+        codex = { description: text(data?.description), tags: tagList(data?.tags) };
+      }
+    }
+
+    allItems.push(
+      compact({
+        $type: `${NS}.item`,
+        id: ent.id,
+        displayName: ent.displayName,
+        description: codex.description,
+        tags: codex.tags,
+        status: text(ent.status),
+        firstAppearance: firstCustody.get(ent.id)?.chapterRef,
+        sourceFile: ent.sourceFile || undefined,
+      })
+    );
+  }
+
   const seriesDir = path.join(outputDir, 'series');
   if (allPlaces.length > 0) {
     writeRecords(path.join(seriesDir, 'places.json'), allPlaces);
   }
   if (allProfiles.length > 0) {
     writeRecords(path.join(seriesDir, 'character_profiles.json'), allProfiles);
+  }
+  if (allItems.length > 0) {
+    writeRecords(path.join(seriesDir, 'items.json'), allItems);
   }
 
   const lexiconFiles = writeLexiconDocs(outputDir, lexiconDocs).map(f => path.relative(projectRoot, f));

@@ -2,8 +2,8 @@
 #
 # Canonical, permanent, local IDs for every character, place, and item in the
 # universe. This file is the committed source of truth that makes name -> ID
-# resolution deterministic. Run `python3 protocol/entities/resolve.py` to
-# verify that every name in your chapter frontmatter resolves.
+# resolution deterministic. Run `pinakes lint` to verify that every name in
+# your chapter frontmatter resolves.
 #
 # =========================================================================
 # Conventions (locked — these survived a production universe; change them
@@ -55,7 +55,7 @@ characters:
   #   type: character
   #   displayName: "Example Name"
   #   aliases: ["Example Name", "Example", "the stranger"]
-  #   sourceFile: "canon library/characters/example-name.md"
+  #   sourceFile: "codex/characters/example-name.md"
   #   status: active
 
 places:
@@ -63,15 +63,16 @@ places:
   #   type: place
   #   displayName: "The Example Location"
   #   aliases: ["The Example Location", "the shop"]
-  #   sourceFile: "canon library/locations/example-location.md"
+  #   sourceFile: "codex/locations/example-location.md"
   #   status: active
 
 items:
-  # Register an item when an object matters enough to track custody
-  # (see the object-custody table in tracking/subplot_threads.md).
+  # Register an item when an object matters enough to track custody. Each
+  # hand-off is then recorded in the `custody:` block of the chapter it
+  # happens in, and compiles to a custodyEvent record. An item usually needs
+  # no file of its own — omit sourceFile.
   # - id: item.example-object
   #   type: item
   #   displayName: "The Example Object"
   #   aliases: ["the object"]
-  #   sourceFile: "stories/01. Example/plot/00_story_background.md"
   #   status: active

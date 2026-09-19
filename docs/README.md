@@ -25,8 +25,10 @@ compiles to 149 records:
 ```
    25 records -> records/book1/scenes.json
    97 records -> records/book1/character_state_events.json
+    3 records -> records/book1/custody_events.json
    14 records -> records/series/places.json
    13 records -> records/series/character_profiles.json
+    1 records -> records/series/items.json
 ```
 
 Its NSID root is `com.supperclubsecrets`, so its scene records are
@@ -78,27 +80,36 @@ Things these guides describe as absent, gathered here so they are easy to find.
 None of them block the pipeline; all of them are places where the documented
 model and the shipped code disagree.
 
-1. **There is no `item` or `custodyEvent` record type.** The root README
-   advertises item custody as a tracked dimension, and Supper Club Secrets has
-   `records/book1/items.json` and `records/book1/custody_events.json` committed —
-   but no Pinakes command produces them. They predate the migration to Pinakes
-   and are now orphans. See [record-types.md](record-types.md#the-two-record-types-that-do-not-exist-yet).
-2. **`config.ts` defaults point at pre-migration paths.** Every `paths` default
-   (`protocol/entities/entities.yaml`, `canon library/locations`,
-   `protocol/records`) describes the layout the README says Pinakes moved away
-   from. A project that omits `paths` gets the old layout, so in practice every
-   project sets all of it. See [prose-to-records.md](prose-to-records.md#configuration).
-3. **`rules/` is documented but not scaffolded.** The root README documents
+1. **`rules/` is documented but not scaffolded.** The root README documents
    custom YAML rules and `paths.rules` supports them, but `pinakes init` creates
    no `rules/` directory and neither the template nor Supper Club Secrets sets
-   `paths.rules`. The feature works; nothing leads you to it. See
+   `paths.rules`. Worse, `paths.rules` is a **glob, not a directory**: setting
+   it to `rules` matches the directory itself, fails to read it, warns, and
+   then reports `OK — all checks passed cleanly` having loaded no rules at all.
+   It needs `rules/*.yaml`. See
    [continuity-and-drift.md](continuity-and-drift.md#custom-yaml-rules).
-4. **`missing-date` cannot be configured or disabled**, and turning off
+2. **The `stateEvent` rule selector cannot express a register vocabulary.** It
+   never strips the parenthetical the way the compiler does, and it checks only
+   the term left of a transition arrow. Run the root README's own example rule
+   against Book 1 and 86 of 99 annotations fail as false positives, while the
+   three genuinely off-vocabulary values pass. See
+   [continuity-and-drift.md](continuity-and-drift.md#custom-yaml-rules).
+3. **`missing-date` cannot be configured or disabled**, and turning off
    `non-sequential-dates` silently turns it off too. See
    [continuity-and-drift.md](continuity-and-drift.md#the-built-in-rules).
-5. **DIDs are described, not implemented.** The compiler emits local registry
+4. **DIDs are described, not implemented.** The compiler emits local registry
    ids and a bare handle string; nothing in the CLI mints, resolves, or writes a
    DID. See [record-types.md](record-types.md#identity-today-and-identity-later).
-6. **`pinakes --version` reports `0.2.0`** while `package.json` is at `0.2.1`.
-   The string in `cli/src/cli.ts` is hand-maintained and was missed by the
-   version bump.
+
+### Closed since these guides were written
+
+- **`item` and `custodyEvent` now exist.** Both are compiled and validated; see
+  [record-types.md](record-types.md#item-and-custodyevent). A universe carrying
+  hand-written `items.json` or `custody_events.json` from before this should
+  delete them and let `compile` produce them — note that items now land in
+  `records/series/`, so a stale `records/<book>/items.json` will otherwise sit
+  there unreferenced.
+- **`config.ts` path defaults** now match the documented `codex/` and `records/`
+  layout.
+- **`pinakes --version`** reads the version from `package.json`, so it cannot
+  drift from the package again.
