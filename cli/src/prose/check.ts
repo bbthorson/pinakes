@@ -47,6 +47,15 @@ export const DEFAULT_SIGNALS: Signal[] = [
     note: 'the corrective form; this is the classified count',
   },
   {
+    label: 'negative-parallelism-split',
+    pattern:
+      "\\b(it|that|this|he|she|they)\\s+(wasn'?t|weren'?t|isn'?t|aren'?t|didn'?t\\s+\\w+)\\b[^.!?]{0,60}[.!?]\\s+(it|that|this|he|she|they)\\s+(was|were|is|are|felt|did|had)\\b",
+    note:
+      'the split form ("It wasn\'t X. It was Y.") the taxonomy names alongside the ' +
+      'corrective one. UNCLASSIFIED: a sentence-pair regex cannot tell a correction ' +
+      'from two adjacent sentences, so every hit is quoted rather than trusted',
+  },
+  {
     label: "here's-the-kicker",
     pattern: "here'?s (the|where) (the )?(thing|kicker|catch|interesting|deal)|but here'?s",
   },
@@ -74,7 +83,13 @@ export const DEFAULT_SIGNALS: Signal[] = [
  * jargon-for-laughs register (designed voice, not a tell), and an `unlock` may
  * be a literal door. Showing the line settles either in two seconds.
  */
-const QUOTED_SIGNALS = new Set(['corporate-filler', "here's-the-kicker"]);
+const QUOTED_SIGNALS = new Set([
+  'corporate-filler',
+  "here's-the-kicker",
+  // A sentence-pair regex over-reports: measured against a hand-classified
+  // manuscript it found 9 where 6 were real. Quote them, never trust the number.
+  'negative-parallelism-split',
+]);
 
 /**
  * The classification trap. A bare grep for sentence-initial "Not " sweeps in
@@ -180,7 +195,9 @@ export function reportTells(chapters: ChapterData[], config: Config): string {
       for (const m of ch.body.matchAll(new RegExp(sig.pattern, 'gi'))) {
         const a = Math.max(0, (m.index ?? 0) - 90);
         const b = Math.min(ch.body.length, (m.index ?? 0) + m[0].length + 90);
-        const snippet = ch.body.slice(a, b).split(/\s+/).join(' ');
+        // trim() first: a slice beginning in whitespace otherwise yields an
+        // empty leading field and the snippet renders with a stray space.
+        const snippet = ch.body.slice(a, b).trim().split(/\s+/).join(' ');
         hits.push(`- **Ch ${ch.chapterNum}** \`${sig.label}\` — …${snippet}…`);
       }
     }
@@ -196,6 +213,12 @@ export function reportTells(chapters: ChapterData[], config: Config): string {
     '## Negative parallelism: the counting note',
     '',
     `- **${classified}** matches of the corrective form (\`not X — it's Y\`). This is the count that means something.`,
+    `- **${totals['negative-parallelism-split'] || 0}** raw matches of the split form`,
+    "  (`It wasn't X. It was Y.`), which the taxonomy names alongside the corrective form.",
+    '  **Unclassified, and it over-reports:** a sentence-pair regex cannot tell a correction',
+    '  from two adjacent sentences that merely start that way. Against a hand-classified',
+    '  manuscript it found 9 where 6 were real. Every hit is quoted under hard signals',
+    '  above — classify there; do not quote this number.',
     `- **${bare}** sentence-initial \`Not …\` overall. This is **unclassified** and is not a tell count.`,
     '',
     'These two numbers are reported apart on purpose. A bare `Not ` grep over-counts —',
@@ -227,25 +250,96 @@ export function reportTells(chapters: ChapterData[], config: Config): string {
   }
 
   // Repeated-construction scan. The taxonomy calls this a worthwhile optional
-  // extension and notes no fixed regex predicts it; distinctive 6-grams recurring
-  // across different chapters are its mechanical shadow.
+  // extension and notes no fixed regex predicts it: the motivating example was
+  // one distinctive phrase reused near-verbatim at two big beats.
+  //
+  // Ranking by how many chapters a phrase appears in gets that backwards. A
+  // phrase in four chapters is usually deliberate — a refrain, a running gag, one
+  // message quoted twice — while the accidental reuse this exists to catch is
+  // long, near-verbatim and in exactly TWO places, so it sorts last.
+  const N = 8;
+  const wordsByCh = new Map<string, string[]>();
   const seen = new Map<string, Set<string>>();
+  const pos = new Map<string, Map<string, number>>();
   for (const ch of chapters) {
-    const ws = ch.body.toLowerCase().match(/[a-z']+/g) || [];
-    for (let i = 0; i + 6 <= ws.length; i++) {
-      const gram = ws.slice(i, i + 6).join(' ');
+    const key = String(ch.chapterNum);
+    const ws = ch.body.toLowerCase().match(/[\p{L}\p{N}'_]+/gu) || [];
+    wordsByCh.set(key, ws);
+    for (let i = 0; i + N <= ws.length; i++) {
+      const gram = ws.slice(i, i + N).join(' ');
       if (!seen.has(gram)) seen.set(gram, new Set());
-      seen.get(gram)!.add(String(ch.chapterNum));
+      seen.get(gram)!.add(key);
+      if (!pos.has(gram)) pos.set(gram, new Map());
+      if (!pos.get(gram)!.has(key)) pos.get(gram)!.set(key, i);
     }
   }
-  const repeats = [...seen.entries()]
-    .filter(([, chs]) => chs.size > 1)
-    .sort((a, b) => b[1].size - a[1].size || a[0].localeCompare(b[0]))
-    .slice(0, 15);
-  out.push('## Repeated six-word constructions across chapters', '');
+
+  // Overlapping sliding windows have to be stitched by POSITION, not by
+  // substring: same-length grams cannot contain one another, so a containment
+  // check silently does nothing and one reused sentence reports as twenty
+  // near-duplicates. Group by the exact chapter set, then merge consecutive
+  // start indices in the earliest chapter.
+  const groups = new Map<string, string[]>();
+  for (const [gram, chs] of seen) {
+    if (chs.size < 2) continue;
+    const key = [...chs].sort((a2, b2) => Number(a2) - Number(b2)).join(',');
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key)!.push(gram);
+  }
+
+  const repeats: { phrase: string; chs: string }[] = [];
+  for (const [key, grams] of groups) {
+    const first = key.split(',')[0];
+    const ws = wordsByCh.get(first) || [];
+    const starts = [...new Set(grams.map(g => pos.get(g)!.get(first)!).filter(i => i !== undefined))].sort(
+      (x, y) => x - y
+    );
+    let runStart: number | null = null;
+    let prev = 0;
+    const flush = () => {
+      if (runStart !== null) repeats.push({ phrase: ws.slice(runStart, prev + N).join(' '), chs: key });
+    };
+    for (const i of starts) {
+      if (runStart === null) {
+        runStart = i;
+        prev = i;
+      } else if (i === prev + 1) {
+        prev = i;
+      } else {
+        flush();
+        runStart = i;
+        prev = i;
+      }
+    }
+    flush();
+  }
+  // Length first, then chapter numbers compared NUMERICALLY, so equal-length
+  // repeats have a stable order. A string compare of the key puts ch 17 before
+  // ch 2.
+  const chsKey = (s: string) => s.split(',').map(Number);
+  repeats.sort((a2, b2) => {
+    const byLen = b2.phrase.split(' ').length - a2.phrase.split(' ').length;
+    if (byLen) return byLen;
+    const ka = chsKey(a2.chs);
+    const kb = chsKey(b2.chs);
+    for (let i = 0; i < Math.max(ka.length, kb.length); i++) {
+      const d = (ka[i] ?? -1) - (kb[i] ?? -1);
+      if (d) return d;
+    }
+    return 0;
+  });
+
+  out.push(`## Longest repeated constructions (${N}+ words, maximal, longest first)`, '');
+  out.push(
+    'A long phrase in exactly **two** chapters is the interesting case — that is',
+    'accidental reuse at two beats. A phrase in four chapters is usually a refrain, a',
+    'running gag, or one message quoted twice, all of which are deliberate. Check the',
+    'chapter list before reading any of these as a defect.',
+    ''
+  );
   if (repeats.length) {
-    for (const [gram, chs] of repeats) {
-      out.push(`- \`${gram}\` — ch ${[...chs].sort((x, y) => Number(x) - Number(y)).join(', ')}`);
+    for (const r of repeats.slice(0, 20)) {
+      out.push(`- ch ${r.chs.split(',').join(', ')} — \`${r.phrase}\``);
     }
   } else {
     out.push('_None._');
