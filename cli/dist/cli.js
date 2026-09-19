@@ -9,6 +9,7 @@ import { Registry } from './registry/entities.js';
 import { LinterEngine } from './linter/engine.js';
 import { YamlRulesLoader } from './linter/yaml-loader.js';
 import { compileProject } from './compiler/atproto.js';
+import { runProseCheck } from './prose/check.js';
 /**
  * The version comes from package.json rather than a literal here. A
  * hand-maintained copy drifts: `--version` reported 0.2.0 against a 0.2.1
@@ -90,6 +91,48 @@ program
     }
     catch (e) {
         console.error(`Error executing compile: ${e.message}`);
+        process.exit(1);
+    }
+});
+program
+    .command('prose-check')
+    .description('Mechanical prose triage — counts and closers for the AI-tells judgment pass')
+    .option('-r, --root <path>', 'Project root directory', process.cwd())
+    .option('-s, --story <name>', 'Limit to one story directory (substring match)')
+    .option('--report <name>', 'tells | closers | all', 'all')
+    .option('-o, --out <dir>', 'Write markdown files into this directory instead of stdout')
+    .action((options) => {
+    const root = path.resolve(options.root);
+    try {
+        const { config } = loadConfig(root);
+        const registry = new Registry(root, config.paths.registry, config.paths.nonEntities);
+        const engine = new LinterEngine(root, config, registry);
+        let stories = engine.getStories();
+        if (options.story) {
+            const needle = String(options.story).toLowerCase();
+            stories = stories.filter(s => path.basename(s).toLowerCase().includes(needle));
+        }
+        if (stories.length === 0) {
+            console.error('No stories found.');
+            process.exit(1);
+        }
+        const chapters = stories.flatMap(s => engine.loadChapters(s));
+        if (chapters.length === 0) {
+            console.error('No chapters found.');
+            process.exit(1);
+        }
+        if (!['tells', 'closers', 'all'].includes(options.report)) {
+            console.error(`Unknown report '${options.report}'. Expected tells, closers or all.`);
+            process.exit(1);
+        }
+        runProseCheck(chapters, config, options.report, options.out ? path.resolve(options.out) : undefined);
+        // Deliberately no findings-based exit code. These reports are judgment
+        // inputs, not pass/fail; `ai_tells.md` is explicit that counts are inputs,
+        // not verdicts, and an AI tell is never a blocking finding. Gating CI on
+        // this output would contradict the taxonomy that defines it.
+    }
+    catch (e) {
+        console.error(`Error: ${e.message}`);
         process.exit(1);
     }
 });

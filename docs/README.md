@@ -13,6 +13,7 @@ leaves alone.
 | [Record types](record-types.md) | The five record types `compile` emits, the Lexicon documents it generates for them, and how identity works |
 | [Prose to records](prose-to-records.md) | The frontmatter contract, the resolution rules, and what never leaves the repo |
 | [Continuity and drift](continuity-and-drift.md) | The lint rules, Lexicon validation, the CI drift gate, and the judgment passes that stay outside CI |
+| [Prose triage](prose-triage.md) | `prose-check`: the countable half of the AI-tells pass, why its counts are inputs rather than verdicts, and why it is deliberately not a gate |
 
 ## The worked example
 

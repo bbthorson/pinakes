@@ -14,3 +14,24 @@ paths:
   locations: "codex/locations"
   characters: "codex/characters"
   output: "records"
+
+# Optional. Configures `pinakes prose-check`, the mechanical half of the
+# AI-tells pass. Every field has a default — the built-in signal list is the
+# catalogue itself — so you can delete this whole block and the command still
+# works. See docs/prose-triage.md.
+#
+# prose:
+#   # Replaces the built-in signals. Write your own when your universe
+#   # legitimately earns a catalogued word rather than reading a column of
+#   # false positives forever.
+#   signals:
+#     - label: corporate-filler
+#       pattern: '\b(delve|unlock|elevate|tapestry|ecosystem)\b'
+#       note: "dropped 'leverage' — the CFO is supposed to talk like that"
+#   # Terms your voice guide catalogues as a character's designed register.
+#   # Counted and reported for subtraction, never hidden.
+#   carveOuts:
+#     - term: quietly
+#       character: "[Character]"
+#       note: "their catalogued quiet register"
+#   closerMaxWords: 12
