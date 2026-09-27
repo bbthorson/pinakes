@@ -526,6 +526,20 @@ matter much either way.
 6. **Meals as calendar events** (§8). The idea is liked, but its use on a
    reader surface is unclear. Candidate uses are listed below, and the question is
    whether any of them earns the build.
+   - *The invitation.* Each meal is an event record, published when the host
+     would have sent it in-story. On the site it's the course card: date, place,
+     host.
+   - *Characters RSVP.* Each regular's `calendar.rsvp` comes from their own
+     repo. On the site that's a guest list that fills in over the week. It carries
+     plot risk: an absence can be a spoiler (someone skipping the Family Meal),
+     so RSVPs need the same gates as posts. They're written at story time, only
+     on a public-register day, and never ahead of their date.
+   - *Readers RSVP.* A reader's own account RSVPs to the Sunday drop, from the
+     site or any calendar app that reads the lexicon. That's a native "remind me"
+     and a count of who's coming to dinner. It's the one use aimed at readers
+     rather than the story, and the one most likely to justify the build.
+   - Against: Smoke Signal, the main app that read these, is gone, so almost all
+     the value would be on our own site.
 7. ~~**External place ids.**~~ Decided: an optional `location.fsq` entry for
    real public venues. The record stays keyed by its story id.
 8. ~~**DID custody.**~~ Decided: out of scope.
