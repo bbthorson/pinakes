@@ -15,6 +15,13 @@ once the rest is.
 
 - **2026-09-27. Rich content is `at.markpub.markdown`** (§12.1). Chapters are
   already markdown. Every document also carries plain `textContent`.
+- **2026-09-27. One chapter file becomes two linked records** (§12.2). The
+  `site.standard.document` carries the prose, plus a small extension object
+  under the universe's NSID with `chapter`, `sequence`, `storyDate`/`storyDateEnd`
+  and `sceneRefs`. The `scene` record carries the story metadata (cast, places,
+  POV), with the author-only fields stripped as in §4. Author-only frontmatter
+  (`beat`, `beat_purpose`, `clues`, `threads`, `registers`, annotated `pov` and
+  cast lines) reaches neither.
 - **2026-09-27. One `site.standard.publication` per book** (§12.3). Each book
   gets its own cover, logline and theme. A document's `site` therefore
   identifies its book, and the chapter extension needn't repeat it.
@@ -513,15 +520,8 @@ matter much either way.
 1. ~~**Rich content format.**~~ Decided: `at.markpub.markdown`. What's left is
    implementation: check its schema, and strip what the site strips (the leading
    chapter heading) so the two render the same prose.
-2. **Where chapter metadata lives on the document.** The fields considered
-   are the reader-safe ones from chapter frontmatter: `chapter` (number),
-   `sequence` (the meal), `storyDate`/`storyDateEnd` and `sceneRefs`. Everything
-   else stays off: `beat`, `beat_purpose`, `clues`, `threads`, `registers`, and the
-   annotated `pov` and cast lines, which carry author notes. Who was present and
-   where it happened are already on the scene record, which the document points
-   to. The proposal is a small extension object under the universe's NSID on the
-   document itself, rather than a separate record. It's four fields, and a
-   separate record would be one more thing to keep in step.
+2. ~~**Where chapter metadata lives on the document.**~~ Decided: a
+   four-field extension object on the document.
 3. ~~**One publication per universe or per book?**~~ Decided: per book.
 4. **License.** The leaning is **CC BY-NC-ND 4.0**: share it with credit, but
    no commercial use and no derivative works. That's not final. Neither
