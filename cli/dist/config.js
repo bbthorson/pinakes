@@ -61,6 +61,37 @@ export const ConfigSchema = z.object({
     })
         .default({ softMaxChars: 600 }),
     /**
+     * What `pinakes context` may show of a character's codex file — the long tier
+     * of the as-of bundle.
+     *
+     * This fails closed. A codex file is written by an author who knows the whole
+     * series, so nothing in it is shown unless a heading is named in `include`.
+     * With no configuration the long tier is empty, never everything.
+     *
+     * - `include`: headings whose sections may be shown, matched case-insensitively
+     *   as a prefix (`Everyday Life` matches `Everyday Life (working canon)`).
+     *   Subsections come along unless excluded.
+     * - `exclude`: per character (a registry name), headings inside an included
+     *   section to withhold — a series-held secret that lives in its own
+     *   subsection. Every entry must match a heading in that character's file, so
+     *   a renamed heading fails loudly instead of silently un-withholding.
+     * - `excludeParagraphs`: paragraph prefixes to drop wherever they appear, for
+     *   held material that shares a section with shown material.
+     * - `frontmatter`: codex frontmatter keys that may be shown.
+     */
+    context: z
+        .object({
+        codex: z
+            .object({
+            include: z.array(z.string()).default([]),
+            exclude: z.record(z.array(z.string())).default({}),
+            excludeParagraphs: z.array(z.string()).default([]),
+            frontmatter: z.array(z.string()).default([]),
+        })
+            .default({ include: [], exclude: {}, excludeParagraphs: [], frontmatter: [] }),
+    })
+        .default({ codex: { include: [], exclude: {}, excludeParagraphs: [], frontmatter: [] } }),
+    /**
      * `prose-check` configuration. Every field is optional: the defaults are the
      * AI-tells catalogue itself, so the command is useful before a universe
      * configures anything.

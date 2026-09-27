@@ -11,6 +11,7 @@ import { LinterEngine, Diagnostic } from './linter/engine.js';
 import { YamlRulesLoader } from './linter/yaml-loader.js';
 import { compileProject } from './compiler/atproto.js';
 import { runProseCheck } from './prose/check.js';
+import { buildContext, renderMarkdown } from './context/bundle.js';
 
 /**
  * The version comes from package.json rather than a literal here. A
@@ -152,6 +153,46 @@ program
       // inputs, not pass/fail; `ai_tells.md` is explicit that counts are inputs,
       // not verdicts, and an AI tell is never a blocking finding. Gating CI on
       // this output would contradict the taxonomy that defines it.
+    } catch (e: any) {
+      console.error(`Error: ${e.message}`);
+      process.exit(1);
+    }
+  });
+
+program
+  .command('context')
+  .description("Assemble what a character can see as of a story date: long, mid, and short tiers, looking backward only")
+  .argument('<character>', 'Character, by registry name or id')
+  .requiredOption('--as-of <date>', 'Story date to assemble from, YYYY-MM-DD')
+  .option('-r, --root <path>', 'Project root directory', process.cwd())
+  .option('--json', 'Emit the bundle as JSON instead of Markdown')
+  .option('--full-state', 'Include state-event annotations (authored omnisciently; may exceed what the character knows)')
+  .option('-o, --out <file>', 'Write to this file instead of stdout')
+  .action((character, options) => {
+    const root = path.resolve(options.root);
+    try {
+      const { config } = loadConfig(root);
+      const registry = new Registry(root, config.paths.registry, config.paths.nonEntities);
+      const engine = new LinterEngine(root, config, registry);
+
+      // The bundle is built from compiled records, in memory: nothing is written.
+      const { records } = compileProject(root, config, registry, engine, { write: false });
+      const { bundle, errors } = buildContext(root, config, registry, engine, records, character, options.asOf, {
+        fullState: Boolean(options.fullState),
+      });
+
+      if (!bundle) {
+        for (const e of errors) console.error(`Error: ${e}`);
+        process.exit(1);
+      }
+
+      const output = options.json ? JSON.stringify(bundle, null, 2) + '\n' : renderMarkdown(bundle);
+      if (options.out) {
+        fs.writeFileSync(path.resolve(options.out), output, 'utf-8');
+        console.error(`Wrote ${options.out}`);
+      } else {
+        process.stdout.write(output);
+      }
     } catch (e: any) {
       console.error(`Error: ${e.message}`);
       process.exit(1);

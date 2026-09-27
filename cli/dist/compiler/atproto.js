@@ -149,12 +149,14 @@ export function compileProject(projectRoot, config, registry, engine, options = 
     const outputDir = path.resolve(projectRoot, config.paths.output);
     const results = [];
     const diagnostics = [];
+    const allRecords = [];
     const lexiconDocs = buildLexiconDocs(NS);
     const schemas = compileLexiconDocs(lexiconDocs);
     /** Validates, then writes — invalid records are still written so the author can inspect them. */
     const writeRecords = (filePath, records) => {
         const relative = path.relative(projectRoot, filePath);
         diagnostics.push(...validateRecords(records, schemas, relative));
+        allRecords.push(...records);
         if (write) {
             fs.mkdirSync(path.dirname(filePath), { recursive: true });
             fs.writeFileSync(filePath, JSON.stringify(records, null, 2) + '\n', 'utf-8');
@@ -586,5 +588,5 @@ export function compileProject(projectRoot, config, registry, engine, options = 
     const lexiconFiles = write
         ? writeLexiconDocs(outputDir, lexiconDocs).map(f => path.relative(projectRoot, f))
         : [];
-    return { results, lexiconFiles, diagnostics, stretchFindings };
+    return { results, lexiconFiles, diagnostics, stretchFindings, records: allRecords };
 }
