@@ -1,6 +1,6 @@
 ---
 title: Publishing — from compiled records to the network
-status: proposal
+status: accepted
 date: 2026-09-27
 driver: Supper Club Secrets, Book 1 (live Oct 1 – Oct 31, 2026)
 ---
@@ -9,9 +9,8 @@ driver: Supper Club Secrets, Book 1 (live Oct 1 – Oct 31, 2026)
 
 ## Decisions
 
-The proposal as a whole isn't accepted yet. As each open question in §12 is
-settled, it's recorded here with its date. The doc's `status` moves to `accepted`
-once the rest is.
+Accepted 2026-09-27, with every §12 question settled. The build waits until SCS's
+Book 1 run ends on Oct 31 (§11).
 
 - **2026-09-27. Rich content is `at.markpub.markdown`** (§12.1). Chapters are
   already markdown. Every document also carries plain `textContent`.
@@ -25,6 +24,10 @@ once the rest is.
 - **2026-09-27. One `site.standard.publication` per book** (§12.3). Each book
   gets its own cover, logline and theme. A document's `site` therefore
   identifies its book, and the chapter extension needn't repeat it.
+- **2026-09-27. License is CC BY-NC-ND 4.0** (§12.4). It's set once as
+  `publish.license` (an SPDX id). From there it goes to an extension field on the
+  publication, a closing line of its `description`, and `<link rel="license">` on
+  the site.
 - **2026-09-27. No lock gate. `publishDate` is the lock** (§12.5). A chapter
   becomes a document on its `publishDate`, the same moment the site serves it,
   and never before. A chapter edited after it drops is updated in place with
@@ -311,7 +314,7 @@ Here's how that reasoning holds up:
   appears when the chapter drops, and a later edit is an update with `updatedAt`
   set.
 - **Rights.** Full text in an open data layer is trivially copyable. The
-  author should decide the license before the first document goes out (§12.4).
+  license is CC BY-NC-ND 4.0 (decided, §12.4).
   `site.standard.publication` has no license field, so it has to go somewhere
   else.
 - **Size.** The lexicon puts no cap on `textContent`, but PDSes cap record size.
@@ -512,8 +515,7 @@ matter much either way.
 2. Move DIDs into `entities.yaml`, and lane from tags into a field.
 3. Swap the poster's internals for `planPublish`/`applyPublish`. Delete
    `publish_records.mjs` and most of `posting.mjs`.
-4. Turn on chapter text in documents only after the author has decided the
-   license (§12.4).
+4. Turn on chapter text in documents, under the CC BY-NC-ND 4.0 license (§12.4).
 
 ## 12. Open questions
 
@@ -523,18 +525,7 @@ matter much either way.
 2. ~~**Where chapter metadata lives on the document.**~~ Decided: a
    four-field extension object on the document.
 3. ~~**One publication per universe or per book?**~~ Decided: per book.
-4. **License.** The leaning is **CC BY-NC-ND 4.0**: share it with credit, but
-   no commercial use and no derivative works. That's not final. Neither
-   standard.site lexicon has a license field, so it would be carried in three
-   places:
-   - an extension field under the universe's NSID on the publication
-     (`license: { id: "CC-BY-NC-ND-4.0", url }`, as an SPDX id) for machines;
-   - one closing line in the publication's `description` for people, since
-     that's what readers display;
-   - `<link rel="license">` on the site.
-
-   It's Pinakes config (`publish.license`, an SPDX id), so the three places can't
-   disagree. The choice itself stays with the author.
+4. ~~**License.**~~ Decided: CC BY-NC-ND 4.0, carried as described in the Decisions block.
 5. ~~**Lock gate.**~~ Decided: `publishDate` is the lock.
 6. ~~**Meals as calendar events.**~~ Decided: no.
 7. ~~**External place ids.**~~ Decided: an optional `location.fsq` entry for
