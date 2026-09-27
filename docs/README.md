@@ -81,13 +81,19 @@ Things these guides describe as absent, gathered here so they are easy to find.
 None of them block the pipeline; all of them are places where the documented
 model and the shipped code disagree.
 
-1. **DIDs are described, not implemented.** [Concepts](concepts.md#at-protocol-and-identity)
-   lists them as planned; the compiler emits local registry ids and a bare
-   handle string, and nothing in the CLI mints, resolves, or writes a DID. See
+1. **DIDs are carried, not resolved.** A character's `did` is checked for
+   syntax and uniqueness and carried onto its profile, but nothing in the CLI
+   mints a DID or confirms that one resolves to the account the codex means.
+   That is left to the publishing layer. See
    [record-types.md](record-types.md#identity-today-and-identity-later).
 
 ### Closed since these guides were written
 
+- **A character's DID reaches its profile record.** `did` in codex
+  frontmatter used to be ignored, so a consumer that needed it had to re-read
+  the codex. It is now carried onto `character.profile`, and a DID atproto
+  would reject (`invalid-did`) or two characters share (`duplicate-did`) fails
+  both `lint` and `compile`.
 - **A custom rule that would never run fails `lint`.** Each of these used to
   load nothing, or load a rule that checked nothing, and report `OK — all
   checks passed cleanly`. Now each is an error: `paths.rules` set to a

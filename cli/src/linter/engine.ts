@@ -4,6 +4,7 @@ import YAML from 'yaml';
 import { Registry } from '../registry/entities.js';
 import { Config } from '../config.js';
 import { parseRegister } from './registers.js';
+import { readDid } from './identity.js';
 
 export interface Diagnostic {
   file: string;
@@ -351,9 +352,52 @@ export class LinterEngine {
     })));
   }
 
+  /**
+   * DIDs in character codex files: one that atproto would reject, or one two
+   * characters claim. Either would publish a profile under the wrong identity,
+   * so, like the registry checks, both `lint` and `compile` report them.
+   * Every character is checked, not only the active ones that get a profile:
+   * a retired character still owns its DID.
+   */
+  public identityDiagnostics(): Diagnostic[] {
+    const out: Diagnostic[] = [];
+    /** Lower-cased DID -> the codex file that claimed it first. */
+    const claimed = new Map<string, string>();
+    for (const ent of this.registry.allEntities) {
+      if (ent.type !== 'character' || !ent.sourceFile) continue;
+      const file = path.resolve(this.projectRoot, ent.sourceFile);
+      if (!fs.existsSync(file)) continue;
+      const rel = path.relative(this.projectRoot, file);
+      const field = readDid(this.parseFrontmatter(fs.readFileSync(file, 'utf-8')).data);
+      if (field.kind === 'invalid') {
+        out.push({
+          file: rel,
+          rule: 'invalid-did',
+          severity: 'error',
+          message: `DID ${JSON.stringify(field.value)} for ${ent.id} is not a valid atproto DID: ${field.reason}.`,
+        });
+      } else if (field.kind === 'valid') {
+        // did:web hostnames are case-insensitive; did:plc is lower-case only.
+        const key = field.did.toLowerCase();
+        const first = claimed.get(key);
+        if (first) {
+          out.push({
+            file: rel,
+            rule: 'duplicate-did',
+            severity: 'error',
+            message: `DID '${field.did}' for ${ent.id} is also claimed by ${first}. Each character needs its own.`,
+          });
+        } else {
+          claimed.set(key, rel);
+        }
+      }
+    }
+    return out;
+  }
+
   // Perform linting
   public lint(): Diagnostic[] {
-    const diagnostics: Diagnostic[] = this.registryDiagnostics();
+    const diagnostics: Diagnostic[] = [...this.registryDiagnostics(), ...this.identityDiagnostics()];
     const stories = this.getStories();
 
     for (const storyDir of stories) {

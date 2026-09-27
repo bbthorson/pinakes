@@ -105,6 +105,14 @@ export declare class LinterEngine {
      * either would otherwise pick an entity, or lose one, silently.
      */
     registryDiagnostics(): Diagnostic[];
+    /**
+     * DIDs in character codex files: one that atproto would reject, or one two
+     * characters claim. Either would publish a profile under the wrong identity,
+     * so, like the registry checks, both `lint` and `compile` report them.
+     * Every character is checked, not only the active ones that get a profile:
+     * a retired character still owns its DID.
+     */
+    identityDiagnostics(): Diagnostic[];
     lint(): Diagnostic[];
     private checkEntity;
 }
