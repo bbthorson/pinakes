@@ -26,6 +26,8 @@ once the rest is.
 - **2026-09-27. Located places may carry a Foursquare id** (§12.7) as a
   `location.fsq` entry, for real public venues only. The record stays keyed by
   its story id.
+- **2026-09-27. No calendar events** (§12.6). Meals aren't modelled as
+  `community.lexicon.calendar.event`, and nobody RSVPs.
 - **2026-09-27. Key management is out of scope** (§12.8). Pinakes reads and
   checks DIDs. Creating accounts, rotation keys and PLC operations stay with the
   author.
@@ -432,7 +434,7 @@ Each of SCS's four meals is a dated gathering at a place, with a guest list. Tha
 could be modelled as an event (`startsAt`, `endsAt`, `locations`), and each
 character's attendance as a `calendar.rsvp` from their own repo. It's a real fit,
 and a rather charming one. But it's a universe choice, not a Pinakes type, and its
-main consumer is gone, so it's listed in §12 rather than proposed.
+main consumer is gone. Decided against (§12.6).
 
 ## 9. Posts
 
@@ -534,23 +536,7 @@ matter much either way.
    It's Pinakes config (`publish.license`, an SPDX id), so the three places can't
    disagree. The choice itself stays with the author.
 5. ~~**Lock gate.**~~ Decided: `publishDate` is the lock.
-6. **Meals as calendar events** (§8). The idea is liked, but its use on a
-   reader surface is unclear. Candidate uses are listed below, and the question is
-   whether any of them earns the build.
-   - *The invitation.* Each meal is an event record, published when the host
-     would have sent it in-story. On the site it's the course card: date, place,
-     host.
-   - *Characters RSVP.* Each regular's `calendar.rsvp` comes from their own
-     repo. On the site that's a guest list that fills in over the week. It carries
-     plot risk: an absence can be a spoiler (someone skipping the Family Meal),
-     so RSVPs need the same gates as posts. They're written at story time, only
-     on a public-register day, and never ahead of their date.
-   - *Readers RSVP.* A reader's own account RSVPs to the Sunday drop, from the
-     site or any calendar app that reads the lexicon. That's a native "remind me"
-     and a count of who's coming to dinner. It's the one use aimed at readers
-     rather than the story, and the one most likely to justify the build.
-   - Against: Smoke Signal, the main app that read these, is gone, so almost all
-     the value would be on our own site.
+6. ~~**Meals as calendar events.**~~ Decided: no.
 7. ~~**External place ids.**~~ Decided: an optional `location.fsq` entry for
    real public venues. The record stays keyed by its story id.
 8. ~~**DID custody.**~~ Decided: out of scope.
