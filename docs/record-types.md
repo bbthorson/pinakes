@@ -399,7 +399,7 @@ in prose *and* in frontmatter. Supper Club Secrets registers "the mogul" and
 "the developer" as aliases of `char.garrett-pike` because both appear as
 pre-naming epithets.
 
-The root README also describes characters as DIDs —
+[Concepts](concepts.md#at-protocol-and-identity) also describes characters as DIDs —
 `did:plc:…` or `did:web:emma.supperclub.site`, each owning a cryptographically
 signed history. **That is a design target, not shipped behaviour.** Nothing in
 the CLI mints, resolves, writes, or validates a DID. What exists is:
