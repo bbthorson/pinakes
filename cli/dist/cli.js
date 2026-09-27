@@ -75,7 +75,7 @@ program
         const { config } = loadConfig(root);
         const registry = new Registry(root, config.paths.registry, config.paths.nonEntities);
         const engine = new LinterEngine(root, config, registry);
-        const { results, lexiconFiles, diagnostics } = compileProject(root, config, registry, engine);
+        const { results, lexiconFiles, diagnostics, removed } = compileProject(root, config, registry, engine);
         console.log('='.repeat(68));
         console.log('PINAKES COMPILATION — repo -> records');
         console.log('='.repeat(68));
@@ -85,10 +85,17 @@ program
         for (const file of lexiconFiles) {
             console.log(`       lexicon -> ${file}`);
         }
+        for (const file of removed ?? []) {
+            console.log(`   removed stale -> ${file}`);
+        }
+        if (removed === null) {
+            console.log(`\nNote: paths.output (${config.paths.output}) is the project root or contains it, so stale record ` +
+                'files were not removed. Point it at a directory of its own, such as `records`.');
+        }
         if (diagnostics.length > 0) {
             console.log('');
             reportDiagnostics(diagnostics);
-            console.log(`\nFAIL — ${diagnostics.length} record(s) do not match their Lexicon.`);
+            console.log(`\nFAIL — ${diagnostics.length} problem(s) in the compiled records.`);
             process.exit(1);
         }
         console.log('\nOK — compilation complete, all records match their Lexicons.');

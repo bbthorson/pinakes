@@ -36,13 +36,16 @@ export class YamlRulesLoader {
 
     for (const file of files) {
       if (!fs.existsSync(file)) continue;
+      // A rule that fails to load is a check that silently stops running, so
+      // it fails the lint rather than warning past it.
       try {
         const raw = fs.readFileSync(file, 'utf-8');
         const parsed = YAML.parse(raw);
         const validated = CustomRuleSchema.parse(parsed);
+        if (validated.validate.pattern) new RegExp(validated.validate.pattern);
         this.rules.push(validated);
-      } catch (e) {
-        console.warn(`Warning: failed to parse custom rule at ${file}:`, e);
+      } catch (e: any) {
+        throw new Error(`failed to load custom rule ${path.relative(this.projectRoot, file)}: ${e.message}`);
       }
     }
   }

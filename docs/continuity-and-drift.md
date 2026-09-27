@@ -17,13 +17,18 @@ where it lives instead.
 ## The built-in rules
 
 These checks run on `pinakes lint`. Severities are configurable in
-`pinakes.yaml` under `rules:`, with `error`, `warning`, or `off`:
+`pinakes.yaml` under `rules:`, with `error`, `warning`, or `off`. A `rules:`
+block is merged over the defaults, so it only needs the rules you change:
 
 | Rule | Default | What it catches |
 | --- | --- | --- |
 | `unresolved-entities` | `error` | A name in frontmatter that resolves to no registry entity and is not a declared non-entity |
 | `non-sequential-dates` | `error` | A chapter whose start date precedes the previous chapter's |
 | `missing-date` | `error`, not configurable | A chapter with no `YYYY-MM-DD` anywhere in its `date` |
+| `malformed-frontmatter` | `error` / `warning`, not configurable | A chapter file whose frontmatter is not valid YAML (error), or has no `chapter` key (warning); either way it would otherwise be skipped by every check |
+| `ambiguous-alias` | `error`, not configurable | One alias (or display name) claimed by two registry entities of the same type. It resolves to neither, and every reference to it is reported as ambiguous. Different types may share a name |
+| `duplicate-id` | `error`, not configurable | One entity id registered twice in `entities.yaml` |
+| `duplicate-chapter` | `error`, not configurable | Two chapter files in one story declaring the same `chapter` number, which would compile two scenes under one id |
 | `co-presence-conflict` | `warning` | A character present in two chapters with overlapping dates and no shared location |
 | `post-register` | `error` | A post anchored to a chapter where its author is in a non-public register |
 | `stretch-source-future` | `error` | A stretch citing a source that **ends** after its `asOf`: a character drawing on what has not happened yet |
@@ -137,15 +142,12 @@ separate limits cause that:
 - **Only the term left of the arrow is checked.** `private → briefly animated`
   passes, because the check never looks at `briefly animated`.
 
-There is also a configuration trap. `paths.rules` is a **glob, not a
-directory**. Setting `rules: "rules"` matches the directory itself, throws
-`EISDIR` internally, prints a warning, loads zero rules — and then reports:
-
-```
-OK — all checks passed cleanly.
-```
-
-You would reasonably believe the rule was enforcing. It needs `rules/*.yaml`.
+Note that `paths.rules` is a **glob, not a directory**: it needs
+`rules/*.yaml`. Setting `rules: "rules"` matches the directory itself. This
+used to print a warning, load zero rules, and report `OK — all checks passed
+cleanly.` A rule file that cannot be loaded — unreadable, invalid YAML, the
+wrong shape, or a `pattern` that is not a valid regex — now fails `lint`
+outright, because a rule that silently stops running is worse than no rule.
 
 So custom rules are usable today for `selector: chapter` checks on frontmatter
 fields, which is where the feature is sound. Treat `selector: stateEvent` as
@@ -170,7 +172,7 @@ limit:
 📁 records/series/places.json:
         [lexicon-validation] 🔴 ERROR: place.the-gilded-fern: string too big (maximum 64, got 82) at $.status
 
-FAIL — 1 record(s) do not match their Lexicon.
+FAIL — 1 problem(s) in the compiled records.
 ```
 
 The invalid record is still written to disk, then reported. That is deliberate:
@@ -218,16 +220,28 @@ compiled output and fail the gate on a pull request that touched nothing.
 Upgrading is a deliberate act: bump the variable, recompile locally, commit the
 regenerated records in the same pull request.
 
-**The gate only sees paths `compile` writes.** A file sitting in `records/`
-that no Pinakes command produces is invisible to it — it never changes, so it
-never diffs, and it sails through a check whose entire purpose is catching stale
-records.
+**Stale files are removed, and the removal diffs.** `compile` deletes any
+record file it did not produce this run: `scenes.json`,
+`character_state_events.json`, `custody_events.json`, `character_posts.json`,
+`character_stretches.json`, `places.json`, `character_profiles.json`, or
+`items.json` one level below `records/`, and `*.<type>.json` Lexicon documents
+in `records/lexicons/`. A book that was renamed or deleted, a record type a book
+stopped producing, or an NSID change therefore shows up as a deletion, and the
+gate fails until it is committed. Before this, those files stayed forever and
+never diffed.
+
+Nothing else in `records/` is touched. The gate still cannot see a file under
+some other name that no Pinakes command produces: it never changes, so it
+never diffs. If `paths.output` is the project root (or above it), `compile`
+skips removal entirely and says so, because those file names one level down
+could be the author's own.
 
 This is not hypothetical. Supper Club Secrets carried hand-written
 `records/book1/items.json` and `custody_events.json` for months in exactly that
 state: unvalidated, schema-less, consumed by the site at build time, and green
 on every run. Both are compiled records now, but the lesson generalises — if you
-hand-write anything into `records/`, the gate is not protecting it. The check to
+hand-write anything into `records/`, the gate is not protecting it, and under
+one of the file names above `compile` will delete it. The check to
 add, if you want one, is for files under `records/` that a fresh `compile` into
 an empty directory does not produce.
 

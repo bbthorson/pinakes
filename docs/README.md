@@ -107,9 +107,14 @@ model and the shipped code disagree.
 - **`item` and `custodyEvent` now exist.** Both are compiled and validated; see
   [record-types.md](record-types.md#item-and-custodyevent). A universe carrying
   hand-written `items.json` or `custody_events.json` from before this should
-  delete them and let `compile` produce them — note that items now land in
-  `records/series/`, so a stale `records/<book>/items.json` will otherwise sit
-  there unreferenced.
+  delete them and let `compile` produce them. Items now land in
+  `records/series/`; `compile` removes a leftover `records/<book>/items.json`
+  as stale (see below).
+- **`compile` removes stale record files.** A record file it no longer
+  produces — a deleted or renamed book, a record type a book stopped
+  producing, Lexicon documents for an old NSID — is deleted and reported as
+  `removed stale`. Only pinakes' own file names are candidates; see
+  [continuity-and-drift.md](continuity-and-drift.md#the-drift-gate-in-ci).
 - **`config.ts` path defaults** now match the documented `codex/` and `records/`
   layout.
 - **`pinakes --version`** reads the version from `package.json`, so it cannot

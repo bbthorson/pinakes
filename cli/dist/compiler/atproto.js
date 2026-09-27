@@ -2,6 +2,7 @@ import fs from 'fs';
 import path from 'path';
 import { lintStretches } from '../linter/stretches.js';
 import { buildLexiconDocs, compileLexiconDocs, validateRecords, writeLexiconDocs } from '../lexicons/index.js';
+import { pruneStale } from './prune.js';
 function getBookKey(storyDir) {
     const base = path.basename(storyDir);
     const m = base.match(/^0*(\d+)/);
@@ -148,8 +149,11 @@ export function compileProject(projectRoot, config, registry, engine, options = 
     const NS = config.project.nsid;
     const outputDir = path.resolve(projectRoot, config.paths.output);
     const results = [];
-    const diagnostics = [];
+    // An ambiguous alias drops a reference from every record that uses it.
+    const diagnostics = engine.registryDiagnostics();
     const allRecords = [];
+    /** Absolute paths written this run; everything else pinakes-named is stale. */
+    const written = new Set();
     const lexiconDocs = buildLexiconDocs(NS);
     const schemas = compileLexiconDocs(lexiconDocs);
     /** Validates, then writes — invalid records are still written so the author can inspect them. */
@@ -160,6 +164,7 @@ export function compileProject(projectRoot, config, registry, engine, options = 
         if (write) {
             fs.mkdirSync(path.dirname(filePath), { recursive: true });
             fs.writeFileSync(filePath, JSON.stringify(records, null, 2) + '\n', 'utf-8');
+            written.add(path.resolve(filePath));
         }
         results.push({ file: relative, count: records.length });
     };
@@ -184,15 +189,32 @@ export function compileProject(projectRoot, config, registry, engine, options = 
      * pass and read back after it.
      */
     const firstCustody = new Map();
+    /** Book key -> the story directory that claimed it. */
+    const bookOwners = new Map();
     // 1. Stories compile (scenes, state events, custody events)
     for (const storyDir of stories) {
         const book = getBookKey(storyDir);
         const chapters = engine.loadChapters(storyDir);
         if (chapters.length === 0)
             continue;
+        // `01_book` and `01_book_draft` both key to `book1`. Compiling the second
+        // would overwrite the first's record files and mint colliding ids.
+        const owner = bookOwners.get(book);
+        if (owner) {
+            diagnostics.push({
+                file: path.relative(projectRoot, storyDir),
+                rule: 'duplicate-book',
+                severity: 'error',
+                message: `Story directory compiles to book key '${book}', already used by ${path.relative(projectRoot, owner)}. Not compiled.`,
+            });
+            continue;
+        }
+        bookOwners.set(book, storyDir);
         const scenes = [];
         const events = [];
         const custodyEvents = [];
+        /** Hand-offs per (item, chapter). The first keeps the bare id; repeats get `.2`, `.3`. */
+        const custodySeq = new Map();
         for (const ch of chapters) {
             if (ch.dates.length === 0)
                 continue;
@@ -260,13 +282,17 @@ export function compileProject(projectRoot, config, registry, engine, options = 
                     continue;
                 const itemSlug = itemEnt.id.split('.', 2)[1];
                 const fromEnt = entry.from ? registry.resolve(entry.from, 'character') : null;
+                const baseId = `custodyEvent.${itemSlug}.${book}.ch${ch.chapterNum}`;
+                const n = (custodySeq.get(baseId) ?? 0) + 1;
+                custodySeq.set(baseId, n);
+                const custodyId = n === 1 ? baseId : `${baseId}.${n}`;
                 const prior = firstCustody.get(itemEnt.id);
                 if (!prior || storyDate < prior.storyDate) {
                     firstCustody.set(itemEnt.id, { storyDate, chapterRef: chRef });
                 }
                 custodyEvents.push(compact({
                     $type: `${NS}.custodyEvent`,
-                    id: `custodyEvent.${itemSlug}.${book}.ch${ch.chapterNum}`,
+                    id: custodyId,
                     item: itemEnt.id,
                     storyDate,
                     storyDateEnd,
@@ -585,8 +611,33 @@ export function compileProject(projectRoot, config, registry, engine, options = 
     if (allItems.length > 0) {
         writeRecords(path.join(seriesDir, 'items.json'), allItems);
     }
-    const lexiconFiles = write
-        ? writeLexiconDocs(outputDir, lexiconDocs).map(f => path.relative(projectRoot, f))
-        : [];
-    return { results, lexiconFiles, diagnostics, stretchFindings, records: allRecords };
+    // Ids are the record keys, so two records sharing one is a collision in any
+    // repository they are published to. The usual cause is two chapter files
+    // with the same `chapter:` number.
+    const idFiles = new Map();
+    for (const r of allRecords) {
+        if (typeof r?.id !== 'string')
+            continue;
+        const first = idFiles.get(r.id);
+        if (first) {
+            diagnostics.push({
+                file: r.sourceFile || first,
+                rule: 'duplicate-record-id',
+                severity: 'error',
+                message: `Record id '${r.id}' is also produced by ${first}.`,
+            });
+        }
+        else {
+            idFiles.set(r.id, r.sourceFile || '');
+        }
+    }
+    const lexiconPaths = write ? writeLexiconDocs(outputDir, lexiconDocs) : [];
+    for (const f of lexiconPaths)
+        written.add(path.resolve(f));
+    const lexiconFiles = lexiconPaths.map(f => path.relative(projectRoot, f));
+    // Only a writing compile prunes: `lint` and `context` build records in
+    // memory and must leave the output directory exactly as they found it.
+    const pruned = write ? pruneStale(projectRoot, outputDir, written) : [];
+    const removed = pruned && pruned.map(f => path.relative(projectRoot, f));
+    return { results, lexiconFiles, diagnostics, stretchFindings, records: allRecords, removed };
 }

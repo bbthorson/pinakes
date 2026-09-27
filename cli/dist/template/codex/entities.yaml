@@ -29,6 +29,10 @@
 #      This is what makes resolution work. The resolver normalizes a
 #      frontmatter value by stripping trailing "(...)" annotations before
 #      matching, so aliases hold the BASE surface forms, not the annotations.
+#      An alias belongs to ONE entity per type: a character and a place may
+#      both be "Paris", but two characters may not both be "the kid". A
+#      same-type collision is a lint error, and the alias resolves to neither
+#      until one entry drops it.
 #
 #   5. FILENAME = ID-SLUG: the entity's markdown file is named after its
 #      slug (`char.emma` -> `characters/emma.md`), and the file carries the

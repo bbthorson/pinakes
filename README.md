@@ -85,16 +85,26 @@ Or run directly without installing:
 npx @bbthorson/pinakes <command>
 ```
 
+### Developing
+
+```sh
+cd cli && npm ci && npm test
+```
+
+`npm test` builds from `src/` and runs `cli/test/` with Node's built-in test runner. The tests create throwaway universes in a temp directory and check what `lint`, `compile`, and `context` report and exit with. Commit the rebuilt `cli/dist` along with your change; CI checks that it matches a fresh build.
+
+Edit this README, not `cli/README.md`: the build regenerates that copy (the one npm shows) from this file, with links made absolute. Conventions for working in the code, for people and coding agents alike, are in [`CLAUDE.md`](CLAUDE.md).
+
 ### Initializing a Universe
 
 Bootstrap the standard `lore/`, `codex/`, and `stories/` folders with a default configuration:
 
 ```sh
 pinakes init my-universe
-```
 
 # Or using npx directly:
-# npx @bbthorson/pinakes init my-universe
+npx @bbthorson/pinakes init my-universe
+```
 
 ---
 
@@ -128,13 +138,19 @@ FAIL — pinakes found errors.
 * **Co-Presence Conflicts:** Flags physical impossibilities, such as a character being marked as present in two distinct locations at the same time.
 * **Custody Resolution:** Verifies that every item and holder named in a chapter's `custody:` block resolves, so a hand-off is never silently dropped.
 * **Stretch Horizon:** Verifies that a character stretch cites only records that have ended by its `asOf` date, so a character never draws on what hasn't happened yet.
+* **Frontmatter Integrity:** A chapter whose frontmatter is not valid YAML is an error, and a file in `chapters/` with no `chapter` key is a warning. Either would otherwise drop out of every check.
+* **Unique Chapters:** Two chapter files in one story with the same `chapter` number are an error, since chapter numbers become record ids.
+* **Registry Conflicts:** One alias claimed by two entities of the same type is an error, and the alias resolves to neither until one entry drops it. A character and a place may share a name. An id registered twice is also an error.
+
+Severities are set per rule under `rules:` in `pinakes.yaml`, and a `rules:` block only needs the rules you change: the rest keep their defaults. The full table is in [Continuity and drift](docs/continuity-and-drift.md#the-built-in-rules).
 
 #### Custom YAML Rules:
 Authors can write custom rules in the `rules/` directory to enforce style guidelines or state transitions:
 
 `paths.rules` is a **glob, not a directory** — use `rules/*.yaml`. A bare
-`rules` matches the directory itself, loads nothing, and still reports a clean
-pass.
+`rules` matches the directory itself and fails `lint`, as does any rule file
+that cannot be loaded: invalid YAML, the wrong shape, or a `pattern` that is not
+a valid regex. A rule that silently stopped running would be worse than none.
 
 ```yaml
 # rules/voice-register.yaml
@@ -180,6 +196,8 @@ records/
     └── items.json                     # Lexicon: *.item
 ```
 
+`compile` also removes files from a previous run that it no longer produces — a deleted book's directory, a record type a book stopped producing, Lexicon documents for an old NSID — and lists each as `removed stale`. Only the file names above are ever removed.
+
 #### What the codex carries into records
 
 Records are the only thing reader-facing surfaces should have to read, so
@@ -211,7 +229,7 @@ fails the build:
 📁 records/book1/scenes.json:
        [lexicon-validation] 🔴 ERROR: scene.book1.ch1: Invalid datetime (got "2026-10-04") at $.createdAt
 
-FAIL — 1 record(s) do not match their Lexicon.
+FAIL — 1 problem(s) in the compiled records.
 ```
 
 Two consequences worth knowing about, because they are what the data model
@@ -297,14 +315,19 @@ Two defaults are deliberately conservative:
   Withheld material is counted, never named, because a heading like "The Online
   Life" is itself a disclosure. A per-character exclusion that no longer matches
   a heading is an error, so renaming a held section cannot quietly un-hold it.
-- **Paragraphs that name an unended chapter are withheld.** Codex prose is
+- **Text that names an unended chapter or book is withheld.** Codex prose is
   written with the whole book in view and carries direction like "after Chapter
-  15 he must not…". Any shown paragraph (or `frontmatter` value) naming a chapter
-  that has not ended by `--as-of` is withheld and counted: `Chapter 15`,
-  `Ch. 15`, `Ch15`, ranges like `Chapters 14–16`, and explicit `Book 1, Chapter
-  15` or `book1#ch15`. Chapter numbers repeat across books, so a bare reference
-  counts as past only once every book's chapter of that number has ended, and a
-  chapter the records don't know is treated as future.
+  15 he must not…". Any shown paragraph, heading, or `frontmatter` value naming
+  a chapter that has not ended by `--as-of` is withheld and counted. A heading
+  withholds its whole section, subsections included. References are read
+  however they are written: `Chapter 15`, `Ch. 15`, `Ch15`, `Chapter Fifteen`,
+  `Chapter XV`, `the fifteenth chapter`, lists and ranges like `Chapters 14, 15
+  and 16` or `Chs. 14–16`, and explicit `Book 1, Chapter 15`, `Chapter 15 of
+  Book Two`, or `book1#ch15`. Chapter numbers repeat across books, so a bare
+  reference counts as past only once every book's chapter of that number has
+  ended. A whole book (`By Book 3…`) counts as past only once all its chapters
+  have ended and a later book has begun. A chapter the records don't know, or
+  one named only by position (`the final chapter`), is treated as future.
 - **State annotations are off by default.** They are written *about* the
   character and routinely carry things the character does not know ("misses
   her warning text"). `--full-state` includes them with a warning.

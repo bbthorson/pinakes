@@ -11,13 +11,22 @@ export const EntitySchema = z.object({
     status: z.string().nullable().optional().default('active'),
 });
 export class Registry {
-    aliasMap = new Map(); // lowercase(alias) -> entity
+    /**
+     * `type -> lowercase(alias) -> entity`. Keyed by type first because every
+     * lookup names the type it wants, and a character and a place may
+     * legitimately share a name ("Paris").
+     */
+    aliasMap = new Map();
+    /** `type::alias` -> every id claiming it, for aliases more than one entity claims. */
+    ambiguous = new Map();
     nonEntityExact = new Set();
     nonEntityPrefixes = [];
     allEntities = [];
+    registryFile;
     constructor(projectRoot, registryRelPath, nonEntitiesRelPath) {
         const registryPath = path.resolve(projectRoot, registryRelPath);
         const nonEntitiesPath = path.resolve(projectRoot, nonEntitiesRelPath);
+        this.registryFile = path.relative(projectRoot, registryPath);
         this.loadRegistry(registryPath);
         this.loadNonEntities(nonEntitiesPath);
     }
@@ -42,8 +51,19 @@ export class Registry {
                             validated.displayName.toLowerCase(),
                             ...validated.aliases.map(a => a.toLowerCase())
                         ]);
+                        const byAlias = this.aliasMap.get(validated.type) ?? new Map();
+                        this.aliasMap.set(validated.type, byAlias);
                         for (const alias of aliases) {
-                            this.aliasMap.set(alias, { id: validated.id, type: validated.type });
+                            const prior = byAlias.get(alias);
+                            if (prior && prior.id !== validated.id) {
+                                const key = `${validated.type}::${alias}`;
+                                const ids = this.ambiguous.get(key) ?? [prior.id];
+                                if (!ids.includes(validated.id))
+                                    ids.push(validated.id);
+                                this.ambiguous.set(key, ids);
+                                continue;
+                            }
+                            byAlias.set(alias, { id: validated.id, type: validated.type });
                         }
                     }
                     catch (e) {
@@ -102,12 +122,29 @@ export class Registry {
         const norm = this.normalize(name);
         if (!norm)
             return null;
-        const hit = this.aliasMap.get(norm.toLowerCase());
-        if (hit) {
-            if (!expectedType || hit.type === expectedType) {
-                return hit;
-            }
+        const alias = norm.toLowerCase();
+        if (this.ambiguous.has(`${expectedType}::${alias}`))
+            return null;
+        return this.aliasMap.get(expectedType)?.get(alias) ?? null;
+    }
+    /** The ids an alias is ambiguous between for `type`, or `undefined` if it is not. */
+    ambiguity(name, type) {
+        return this.ambiguous.get(`${type}::${this.normalize(name).toLowerCase()}`);
+    }
+    /** Ambiguous aliases and duplicated ids, for `lint` and `compile` to report. */
+    conflicts() {
+        const out = [];
+        const seen = new Map();
+        for (const ent of this.allEntities) {
+            if (seen.has(ent.id))
+                out.push({ kind: 'duplicate-id', name: ent.id, type: ent.type, ids: [ent.id] });
+            else
+                seen.set(ent.id, ent);
         }
-        return null;
+        for (const [key, ids] of this.ambiguous) {
+            const [type, ...rest] = key.split('::');
+            out.push({ kind: 'ambiguous-alias', name: rest.join('::'), type, ids });
+        }
+        return out;
     }
 }
