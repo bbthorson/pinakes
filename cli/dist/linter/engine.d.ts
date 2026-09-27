@@ -100,8 +100,9 @@ export declare class LinterEngine {
     getStories(): string[];
     /**
      * Registry entries that make resolution a guess: one alias claimed by two
-     * entities of the same type, or one id registered twice. Shared by `lint`
-     * and `compile`, since either would otherwise pick an entity silently.
+     * entities of the same type, or one id registered twice. Also entries that
+     * failed validation and were dropped. Shared by `lint` and `compile`, since
+     * either would otherwise pick an entity, or lose one, silently.
      */
     registryDiagnostics(): Diagnostic[];
     lint(): Diagnostic[];

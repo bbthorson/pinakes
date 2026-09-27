@@ -38,6 +38,21 @@ export interface RegistryConflict {
     type: string;
     ids: string[];
 }
+/**
+ * A registry entry that failed schema validation. It is left out of the
+ * registry, so every name it would have resolved goes unresolved; this used to
+ * be a console warning, and `lint` passed with the entity silently missing.
+ */
+export interface RegistryInvalidEntry {
+    /** The group it sits under: characters, places, or items. */
+    group: string;
+    /** Its position within the group, since a malformed entry may have no id. */
+    index: number;
+    /** The entry's id, when it has a string one. */
+    id?: string;
+    /** Each schema issue, as `field: message`. */
+    issues: string[];
+}
 export declare class Registry {
     /**
      * `type -> lowercase(alias) -> entity`. Keyed by type first because every
@@ -50,6 +65,8 @@ export declare class Registry {
     private nonEntityExact;
     private nonEntityPrefixes;
     allEntities: Entity[];
+    /** Entries that failed validation, for `lint` and `compile` to report. */
+    readonly invalidEntries: RegistryInvalidEntry[];
     readonly registryFile: string;
     constructor(projectRoot: string, registryRelPath: string, nonEntitiesRelPath: string);
     private loadRegistry;

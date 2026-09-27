@@ -9,14 +9,25 @@
  */
 import path from 'path';
 import { loadConfig, type Config } from './config.js';
-import { Registry } from './registry/entities.js';
+import { Registry, type RegistryConflict, type RegistryInvalidEntry } from './registry/entities.js';
 import { LinterEngine, type Diagnostic, type ChapterData } from './linter/engine.js';
 import { YamlRulesLoader } from './linter/yaml-loader.js';
 import { compileProject, type CompilationReport, type CompilationResult } from './compiler/atproto.js';
 import { buildContext, renderMarkdown, type ContextBundle, type CodexSection } from './context/bundle.js';
 import { buildProseReports, type ProseReport } from './prose/check.js';
 
-export type { Config, Diagnostic, ChapterData, CompilationReport, CompilationResult, ContextBundle, CodexSection, ProseReport };
+export type {
+  Config,
+  Diagnostic,
+  ChapterData,
+  CompilationReport,
+  CompilationResult,
+  ContextBundle,
+  CodexSection,
+  ProseReport,
+  RegistryConflict,
+  RegistryInvalidEntry,
+};
 
 /**
  * A loaded universe. Open one when making several calls against the same
