@@ -27,7 +27,7 @@
   "dependencies": {
     "@atproto/lex": "^0.3.6",
     "commander": "^11.1.0",
-    "glob": "^10.3.10",
+    "glob": "^13.0.6",
     "remark-frontmatter": "^5.0.0",
     "remark-parse": "^11.0.0",
     "unified": "^11.0.4",
