@@ -325,11 +325,20 @@ export class LinterEngine {
 
   /**
    * Registry entries that make resolution a guess: one alias claimed by two
-   * entities of the same type, or one id registered twice. Shared by `lint`
-   * and `compile`, since either would otherwise pick an entity silently.
+   * entities of the same type, or one id registered twice. Also entries that
+   * failed validation and were dropped. Shared by `lint` and `compile`, since
+   * either would otherwise pick an entity, or lose one, silently.
    */
   public registryDiagnostics(): Diagnostic[] {
-    return this.registry.conflicts().map((c) => ({
+    const invalid: Diagnostic[] = this.registry.invalidEntries.map((e) => ({
+      file: this.registry.registryFile,
+      rule: 'invalid-registry-entry',
+      severity: 'error' as const,
+      message:
+        `Entry ${e.index + 1} under '${e.group}'${e.id ? ` ('${e.id}')` : ''} is not a valid entity ` +
+        `(${e.issues.join('; ')}). It is left out of the registry, so nothing resolves to it.`,
+    }));
+    return invalid.concat(this.registry.conflicts().map((c) => ({
       file: this.registry.registryFile,
       rule: c.kind,
       severity: 'error' as const,
@@ -338,7 +347,7 @@ export class LinterEngine {
           ? `Entity id '${c.name}' is registered more than once.`
           : `Alias '${c.name}' is claimed by more than one ${c.type}: ${c.ids.join(', ')}. ` +
             'It resolves to neither until one entry drops it.',
-    }));
+    })));
   }
 
   // Perform linting

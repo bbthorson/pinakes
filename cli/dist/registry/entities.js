@@ -22,6 +22,8 @@ export class Registry {
     nonEntityExact = new Set();
     nonEntityPrefixes = [];
     allEntities = [];
+    /** Entries that failed validation, for `lint` and `compile` to report. */
+    invalidEntries = [];
     registryFile;
     constructor(projectRoot, registryRelPath, nonEntitiesRelPath) {
         const registryPath = path.resolve(projectRoot, registryRelPath);
@@ -41,35 +43,40 @@ export class Registry {
         for (const group of groups) {
             const items = parsed[group];
             if (Array.isArray(items)) {
-                for (const item of items) {
-                    try {
-                        const validated = EntitySchema.parse(item);
-                        this.allEntities.push(validated);
-                        // Add primary displayName and id as aliases
-                        const aliases = new Set([
-                            validated.id.toLowerCase(),
-                            validated.displayName.toLowerCase(),
-                            ...validated.aliases.map(a => a.toLowerCase())
-                        ]);
-                        const byAlias = this.aliasMap.get(validated.type) ?? new Map();
-                        this.aliasMap.set(validated.type, byAlias);
-                        for (const alias of aliases) {
-                            const prior = byAlias.get(alias);
-                            if (prior && prior.id !== validated.id) {
-                                const key = `${validated.type}::${alias}`;
-                                const ids = this.ambiguous.get(key) ?? [prior.id];
-                                if (!ids.includes(validated.id))
-                                    ids.push(validated.id);
-                                this.ambiguous.set(key, ids);
-                                continue;
-                            }
-                            byAlias.set(alias, { id: validated.id, type: validated.type });
+                items.forEach((item, index) => {
+                    const result = EntitySchema.safeParse(item);
+                    if (!result.success) {
+                        this.invalidEntries.push({
+                            group,
+                            index,
+                            id: typeof item?.id === 'string' ? item.id : undefined,
+                            issues: result.error.issues.map((i) => `${i.path.join('.') || '(entry)'}: ${i.message}`),
+                        });
+                        return;
+                    }
+                    const validated = result.data;
+                    this.allEntities.push(validated);
+                    // Add primary displayName and id as aliases
+                    const aliases = new Set([
+                        validated.id.toLowerCase(),
+                        validated.displayName.toLowerCase(),
+                        ...validated.aliases.map(a => a.toLowerCase())
+                    ]);
+                    const byAlias = this.aliasMap.get(validated.type) ?? new Map();
+                    this.aliasMap.set(validated.type, byAlias);
+                    for (const alias of aliases) {
+                        const prior = byAlias.get(alias);
+                        if (prior && prior.id !== validated.id) {
+                            const key = `${validated.type}::${alias}`;
+                            const ids = this.ambiguous.get(key) ?? [prior.id];
+                            if (!ids.includes(validated.id))
+                                ids.push(validated.id);
+                            this.ambiguous.set(key, ids);
+                            continue;
                         }
+                        byAlias.set(alias, { id: validated.id, type: validated.type });
                     }
-                    catch (e) {
-                        console.warn(`Warning: failed to parse registry item in group ${group}:`, item, e);
-                    }
-                }
+                });
             }
         }
     }
