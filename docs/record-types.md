@@ -1,13 +1,13 @@
 # Record types
 
-`pinakes compile` emits seven record types and writes a Lexicon document for each
+`pinakes compile` emits eight record types and writes a Lexicon document for each
 one. This guide covers what they are, why the set is shaped this way, and where
 identity fits.
 
 Examples are from [Supper Club Secrets](https://github.com/bbthorson/supper_club_secrets),
 whose `project.nsid` is `com.supperclubsecrets`.
 
-## The seven types
+## The eight types
 
 | Record type | Grain | Emitted to | Book 1 count |
 | --- | --- | --- | --- |
@@ -18,11 +18,13 @@ whose `project.nsid` is `com.supperclubsecrets`.
 | `<nsid>.item` | One per tracked object | `records/series/items.json` | 1 |
 | `<nsid>.custodyEvent` | One per hand-off | `records/<book>/custody_events.json` | 3 |
 | `<nsid>.character.post` | One per authored post | `records/<book>/character_posts.json` | 0 |
+| `<nsid>.character.stretch` | One per character per stretch | `records/<book>/character_stretches.json` | 6 |
 
-Six of the seven are projected out of finished prose. `character.post` is the
-exception and is covered on its own below.
+Six of the eight are projected out of finished prose. `character.post` and
+`character.stretch` are the exceptions, authored rather than extracted, and each
+is covered on its own below.
 
-Three are series-wide and four are per-book. That split is not cosmetic: a
+Three are series-wide and five are per-book. That split is not cosmetic: a
 character's identity and a location's description are properties of the
 universe, while what happened and how someone felt are properties of a
 particular story inside it. Book 2 will add
@@ -272,6 +274,71 @@ and a universe whose plot turns on information discipline will want a rule about
 which posts are safe to write at all — see
 [Continuity and drift](continuity-and-drift.md) for where such a check belongs.
 
+### `character.stretch`
+
+The mid tier of character state. A `stateEvent` says how a character is in one
+scene; a `profile` says who they are across the series. A stretch sits between
+them: how the character would describe the last few weeks, written from one
+story date (`asOf`) and looking only backward from it.
+
+**Every tier looks backward.** A character knows what has happened to them and
+not what the author has planned, so a stretch may cite only sources that have
+*ended* by its `asOf`. That is the rule `lint` enforces hardest.
+
+Stretches live in `stretches/<character-slug>/<asOf>.md` beside a story's
+`chapters/`, nested one level so a character's stretches read together:
+
+```markdown
+---
+character: Jasper
+asOf: "2026-10-02"
+since: "2026-08-11"
+register: public
+status: approved
+carrying:
+  - "Patrice's patience, spent once already"
+sources:
+  - profile.jasper
+  - post.book1.ch0.jasper.1
+note: >-
+  Authoring direction. Never compiled.
+---
+
+August was the scaffolding. Five days, three calls, …
+```
+
+compiles to:
+
+```json
+{
+  "$type": "com.supperclubsecrets.character.stretch",
+  "id": "stretch.jasper.book1.2026-10-02",
+  "subject": "char.jasper",
+  "asOf": "2026-10-02",
+  "since": "2026-08-11",
+  "register": "public",
+  "state": "August was the scaffolding. Five days, three calls, …",
+  "carrying": ["Patrice's patience, spent once already"],
+  "sources": ["profile.jasper", "post.book1.ch0.jasper.1"],
+  "status": "approved",
+  "createdAt": "2026-10-02T00:00:00.000Z",
+  "sourceFile": "stories/01. .../stretches/jasper/2026-10-02.md"
+}
+```
+
+- **`supersedes` is derived, never authored.** The compiler links each stretch
+  to the one before it for the same character, across books, so the chain
+  cannot be written wrong. A character's first stretch has none.
+- **`status` is `draft` or `approved`.** Consumers should read only `approved`.
+- **`sources` is required** and each entry must be a compiled record id: a post,
+  state event, scene, custody event, profile, place, or item. Profiles, places
+  and items are undated long-tier material, citable at any date.
+- **The body is the record's `state`.** `note` is authoring direction and is
+  never read, as with posts.
+
+A story gets `character_stretches.json` only if it has a `stretches/`
+directory, so a universe that never writes one is unaffected.
+
 ## The Lexicon documents
 
 Every compile writes the universe's own Lexicon documents alongside its records:
@@ -284,7 +351,8 @@ records/lexicons/
 ├── com.supperclubsecrets.place.json
 ├── com.supperclubsecrets.item.json
 ├── com.supperclubsecrets.custodyEvent.json
-└── com.supperclubsecrets.character.post.json
+├── com.supperclubsecrets.character.post.json
+└── com.supperclubsecrets.character.stretch.json
 ```
 
 These are ordinary AT Protocol Lexicon JSON documents. They are generated rather
