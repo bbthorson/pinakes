@@ -143,6 +143,7 @@ FAIL — pinakes found errors.
 * **Frontmatter Integrity:** A chapter whose frontmatter is not valid YAML is an error, and a file in `chapters/` with no `chapter` key is a warning. Either would otherwise drop out of every check.
 * **Unique Chapters:** Two chapter files in one story with the same `chapter` number are an error, since chapter numbers become record ids.
 * **Registry Conflicts:** One alias claimed by two entities of the same type is an error, and the alias resolves to neither until one entry drops it. A character and a place may share a name. An id registered twice is also an error.
+* **Registry Validity:** An `entities.yaml` entry that is missing `id`, `type` or `displayName`, or has a field of the wrong type, is an error. It is left out of the registry, and `lint` would otherwise pass with the entity silently missing.
 
 Severities are set per rule under `rules:` in `pinakes.yaml`, and a `rules:` block only needs the rules you change: the rest keep their defaults. The full table is in [Continuity and drift](https://github.com/bbthorson/pinakes/blob/main/docs/continuity-and-drift.md#the-built-in-rules).
 
