@@ -28,6 +28,9 @@ block is merged over the defaults, so it only needs the rules you change:
 | `malformed-frontmatter` | `error` / `warning`, not configurable | A chapter file whose frontmatter is not valid YAML (error), or has no `chapter` key (warning); either way it would otherwise be skipped by every check |
 | `ambiguous-alias` | `error`, not configurable | One alias (or display name) claimed by two registry entities of the same type. It resolves to neither, and every reference to it is reported as ambiguous. Different types may share a name |
 | `duplicate-id` | `error`, not configurable | One entity id registered twice in `entities.yaml` |
+| `invalid-did` | `error`, not configurable | A `did` on an `entities.yaml` entry that atproto would reject: not `did:plc` or `did:web`, a `did:plc` that is not 24 lower-case base32 characters, a `did:web` with a path or a port (other than on localhost), or a value that is not a string. Also a `did` on a place or item, which have no accounts. Syntax only: the DID is never resolved |
+| `duplicate-did` | `error`, not configurable | One DID on two characters' registry entries, retired characters included. `did:web` hostnames are compared case-insensitively |
+| `did-in-codex` | `error`, not configurable | A `did` in a character's codex frontmatter, where it lived before 0.9.0. DIDs live on the registry entry only; the codex value is not read, so move it |
 | `invalid-registry-entry` | `error`, not configurable | An `entities.yaml` entry missing a required field (`id`, `type`, `displayName`) or with a field of the wrong type. It is left out of the registry, so nothing resolves to it |
 | `duplicate-chapter` | `error`, not configurable | Two chapter files in one story declaring the same `chapter` number, which would compile two scenes under one id |
 | `co-presence-conflict` | `warning` | A character present in two chapters with overlapping dates and no shared location |

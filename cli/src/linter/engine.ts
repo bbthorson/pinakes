@@ -4,6 +4,7 @@ import YAML from 'yaml';
 import { Registry } from '../registry/entities.js';
 import { Config } from '../config.js';
 import { parseRegister } from './registers.js';
+import { readDid } from './identity.js';
 
 export interface Diagnostic {
   file: string;
@@ -351,9 +352,77 @@ export class LinterEngine {
     })));
   }
 
+  /**
+   * Character DIDs, which live on registry entries beside the id they belong
+   * to. Three ways a profile could go out under the wrong identity, so, like
+   * the registry checks, both `lint` and `compile` report them:
+   *
+   * - `invalid-did`: a DID atproto would reject, or a DID on something other
+   *   than a character (places and items have no accounts).
+   * - `duplicate-did`: one DID on two characters. Every character is checked,
+   *   not only active ones: a retired character still owns its DID.
+   * - `did-in-codex`: a `did` left in a character's codex frontmatter, where it
+   *   lived before 0.9.0. It is an error rather than a fallback, so a universe
+   *   has one place its DIDs come from, not two that can disagree.
+   */
+  public identityDiagnostics(): Diagnostic[] {
+    const out: Diagnostic[] = [];
+    const registryFile = this.registry.registryFile;
+    /** Lower-cased DID -> the entity that claimed it first. */
+    const claimed = new Map<string, string>();
+    for (const ent of this.registry.allEntities) {
+      const field = readDid(ent);
+      if (field.kind !== 'absent' && ent.type !== 'character') {
+        out.push({
+          file: registryFile,
+          rule: 'invalid-did',
+          severity: 'error',
+          message: `${ent.id} has a DID, but only characters have accounts.`,
+        });
+      } else if (field.kind === 'invalid') {
+        out.push({
+          file: registryFile,
+          rule: 'invalid-did',
+          severity: 'error',
+          message: `DID ${JSON.stringify(field.value)} for ${ent.id} is not a valid atproto DID: ${field.reason}.`,
+        });
+      } else if (field.kind === 'valid') {
+        // did:web hostnames are case-insensitive; did:plc is lower-case only.
+        const key = field.did.toLowerCase();
+        const first = claimed.get(key);
+        if (first) {
+          out.push({
+            file: registryFile,
+            rule: 'duplicate-did',
+            severity: 'error',
+            message: `DID '${field.did}' for ${ent.id} is also claimed by ${first}. Each character needs its own.`,
+          });
+        } else {
+          claimed.set(key, ent.id);
+        }
+      }
+
+      if (ent.type !== 'character' || !ent.sourceFile) continue;
+      const file = path.resolve(this.projectRoot, ent.sourceFile);
+      if (!fs.existsSync(file)) continue;
+      const data = this.parseFrontmatter(fs.readFileSync(file, 'utf-8')).data;
+      if (data && typeof data === 'object' && 'did' in data) {
+        out.push({
+          file: path.relative(this.projectRoot, file),
+          rule: 'did-in-codex',
+          severity: 'error',
+          message:
+            `\`did\` belongs on ${ent.id}'s entry in ${registryFile}, not in its codex file. ` +
+            'Move it there; the codex value is not read.',
+        });
+      }
+    }
+    return out;
+  }
+
   // Perform linting
   public lint(): Diagnostic[] {
-    const diagnostics: Diagnostic[] = this.registryDiagnostics();
+    const diagnostics: Diagnostic[] = [...this.registryDiagnostics(), ...this.identityDiagnostics()];
     const stories = this.getStories();
 
     for (const storyDir of stories) {

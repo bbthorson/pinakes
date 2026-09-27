@@ -236,7 +236,9 @@ handle: emmacooks
 A grounded and creative chef with a bubbly, optimistic energy, who is learning to trust her intuition.
 ```
 
-`handle` loses a leading `@`. `oneLine` is the first non-empty line within five
+`handle` loses a leading `@`. `did` is the one profile field that comes from
+the registry entry rather than the file; see
+[Record types](record-types.md#identity-today-and-identity-later). `oneLine` is the first non-empty line within five
 lines of the `## Overview` heading, with leading `-` and wrapping `*` stripped.
 `status` from the file wins over `status` from the registry, since the file is
 the finer-grained statement; a character with no file falls back to the registry

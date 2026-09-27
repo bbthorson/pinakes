@@ -9,6 +9,12 @@ export const EntitySchema = z.object({
     aliases: z.array(z.string()).default([]),
     sourceFile: z.string().nullable().optional(),
     status: z.string().nullable().optional().default('active'),
+    /**
+     * A character's account DID. Unchecked here: a malformed DID must not drop
+     * the whole entry and leave the character unresolvable, so it is carried as
+     * written and `invalid-did` reports it (see `linter/identity.ts`).
+     */
+    did: z.unknown().optional(),
 });
 export class Registry {
     /**
