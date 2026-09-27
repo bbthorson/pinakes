@@ -175,6 +175,8 @@ export interface CompilationReport {
    * `linter/stretches.ts`).
    */
   stretchFindings: Diagnostic[];
+  /** Every compiled record, across types, for consumers such as `context`. */
+  records: any[];
 }
 
 export interface CompileOptions {
@@ -197,6 +199,7 @@ export function compileProject(
   const outputDir = path.resolve(projectRoot, config.paths.output);
   const results: CompilationResult[] = [];
   const diagnostics: Diagnostic[] = [];
+  const allRecords: any[] = [];
 
   const lexiconDocs = buildLexiconDocs(NS);
   const schemas = compileLexiconDocs(lexiconDocs);
@@ -205,6 +208,7 @@ export function compileProject(
   const writeRecords = (filePath: string, records: unknown[]) => {
     const relative = path.relative(projectRoot, filePath);
     diagnostics.push(...validateRecords(records, schemas, relative));
+    allRecords.push(...records);
     if (write) {
       fs.mkdirSync(path.dirname(filePath), { recursive: true });
       fs.writeFileSync(filePath, JSON.stringify(records, null, 2) + '\n', 'utf-8');
@@ -679,5 +683,5 @@ export function compileProject(
     ? writeLexiconDocs(outputDir, lexiconDocs).map(f => path.relative(projectRoot, f))
     : [];
 
-  return { results, lexiconFiles, diagnostics, stretchFindings };
+  return { results, lexiconFiles, diagnostics, stretchFindings, records: allRecords };
 }
