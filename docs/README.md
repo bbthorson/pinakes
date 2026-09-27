@@ -3,14 +3,14 @@
 How to model a character-driven fictional universe with AT Protocol Lexicons,
 using a real universe as the worked example.
 
-The root [README](../README.md) is the tour: what Pinakes is, how to install it,
-what the two commands do. These guides are the working detail — what the
-compiler actually reads, what it actually emits, and what it deliberately
-leaves alone.
+[Getting started](getting-started.md) and the command pages are the tour:
+how to install Pinakes and what each command does. These guides are the
+working detail — what the compiler actually reads, what it actually emits, and
+what it deliberately leaves alone.
 
 | Guide | What it covers |
 | --- | --- |
-| [Record types](record-types.md) | The five record types `compile` emits, the Lexicon documents it generates for them, and how identity works |
+| [Record types](record-types.md) | The eight record types `compile` emits, the Lexicon documents it generates for them, and how identity works |
 | [Prose to records](prose-to-records.md) | The frontmatter contract, the resolution rules, and what never leaves the repo |
 | [Continuity and drift](continuity-and-drift.md) | The lint rules, Lexicon validation, the CI drift gate, and the judgment passes that stay outside CI |
 | [Prose triage](prose-triage.md) | `prose-check`: the countable half of the AI-tells pass, why its counts are inputs rather than verdicts, and why it is deliberately not a gate |

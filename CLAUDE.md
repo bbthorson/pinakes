@@ -1,8 +1,8 @@
 # Pinakes
 
 A continuity linter and AT Protocol record compiler for fiction, published to
-npm as `@bbthorson/pinakes`. The README covers what it does for authors; this
-file covers working on the code.
+npm as `@bbthorson/pinakes`. The docs site (`docs/`) covers what it does for
+authors; this file covers working on the code.
 
 ## Layout
 
@@ -14,7 +14,9 @@ file covers working on the code.
 - `cli/test/` — tests, run with Node's built-in runner.
 - `template/` — the starter universe `pinakes init` copies. The build copies it
   into `cli/dist/template/`; edit `template/`, not the copy.
-- `docs/` — the long-form guides. `.claude/skills/` holds the story-authoring
+- `docs/` — the documentation site (VitePress, deployed to GitHub Pages by
+  `docs.yml`): getting started, one page per command in `docs/commands/`, the
+  library API, and the long-form guides. `.claude/skills/` holds the story-authoring
   skills (canon-check, plot-suggest, story-audit) for use inside a universe.
 
 ## Commands
@@ -37,7 +39,10 @@ npm test        # build, then run cli/test/**/*.test.mjs
 - **The build copies `template/` but never deletes from `dist/template/`.** If
   you remove a template file, remove its copy under `cli/dist/template/` too.
 - **A new or changed rule is documented in two places:** the rules table in
-  `docs/continuity-and-drift.md` and "Built-in Checks" in the README.
+  `docs/continuity-and-drift.md` and "Built-in checks" in `docs/commands/lint.md`.
+- **Keep the docs site building.** `cd docs && npm ci && npm run build` fails
+  on a dead link. A new page also needs an entry in the sidebar in
+  `docs/.vitepress/config.mts`.
 - Publishing is manual (the `Publish` workflow). Bump the version in
   `cli/package.json` first; the workflow refuses to republish a version.
 
@@ -71,7 +76,8 @@ npm test        # build, then run cli/test/**/*.test.mjs
 
 It touches five places: its Lexicon in `lexicons/docs.ts`, its emitter in
 `compiler/atproto.ts`, its file name in `RECORD_FILES` in `compiler/prune.ts`,
-its section in `docs/record-types.md`, and the output tree in the README.
+its section in `docs/record-types.md`, and the output tree in
+`docs/commands/compile.md`.
 
 ## Tests
 
