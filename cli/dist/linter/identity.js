@@ -1,18 +1,18 @@
 /**
- * A character's DID, as its codex frontmatter gives it.
+ * A character's DID, as its registry entry gives it.
  *
  * Pinakes carries a DID onto the profile record and checks its syntax; it
  * never mints or resolves one. Resolving needs the network, and `lint` and
- * `compile` stay offline and deterministic: whether the DID's document agrees
- * with the codex is the publishing layer's check, since that layer owns the
- * accounts.
+ * `compile` stay offline and deterministic: whether the DID's document names
+ * the account the registry means is a check for publish time, the one step
+ * that goes to the network.
  *
  * The compiler and the linter both read the field through `readDid`, so the
  * value a profile carries is always the value `lint` checked.
  */
 import { isAtprotoDid } from '@atproto/did';
-export function readDid(frontmatter) {
-    const value = frontmatter?.did;
+export function readDid(entry) {
+    const value = entry?.did;
     if (value === undefined || value === null || value === '')
         return { kind: 'absent' };
     // A list or a map is a mistake, not an absence: skipping it would publish

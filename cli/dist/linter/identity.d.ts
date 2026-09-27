@@ -8,4 +8,6 @@ export type DidField = {
     value: unknown;
     reason: string;
 };
-export declare function readDid(frontmatter: Record<string, unknown> | undefined): DidField;
+export declare function readDid(entry: {
+    did?: unknown;
+} | undefined): DidField;

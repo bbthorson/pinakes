@@ -278,27 +278,36 @@ export class LinterEngine {
         })));
     }
     /**
-     * DIDs in character codex files: one that atproto would reject, or one two
-     * characters claim. Either would publish a profile under the wrong identity,
-     * so, like the registry checks, both `lint` and `compile` report them.
-     * Every character is checked, not only the active ones that get a profile:
-     * a retired character still owns its DID.
+     * Character DIDs, which live on registry entries beside the id they belong
+     * to. Three ways a profile could go out under the wrong identity, so, like
+     * the registry checks, both `lint` and `compile` report them:
+     *
+     * - `invalid-did`: a DID atproto would reject, or a DID on something other
+     *   than a character (places and items have no accounts).
+     * - `duplicate-did`: one DID on two characters. Every character is checked,
+     *   not only active ones: a retired character still owns its DID.
+     * - `did-in-codex`: a `did` left in a character's codex frontmatter, where it
+     *   lived before 0.9.0. It is an error rather than a fallback, so a universe
+     *   has one place its DIDs come from, not two that can disagree.
      */
     identityDiagnostics() {
         const out = [];
-        /** Lower-cased DID -> the codex file that claimed it first. */
+        const registryFile = this.registry.registryFile;
+        /** Lower-cased DID -> the entity that claimed it first. */
         const claimed = new Map();
         for (const ent of this.registry.allEntities) {
-            if (ent.type !== 'character' || !ent.sourceFile)
-                continue;
-            const file = path.resolve(this.projectRoot, ent.sourceFile);
-            if (!fs.existsSync(file))
-                continue;
-            const rel = path.relative(this.projectRoot, file);
-            const field = readDid(this.parseFrontmatter(fs.readFileSync(file, 'utf-8')).data);
-            if (field.kind === 'invalid') {
+            const field = readDid(ent);
+            if (field.kind !== 'absent' && ent.type !== 'character') {
                 out.push({
-                    file: rel,
+                    file: registryFile,
+                    rule: 'invalid-did',
+                    severity: 'error',
+                    message: `${ent.id} has a DID, but only characters have accounts.`,
+                });
+            }
+            else if (field.kind === 'invalid') {
+                out.push({
+                    file: registryFile,
                     rule: 'invalid-did',
                     severity: 'error',
                     message: `DID ${JSON.stringify(field.value)} for ${ent.id} is not a valid atproto DID: ${field.reason}.`,
@@ -310,15 +319,30 @@ export class LinterEngine {
                 const first = claimed.get(key);
                 if (first) {
                     out.push({
-                        file: rel,
+                        file: registryFile,
                         rule: 'duplicate-did',
                         severity: 'error',
                         message: `DID '${field.did}' for ${ent.id} is also claimed by ${first}. Each character needs its own.`,
                     });
                 }
                 else {
-                    claimed.set(key, rel);
+                    claimed.set(key, ent.id);
                 }
+            }
+            if (ent.type !== 'character' || !ent.sourceFile)
+                continue;
+            const file = path.resolve(this.projectRoot, ent.sourceFile);
+            if (!fs.existsSync(file))
+                continue;
+            const data = this.parseFrontmatter(fs.readFileSync(file, 'utf-8')).data;
+            if (data && typeof data === 'object' && 'did' in data) {
+                out.push({
+                    file: path.relative(this.projectRoot, file),
+                    rule: 'did-in-codex',
+                    severity: 'error',
+                    message: `\`did\` belongs on ${ent.id}'s entry in ${registryFile}, not in its codex file. ` +
+                        'Move it there; the codex value is not read.',
+                });
             }
         }
         return out;

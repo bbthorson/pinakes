@@ -203,7 +203,7 @@ function profile(ns) {
                         did: {
                             type: 'string',
                             format: 'did',
-                            description: "The character's account DID (`did:plc:…` or `did:web:…`), from the codex file's `did` frontmatter. Carried, never minted or resolved: pinakes checks only its syntax.",
+                            description: "The character's account DID (`did:plc:…` or `did:web:…`), from the character's registry entry. Carried, never minted or resolved: pinakes checks only its syntax.",
                             maxLength: 2048,
                         },
                         description: {

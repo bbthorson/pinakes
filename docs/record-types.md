@@ -395,6 +395,7 @@ id:
   aliases: ["Emma", "Emma Hartley"]
   sourceFile: codex/characters/emma.md
   status: active
+  did: did:plc:b4xqf5g2j52z3y7mcnk6jtms
 ```
 
 Ids are permanent — `char.emma` survives a rename of the character or the file —
@@ -403,19 +404,25 @@ in prose *and* in frontmatter. Supper Club Secrets registers "the mogul" and
 "the developer" as aliases of `char.garrett-pike` because both appear as
 pre-naming epithets.
 
-On top of those ids, a profile carries two optional public identifiers from the
-character's codex frontmatter:
+On top of those ids, a profile carries two optional public identifiers:
 
-- `handle`, a bare label (`emmacooks`, with any leading `@` stripped), and
-- `did`, the character's account DID: `did:plc:…` or
-  `did:web:emma.supperclub.site`.
+- `did`, the character's account DID (`did:plc:…` or
+  `did:web:emma.supperclub.site`), from the registry entry beside the id it
+  belongs to, and
+- `handle`, a bare label (`emmacooks`, with any leading `@` stripped), from the
+  character's codex frontmatter.
+
+A DID lives on the registry entry and nowhere else. A `did` in codex
+frontmatter, where it lived before 0.9.0, is an error (`did-in-codex`) rather
+than a fallback, so a universe never has two DIDs for one character that could
+disagree.
 
 Pinakes **carries and checks** a DID; it never mints or resolves one. `lint`
 and `compile` both fail on a DID atproto would reject (`invalid-did`) and on one
 DID claimed by two characters (`duplicate-did`), but neither goes to the
 network, so both stay offline and deterministic. Whether the DID's document
-actually names the account you think it does is the publishing layer's check,
-because that layer holds the accounts and their keys. Records still reference
+actually names the account you think it does can only be checked over the
+network, so it belongs to publishing, not to `lint`. Records still reference
 each other by local id (`char.emma`), never by DID, so a character can be given
 a DID, or change it, without any other record's id moving.
 

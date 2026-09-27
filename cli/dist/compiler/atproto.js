@@ -112,8 +112,8 @@ function getOverviewOneline(content) {
  * The DID a profile carries. An invalid one is carried too, as written, so the
  * record shows what `invalid-did` rejected rather than silently losing it.
  */
-function didValue(data) {
-    const field = readDid(data);
+function didValue(ent) {
+    const field = readDid(ent);
     if (field.kind === 'valid')
         return field.did;
     if (field.kind === 'invalid')
@@ -128,7 +128,6 @@ function readCharacterFile(filePath, engine) {
     const handleRaw = text(data?.handle);
     return {
         handle: handleRaw ? handleRaw.replace(/^@/, '') : undefined,
-        did: didValue(data),
         oneLine: getOverviewOneline(content),
         description: text(data?.description),
         tags: tagList(data?.tags),
@@ -480,7 +479,7 @@ export function compileProject(projectRoot, config, registry, engine, options = 
                 subject: ent.id,
                 displayName: ent.displayName,
                 handle: codex.handle,
-                did: codex.did,
+                did: didValue(ent),
                 description: codex.description,
                 oneLine: codex.oneLine,
                 tags: codex.tags,
