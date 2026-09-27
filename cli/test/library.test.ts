@@ -9,19 +9,10 @@ import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
-import { chapter, cleanup, makeUniverse } from './helpers.mjs';
+import { chapter, withUniverse } from './helpers.ts';
 import * as pinakes from '@bbthorson/pinakes';
 
 const CH1 = 'stories/01_book/chapters/01_one.md';
-
-function withUniverse(files, fn) {
-  const root = makeUniverse(files);
-  try {
-    fn(root);
-  } finally {
-    cleanup(root);
-  }
-}
 
 test('importing the package does not run the CLI', () => {
   // `main` used to point at dist/cli.js, which parses process.argv on load:
@@ -83,6 +74,7 @@ describe('context', () => {
     withUniverse({}, (root) => {
       const { bundle, errors } = pinakes.context(root, 'Emma', '2026-10-02');
       assert.deepEqual(errors, []);
+      assert.ok(bundle);
       assert.equal(bundle.character.id, 'char.emma');
       assert.match(pinakes.renderContextMarkdown(bundle), /Emma/);
     });

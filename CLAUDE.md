@@ -11,7 +11,9 @@ authors; this file covers working on the code.
   formats output and sets exit codes. `linter/`, `compiler/`, `context/`,
   `lexicons/`, `registry/` and `prose/` hold the logic.
 - `cli/dist/` — **committed** build output. Never edit it by hand.
-- `cli/test/` — tests, run with Node's built-in runner.
+- `cli/test/` — tests, in TypeScript, run with Node's built-in runner. Node
+  strips the types itself, so they are never compiled; `test/tsconfig.json`
+  only type-checks them.
 - `template/` — the starter universe `pinakes init` copies. The build copies it
   into `cli/dist/template/`; edit `template/`, not the copy.
 - `docs/` — the documentation site (VitePress, deployed to GitHub Pages by
@@ -26,7 +28,7 @@ Run from `cli/` (Node 22 or later):
 ```sh
 npm ci          # install
 npm run build   # tsc, copy template/ into dist/, regenerate cli/README.md
-npm test        # build, then run cli/test/**/*.test.mjs
+npm test        # build, type-check the tests, then run cli/test/**/*.test.ts
 ```
 
 ## Before you commit
@@ -81,9 +83,16 @@ its section in `docs/record-types.md`, and the output tree in
 
 ## Tests
 
-Tests drive the built CLI end to end. `test/helpers.mjs` provides
+Running the tests needs Node 22.18 or later, the first 22.x that strips types
+without a flag. Because Node only erases types, tests may not use syntax that
+needs compiling (enums, parameter properties); `erasableSyntaxOnly` in
+`test/tsconfig.json` rejects it. Import helpers as `./helpers.ts`, with the
+extension.
+
+Tests drive the built CLI end to end. `test/helpers.ts` provides
 `makeUniverse(files)`, which writes a minimal universe that lints clean to a temp
-directory, with `files` overriding or adding paths (`null` removes a default).
+directory, with `files` overriding or adding paths (`null` removes a default), and
+`withUniverse(files, fn)`, which builds one, runs `fn` and always removes it.
 It also provides `run(root, command, ...args)`, which returns the exit code and
 output. Assert on both: the exit code is the verdict CI sees.
 
@@ -93,7 +102,7 @@ previous build:
 ```sh
 mkdir -p /tmp/old && git archive <old-commit> cli/dist cli/package.json | tar -x -C /tmp/old
 cp -R cli/test /tmp/old/cli/ && ln -s "$PWD/cli/node_modules" /tmp/old/cli/node_modules
-node --test /tmp/old/cli/test/<file>.test.mjs
+node --test /tmp/old/cli/test/<file>.test.ts
 ```
 
 ## Style

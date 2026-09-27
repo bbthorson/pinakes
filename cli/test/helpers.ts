@@ -41,7 +41,7 @@ items:
 `;
 
 /** A valid chapter file. `extra` is raw frontmatter lines appended before the closing fence. */
-export function chapter({ num, date, extra = '' }) {
+export function chapter({ num, date, extra = '' }: { num: number; date: string; extra?: string }): string {
   return `---
 chapter: ${num}
 title: "Chapter ${num}"
@@ -54,12 +54,15 @@ Body of chapter ${num}.
 `;
 }
 
+/** Universe files by path relative to the root; `null` removes a default. */
+export type Files = Record<string, string | null>;
+
 /**
  * Creates a clean universe in a temp directory. `files` maps a path relative
  * to the universe root to its contents; they are written over the defaults.
  * By default the universe has one valid chapter and lints clean.
  */
-export function makeUniverse(files = {}) {
+export function makeUniverse(files: Files = {}): string {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'pinakes-test-'));
   const all = {
     'pinakes.yaml': CONFIG,
@@ -76,23 +79,34 @@ export function makeUniverse(files = {}) {
   return root;
 }
 
+/** Builds a universe, hands it to `fn`, and always removes it. */
+export function withUniverse(files: Files, fn: (root: string) => void): void {
+  const root = makeUniverse(files);
+  try {
+    fn(root);
+  } finally {
+    cleanup(root);
+  }
+}
+
 /** Appends to `pinakes.yaml`, for tests that need extra configuration. */
-export function appendConfig(root, text) {
+export function appendConfig(root: string, text: string): void {
   fs.appendFileSync(path.join(root, 'pinakes.yaml'), text, 'utf-8');
 }
 
 /** Runs the CLI in `root`. Returns the exit code and combined output. */
-export function run(root, ...args) {
+export function run(root: string, ...args: string[]): { status: number | null; output: string } {
   const res = spawnSync(process.execPath, [CLI, ...args, '--root', root], {
     encoding: 'utf-8',
   });
   return { status: res.status, output: `${res.stdout}${res.stderr}` };
 }
 
-export function readJson(root, rel) {
+/** Parses a compiled record file. Typed loosely: tests reach into whatever records it holds. */
+export function readJson(root: string, rel: string): Record<string, any>[] {
   return JSON.parse(fs.readFileSync(path.join(root, rel), 'utf-8'));
 }
 
-export function cleanup(root) {
+export function cleanup(root: string): void {
   fs.rmSync(root, { recursive: true, force: true });
 }

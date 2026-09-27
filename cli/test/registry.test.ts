@@ -5,20 +5,11 @@
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { cleanup, makeUniverse, readJson, run } from './helpers.mjs';
+import { readJson, run, withUniverse } from './helpers.ts';
 
 const CH1 = 'stories/01_book/chapters/01_one.md';
 
-function withUniverse(files, fn) {
-  const root = makeUniverse(files);
-  try {
-    fn(root);
-  } finally {
-    cleanup(root);
-  }
-}
-
-const chapterWith = ({ location, present }) => `---
+const chapterWith = ({ location, present }: { location: string; present: string[] }) => `---
 chapter: 1
 title: One
 date: "2026-10-01"

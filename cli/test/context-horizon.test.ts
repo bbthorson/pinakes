@@ -4,11 +4,11 @@
  */
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
-import { chapterRefs, namesUnendedChapter } from '../dist/context/bundle.js';
-import { appendConfig, chapter, cleanup, makeUniverse, run } from './helpers.mjs';
+import { chapterRefs, namesUnendedChapter, type ChapterRef, type ContextBundle } from '../dist/context/bundle.js';
+import { appendConfig, chapter, cleanup, makeUniverse, run } from './helpers.ts';
 
 describe('chapterRefs reads the ways authors write a chapter', () => {
-  const cases = [
+  const cases: [string, ChapterRef[]][] = [
     ['After Chapter 15 he', [{ chapter: 15 }]],
     ['Ch15', [{ chapter: 15 }]],
     ['Ch. 15', [{ chapter: 15 }]],
@@ -39,7 +39,7 @@ describe('chapterRefs reads the ways authors write a chapter', () => {
 });
 
 describe('chapterRefs does not invent references', () => {
-  const cases = [
+  const cases: [string, ChapterRef[]][] = [
     ['the chapter I wrote', []],
     ['Chapter 3 and I left', [{ chapter: 3 }]],
     ['chapter 14 and the next', [{ chapter: 14 }]],
@@ -59,7 +59,7 @@ describe('namesUnendedChapter', () => {
     ['book1', new Map([[1, '2026-10-01'], [2, '2026-10-10']])],
     ['book2', new Map([[1, '2026-11-01']])],
   ]);
-  const unended = (text, asOf) => namesUnendedChapter(text, asOf, ends);
+  const unended = (text: string, asOf: string) => namesUnendedChapter(text, asOf, ends);
 
   test('a chapter that has ended is the past', () => {
     assert.equal(unended('In Book 1, Chapter One she opened.', '2026-10-05'), false);
@@ -140,7 +140,7 @@ places:
     'stories/01_book/chapters/02_two.md': chapter({ num: 2, date: '2026-10-10' }),
   };
 
-  function bundleAsOf(asOf) {
+  function bundleAsOf(asOf: string): ContextBundle {
     const root = makeUniverse(files);
     try {
       appendConfig(root, 'context:\n  codex:\n    include: [Overview, Plans]\n');

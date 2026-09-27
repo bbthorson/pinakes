@@ -5,17 +5,7 @@
  */
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
-import { appendConfig, chapter, cleanup, makeUniverse, readJson, run } from './helpers.mjs';
-
-/** Builds a universe, hands it to `fn`, and always removes it. */
-function withUniverse(files, fn) {
-  const root = makeUniverse(files);
-  try {
-    fn(root);
-  } finally {
-    cleanup(root);
-  }
-}
+import { appendConfig, chapter, readJson, run, withUniverse } from './helpers.ts';
 
 const CH1 = 'stories/01_book/chapters/01_one.md';
 
@@ -193,12 +183,12 @@ describe('missing-date', () => {
 
 describe('custom rules', () => {
   /** A universe whose config points `paths.rules` at `glob`. The fixture config ends inside `paths:`. */
-  const withRules = (glob, rule, fn) =>
+  const withRules = (glob: string, rule: string, fn: (root: string) => void) =>
     withUniverse({ 'rules/r.yaml': rule }, (root) => {
       appendConfig(root, `  rules: "${glob}"\n`);
       fn(root);
     });
-  const rule = (pattern) => `name: title-case\ndescription: Titles start upper-case\nvalidate:\n  field: title\n  pattern: "${pattern}"\n`;
+  const rule = (pattern: string) => `name: title-case\ndescription: Titles start upper-case\nvalidate:\n  field: title\n  pattern: "${pattern}"\n`;
 
   test('a valid rule loads and enforces', () => {
     withRules('rules/*.yaml', rule('^[a-z]'), (root) => {
@@ -233,14 +223,15 @@ describe('custom rules', () => {
   });
 
   // Each of these loaded, then checked nothing, and lint reported OK.
-  const register = (validate) =>
+  const register = (validate: string) =>
     `name: registers\ndescription: Known registers only\nselector: stateEvent\nvalidate:\n${validate}`;
-  for (const [what, body, message] of [
+  const invalid: [string, string, RegExp][] = [
     ['a stateEvent rule on a field other than register', register('  field: pov\n  pattern: "^x$"\n'), /can only check `field: register`/],
     ['a stateEvent rule using required', register('  field: register\n  pattern: "^x$"\n  required: true\n'), /`required` is not checked for state events/],
     ['a stateEvent rule with no pattern', register('  field: register\n'), /needs a `pattern`/],
     ['a chapter rule with neither pattern nor required', 'name: r\ndescription: d\nvalidate:\n  field: title\n', /checks nothing/],
-  ]) {
+  ];
+  for (const [what, body, message] of invalid) {
     test(`${what} fails lint instead of never running`, () => {
       withRules('rules/*.yaml', body, (root) => {
         const { status, output } = run(root, 'lint');
@@ -253,7 +244,7 @@ describe('custom rules', () => {
 
   describe('a stateEvent register rule reads registers the way the compiler does', () => {
     const vocabulary = register('  field: register\n  pattern: "^(public|private|under-pressure)$"\n');
-    const withRegister = (value, fn) =>
+    const withRegister = (value: string, fn: (result: ReturnType<typeof run>) => void) =>
       withUniverse(
         {
           [CH1]: chapter({ num: 1, date: '2026-10-01', extra: `registers:\n  Emma: "${value}"\n` }),
