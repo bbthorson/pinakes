@@ -13,6 +13,9 @@ hero:
       text: Concepts
       link: /concepts
     - theme: alt
+      text: Try the demo
+      link: /demo
+    - theme: alt
       text: GitHub
       link: https://github.com/bbthorson/pinakes
 

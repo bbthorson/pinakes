@@ -40,6 +40,10 @@ npm test        # build, then run cli/test/**/*.test.mjs
   you remove a template file, remove its copy under `cli/dist/template/` too.
 - **A new or changed rule is documented in two places:** the rules table in
   `docs/continuity-and-drift.md` and "Built-in checks" in `docs/commands/lint.md`.
+- **The record browser demo (`docs/demo.md`) reads committed data.** After a
+  change to what `compile` emits, rebuild the CLI and run
+  `cd docs && npm run sync-demo -- <path-to-supper_club_secrets>` to regenerate
+  `docs/public/demo/records.json`, and commit it.
 - **Keep the docs site building.** `cd docs && npm ci && npm run build` fails
   on a dead link. A new page also needs an entry in the sidebar in
   `docs/.vitepress/config.mts`.
