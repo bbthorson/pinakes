@@ -39,23 +39,26 @@ export class LinterEngine {
         }
     }
     // Scan stories and load metadata
-    loadChapters(storyDir) {
+    /** Chapter files in a story, in filename order; `_` and `00_` files are templates. */
+    chapterFiles(storyDir) {
         const chaptersPath = path.join(storyDir, 'chapters');
         if (!fs.existsSync(chaptersPath))
             return [];
-        const files = fs.readdirSync(chaptersPath)
+        return fs.readdirSync(chaptersPath)
             .filter(f => f.endsWith('.md') && !f.startsWith('_') && !f.startsWith('00_'))
-            .sort();
+            .sort()
+            .map(f => path.join(chaptersPath, f));
+    }
+    loadChapters(storyDir) {
         const chapters = [];
-        for (const file of files) {
-            const filePath = path.join(chaptersPath, file);
+        for (const filePath of this.chapterFiles(storyDir)) {
             const relativeFilePath = path.relative(this.projectRoot, filePath);
             const content = fs.readFileSync(filePath, 'utf-8');
             const { data, text, body } = this.parseFrontmatter(content);
-            if (data === null) {
-                // Handle malformed frontmatter elsewhere as diagnostic
+            // Unparseable or chapter-less files are skipped here and reported by
+            // `frontmatterDiagnostics`, so every consumer sees the same chapter set.
+            if (data === null)
                 continue;
-            }
             if (!data.chapter)
                 continue;
             // Extract ISO dates via regex
@@ -208,6 +211,37 @@ export class LinterEngine {
             };
         });
     }
+    /**
+     * Chapter files that `loadChapters` cannot load. Skipping them silently would
+     * drop a chapter from every check and let `lint` pass on a typo in its YAML.
+     */
+    frontmatterDiagnostics(storyDir) {
+        const out = [];
+        for (const filePath of this.chapterFiles(storyDir)) {
+            const file = path.relative(this.projectRoot, filePath);
+            const content = fs.readFileSync(filePath, 'utf-8');
+            const { data, text } = this.parseFrontmatter(content);
+            if (data === null) {
+                let detail = '';
+                try {
+                    YAML.parse(text);
+                }
+                catch (e) {
+                    detail = `: ${String(e.message).split('\n')[0]}`;
+                }
+                out.push({ file, rule: 'malformed-frontmatter', severity: 'error', message: `Frontmatter is not valid YAML${detail}` });
+            }
+            else if (!data.chapter) {
+                out.push({
+                    file,
+                    rule: 'malformed-frontmatter',
+                    severity: 'warning',
+                    message: 'No `chapter` in frontmatter, so this file is not checked or compiled. Prefix it with `_` or `00_` if it is not a chapter.',
+                });
+            }
+        }
+        return out;
+    }
     // Get active stories (non-templates)
     getStories() {
         const storiesPath = path.join(this.projectRoot, this.config.paths.stories);
@@ -222,9 +256,27 @@ export class LinterEngine {
         const diagnostics = [];
         const stories = this.getStories();
         for (const storyDir of stories) {
+            diagnostics.push(...this.frontmatterDiagnostics(storyDir));
             const chapters = this.loadChapters(storyDir);
             if (chapters.length === 0)
                 continue;
+            // Chapter numbers are record ids (`scene.book1.ch12`), so a repeat
+            // compiles two records under one id.
+            const byNum = new Map();
+            for (const ch of chapters) {
+                const first = byNum.get(String(ch.chapterNum));
+                if (first) {
+                    diagnostics.push({
+                        file: ch.relativeFilePath,
+                        rule: 'duplicate-chapter',
+                        severity: 'error',
+                        message: `Chapter ${ch.chapterNum} is also declared by ${first}.`,
+                    });
+                }
+                else {
+                    byNum.set(String(ch.chapterNum), path.basename(ch.filePath));
+                }
+            }
             // 1. Built-in: Entity Resolution checks
             if (this.config.rules['unresolved-entities'] !== 'off') {
                 const severity = this.config.rules['unresolved-entities'];
@@ -389,7 +441,9 @@ export class LinterEngine {
                         const chapter = post.frontmatter.chapter;
                         if (chapter === undefined || chapter === null)
                             continue;
-                        const register = registerAt.get(`${chapter}::${author.id}`);
+                        // Normalised the way `chapterNum` is, so `chapter: "03"` finds chapter 3.
+                        const chapterKey = isNaN(Number(chapter)) ? chapter : Number(chapter);
+                        const register = registerAt.get(`${chapterKey}::${author.id}`);
                         if (register === undefined)
                             continue; // off-page: no annotation to contradict
                         if (!safe.includes(register)) {

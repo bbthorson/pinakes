@@ -319,12 +319,13 @@ export function buildContext(
     }));
 
   // History
-  const posts = typed('character.post').filter((p) => p.storyDate <= asOf);
+  // An undated post compares '' <= asOf and would pass the horizon; fail closed.
+  const posts = typed('character.post').filter((p) => isCalendarDate(p.storyDate) && p.storyDate <= asOf);
   const repliedTo = new Set(posts.filter((p) => p.author === id && p.inReplyTo).map((p) => p.inReplyTo));
   const history = posts
     .filter((p) => p.author === id || repliedTo.has(p.id) || (p.mentions ?? []).includes(id))
     .sort((a, b) => a.storyDate.localeCompare(b.storyDate) || String(a.storyTime ?? '').localeCompare(String(b.storyTime ?? '')))
-    .map((p) => ({ id: p.id, author: p.author, storyDate: p.storyDate, storyTime: p.storyTime, inReplyTo: p.inReplyTo, text: p.text }));
+    .map((p) => ({ id: p.id, author: p.author, storyDate: p.storyDate, storyTime: p.storyTime, inReplyTo: p.inReplyTo, text: p.text ?? '' }));
 
   const scenes = typed('scene')
     .filter((s) => (s.participants ?? []).includes(id) && ends(s) <= asOf)

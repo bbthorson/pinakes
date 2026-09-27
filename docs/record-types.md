@@ -446,7 +446,10 @@ so it is absent for an item whose custody nothing has recorded yet.
 
 ### `custodyEvent`
 
-One record per hand-off, projected from a chapter's `custody:` block.
+One record per hand-off, projected from a chapter's `custody:` block. The id is
+`custodyEvent.<item-slug>.<book>.ch<N>`; when one chapter passes the same item
+more than once, the second and later hand-offs get `.2`, `.3`, and so on, so the
+first keeps the bare id.
 
 ```json
 {

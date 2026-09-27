@@ -100,7 +100,7 @@ program
       if (diagnostics.length > 0) {
         console.log('');
         reportDiagnostics(diagnostics);
-        console.log(`\nFAIL — ${diagnostics.length} record(s) do not match their Lexicon.`);
+        console.log(`\nFAIL — ${diagnostics.length} problem(s) in the compiled records.`);
         process.exit(1);
       }
 

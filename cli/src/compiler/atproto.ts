@@ -238,15 +238,34 @@ export function compileProject(
    */
   const firstCustody = new Map<string, { storyDate: string; chapterRef: string }>();
 
+  /** Book key -> the story directory that claimed it. */
+  const bookOwners = new Map<string, string>();
+
   // 1. Stories compile (scenes, state events, custody events)
   for (const storyDir of stories) {
     const book = getBookKey(storyDir);
     const chapters = engine.loadChapters(storyDir);
     if (chapters.length === 0) continue;
 
+    // `01_book` and `01_book_draft` both key to `book1`. Compiling the second
+    // would overwrite the first's record files and mint colliding ids.
+    const owner = bookOwners.get(book);
+    if (owner) {
+      diagnostics.push({
+        file: path.relative(projectRoot, storyDir),
+        rule: 'duplicate-book',
+        severity: 'error',
+        message: `Story directory compiles to book key '${book}', already used by ${path.relative(projectRoot, owner)}. Not compiled.`,
+      });
+      continue;
+    }
+    bookOwners.set(book, storyDir);
+
     const scenes: any[] = [];
     const events: any[] = [];
     const custodyEvents: any[] = [];
+    /** Hand-offs per (item, chapter). The first keeps the bare id; repeats get `.2`, `.3`. */
+    const custodySeq = new Map<string, number>();
 
     for (const ch of chapters) {
       if (ch.dates.length === 0) continue;
@@ -320,6 +339,11 @@ export function compileProject(
         const itemSlug = itemEnt.id.split('.', 2)[1];
         const fromEnt = entry.from ? registry.resolve(entry.from, 'character') : null;
 
+        const baseId = `custodyEvent.${itemSlug}.${book}.ch${ch.chapterNum}`;
+        const n = (custodySeq.get(baseId) ?? 0) + 1;
+        custodySeq.set(baseId, n);
+        const custodyId = n === 1 ? baseId : `${baseId}.${n}`;
+
         const prior = firstCustody.get(itemEnt.id);
         if (!prior || storyDate < prior.storyDate) {
           firstCustody.set(itemEnt.id, { storyDate, chapterRef: chRef });
@@ -328,7 +352,7 @@ export function compileProject(
         custodyEvents.push(
           compact({
             $type: `${NS}.custodyEvent`,
-            id: `custodyEvent.${itemSlug}.${book}.ch${ch.chapterNum}`,
+            id: custodyId,
             item: itemEnt.id,
             storyDate,
             storyDateEnd,
@@ -677,6 +701,25 @@ export function compileProject(
   }
   if (allItems.length > 0) {
     writeRecords(path.join(seriesDir, 'items.json'), allItems);
+  }
+
+  // Ids are the record keys, so two records sharing one is a collision in any
+  // repository they are published to. The usual cause is two chapter files
+  // with the same `chapter:` number.
+  const idFiles = new Map<string, string>();
+  for (const r of allRecords) {
+    if (typeof r?.id !== 'string') continue;
+    const first = idFiles.get(r.id);
+    if (first) {
+      diagnostics.push({
+        file: r.sourceFile || first,
+        rule: 'duplicate-record-id',
+        severity: 'error',
+        message: `Record id '${r.id}' is also produced by ${first}.`,
+      });
+    } else {
+      idFiles.set(r.id, r.sourceFile || '');
+    }
   }
 
   const lexiconFiles = write

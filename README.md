@@ -211,7 +211,7 @@ fails the build:
 📁 records/book1/scenes.json:
        [lexicon-validation] 🔴 ERROR: scene.book1.ch1: Invalid datetime (got "2026-10-04") at $.createdAt
 
-FAIL — 1 record(s) do not match their Lexicon.
+FAIL — 1 problem(s) in the compiled records.
 ```
 
 Two consequences worth knowing about, because they are what the data model

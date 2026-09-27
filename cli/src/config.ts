@@ -3,6 +3,23 @@ import path from 'path';
 import YAML from 'yaml';
 import { z } from 'zod';
 
+type Severity = 'error' | 'warning' | 'off';
+
+const DEFAULT_RULES: Record<string, Severity> = {
+  'unresolved-entities': 'error',
+  'non-sequential-dates': 'error',
+  'co-presence-conflict': 'warning',
+  'post-register': 'error',
+  'stretch-dates': 'error',
+  'stretch-filename': 'error',
+  'stretch-duplicate': 'error',
+  'stretch-status': 'error',
+  'stretch-register': 'error',
+  'stretch-source-unresolved': 'error',
+  'stretch-source-future': 'error',
+  'stretch-length': 'warning',
+};
+
 export const ConfigSchema = z.object({
   spec: z.number().default(0.1),
   project: z.object({
@@ -127,20 +144,16 @@ export const ConfigSchema = z.object({
       closerMaxWords: z.number().default(12),
     })
     .default({ carveOuts: [], closerMaxWords: 12 }),
-  rules: z.record(z.union([z.literal('error'), z.literal('warning'), z.literal('off')])).default({
-    'unresolved-entities': 'error',
-    'non-sequential-dates': 'error',
-    'co-presence-conflict': 'warning',
-    'post-register': 'error',
-    'stretch-dates': 'error',
-    'stretch-filename': 'error',
-    'stretch-duplicate': 'error',
-    'stretch-status': 'error',
-    'stretch-register': 'error',
-    'stretch-source-unresolved': 'error',
-    'stretch-source-future': 'error',
-    'stretch-length': 'warning',
-  }),
+  /**
+   * Per-rule severity. A universe's `rules:` block is merged over the defaults
+   * rather than replacing them: setting one rule to `off` must not leave every
+   * other rule without a severity, which reported errors as warnings and let
+   * `lint` pass.
+   */
+  rules: z
+    .record(z.union([z.literal('error'), z.literal('warning'), z.literal('off')]))
+    .default({})
+    .transform((rules) => ({ ...DEFAULT_RULES, ...rules })),
 });
 
 export type Config = z.infer<typeof ConfigSchema>;
