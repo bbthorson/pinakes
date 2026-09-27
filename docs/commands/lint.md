@@ -23,7 +23,7 @@ FAIL — pinakes found errors.
 
 ## Built-in checks
 * **Entity Resolution:** Verifies that every character, location, and item mentioned in chapter frontmatter exists in `entities.yaml` or is explicitly ignored in `non_entities.yaml`.
-* **Sequential Timelines:** Ensures start dates do not retrogress across sequential chapters.
+* **Sequential Timelines:** Ensures every chapter has a date, and that start dates do not retrogress across sequential chapters. The two are separate rules (`missing-date` and `non-sequential-dates`), so relaxing the ordering check leaves undated chapters reported.
 * **Co-Presence Conflicts:** Flags physical impossibilities, such as a character being marked as present in two distinct locations at the same time.
 * **Custody Resolution:** Verifies that every item and holder named in a chapter's `custody:` block resolves, so a hand-off is never silently dropped.
 * **Stretch Horizon:** Verifies that a character stretch cites only records that have ended by its `asOf` date, so a character never draws on what hasn't happened yet.
@@ -38,9 +38,10 @@ Severities are set per rule under `rules:` in `pinakes.yaml`, and a `rules:` blo
 Authors can write custom rules in the `rules/` directory to enforce style guidelines or state transitions:
 
 `paths.rules` is a **glob, not a directory** — use `rules/*.yaml`. A bare
-`rules` matches the directory itself and fails `lint`, as does any rule file
-that cannot be loaded: invalid YAML, the wrong shape, or a `pattern` that is not
-a valid regex. A rule that silently stopped running would be worse than none.
+`rules` matches the directory itself and fails `lint`. So does a glob that
+matches no files, and any rule file that cannot be loaded: invalid YAML, the
+wrong shape, a `pattern` that is not a valid regex, or a rule that could never
+check anything. A rule that silently stopped running would be worse than none.
 
 ```yaml
 # rules/voice-register.yaml

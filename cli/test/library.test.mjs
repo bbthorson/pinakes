@@ -111,3 +111,16 @@ describe('proseCheck', () => {
     });
   });
 });
+
+describe('compiled register expressions', () => {
+  test('a transition with a note on its first step keeps the transition', () => {
+    // The compiler cut at the first `(`, so this compiled as `under-pressure`.
+    const value = 'under-pressure (hostess hyperdrive) → private (the quiet kitchen confide)';
+    withUniverse({ [CH1]: chapter({ num: 1, date: '2026-10-01', extra: `registers:\n  Emma: "${value}"\n` }) }, (root) => {
+      const event = pinakes.compile(root).records.find((r) => r.$type.endsWith('.character.stateEvent'));
+      assert.equal(event.register, 'under-pressure');
+      assert.equal(event.registerExpr, 'under-pressure → private');
+      assert.equal(event.state, value);
+    });
+  });
+});

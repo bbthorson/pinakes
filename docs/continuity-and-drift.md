@@ -24,7 +24,7 @@ block is merged over the defaults, so it only needs the rules you change:
 | --- | --- | --- |
 | `unresolved-entities` | `error` | A name in frontmatter that resolves to no registry entity and is not a declared non-entity |
 | `non-sequential-dates` | `error` | A chapter whose start date precedes the previous chapter's |
-| `missing-date` | `error`, not configurable | A chapter with no `YYYY-MM-DD` anywhere in its `date` |
+| `missing-date` | `error` | A chapter with no `YYYY-MM-DD` anywhere in its `date` |
 | `malformed-frontmatter` | `error` / `warning`, not configurable | A chapter file whose frontmatter is not valid YAML (error), or has no `chapter` key (warning); either way it would otherwise be skipped by every check |
 | `ambiguous-alias` | `error`, not configurable | One alias (or display name) claimed by two registry entities of the same type. It resolves to neither, and every reference to it is reported as ambiguous. Different types may share a name |
 | `duplicate-id` | `error`, not configurable | One entity id registered twice in `entities.yaml` |
@@ -72,12 +72,6 @@ number, found by searching the frontmatter text for the offending string. The
 co-presence warnings do not, because they are a property of a *pair* of files
 rather than of a line.
 
-**One caveat on `missing-date`:** it is not listed in the configurable `rules`
-map, its severity is hardcoded to `error`, and it is evaluated inside the
-`non-sequential-dates` block — so setting `non-sequential-dates: off` silently
-disables missing-date detection too. If you want dates unenforced that is
-convenient; if you wanted only the ordering check relaxed, it is a trap.
-
 ### How co-presence actually reasons
 
 This is the rule that does real narrative work, and its precision comes from two
@@ -122,38 +116,36 @@ validate:
 
 `selector: chapter` checks a frontmatter field — scalar, list, or map — against
 a regex, or asserts it is present with `required: true`. `selector: stateEvent`
-is narrower: it only supports `field: register`, and it tests the base register
-with any transition arrow stripped, so `private → under-pressure` is checked as
-`private`.
+is narrower: it only supports `field: register`. It reads each annotation the
+way the compiler does: notes in parentheses are dropped, and every step of a
+transition is tested, so `private (tired) → under-pressure` checks both
+`private` and `under-pressure`. An arrow inside a note, as in
+`private (curious → quietly alarmed)`, is part of the note. It needs a `pattern`, and a `stateEvent` rule naming another field or
+using `required` fails to load, since neither would ever be checked. A
+`chapter` rule needs a `pattern`, `required: true`, or both.
 
 That example looks like a good fit for character-driven work, because a fixed
 register vocabulary is exactly the kind of convention that erodes silently
 across six books. Supper Club Secrets defines precisely such a three-register
 framework in its voice guide.
 
-**As written, it does not work.** Run that exact rule against Book 1 and it
-reports 86 failures out of 99 register annotations, every one of them a false
-positive, while the three genuinely off-vocabulary values pass clean. Two
-separate limits cause that:
+Run that exact rule against Book 1 and it reports three annotations out of 99,
+the three that genuinely leave the vocabulary: `briefly animated` and
+`deflating`, both on the right of an arrow, and `active`.
 
-- **The parenthetical is never stripped.** The compiler's `splitRegister` strips
-  `(...)` before recording a register; the linter's `stateEvent` path only
-  splits on the arrow. So `private (sentiment flipping in real time)` is tested
-  in full against `^(public|private|under-pressure)$` and fails.
-- **Only the term left of the arrow is checked.** `private → briefly animated`
-  passes, because the check never looks at `briefly animated`.
+It used to report 86, every one a false positive, while missing those three.
+The linter tested `private (sentiment flipping in real time)` in full, note
+included, and checked only the term left of an arrow. It now shares the
+compiler's parser, so the two cannot drift apart again.
 
 Note that `paths.rules` is a **glob, not a directory**: it needs
 `rules/*.yaml`. Setting `rules: "rules"` matches the directory itself. This
 used to print a warning, load zero rules, and report `OK — all checks passed
-cleanly.` A rule file that cannot be loaded — unreadable, invalid YAML, the
-wrong shape, or a `pattern` that is not a valid regex — now fails `lint`
-outright, because a rule that silently stops running is worse than no rule.
-
-So custom rules are usable today for `selector: chapter` checks on frontmatter
-fields, which is where the feature is sound. Treat `selector: stateEvent` as
-unfinished until the linter strips parentheticals and walks the whole
-transition.
+cleanly.` It now fails `lint`, and so does a glob that matches no files at
+all, such as `rules/*.yml` when the files end in `.yaml`. A rule file that
+cannot be loaded — unreadable, invalid YAML, the wrong shape, or a `pattern`
+that is not a valid regex — also fails `lint` outright, because a rule that
+silently stops running is worse than no rule.
 
 ## Drift: records that no longer match the prose
 

@@ -5,6 +5,7 @@ import { z } from 'zod';
 const DEFAULT_RULES = {
     'unresolved-entities': 'error',
     'non-sequential-dates': 'error',
+    'missing-date': 'error',
     'co-presence-conflict': 'warning',
     'post-register': 'error',
     'stretch-dates': 'error',

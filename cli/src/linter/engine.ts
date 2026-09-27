@@ -3,6 +3,7 @@ import path from 'path';
 import YAML from 'yaml';
 import { Registry } from '../registry/entities.js';
 import { Config } from '../config.js';
+import { parseRegister } from './registers.js';
 
 export interface Diagnostic {
   file: string;
@@ -418,7 +419,24 @@ export class LinterEngine {
         }
       }
 
-      // 2. Built-in: Sequential dates check
+      // 2. Built-in: every chapter has a date. This used to run inside the
+      // sequence check below, hardcoded to error, so `non-sequential-dates:
+      // off` silently stopped reporting undated chapters as well.
+      if (this.config.rules['missing-date'] !== 'off') {
+        const severity = this.config.rules['missing-date'] as 'error' | 'warning';
+        for (const ch of chapters) {
+          if (ch.dates.length === 0) {
+            diagnostics.push({
+              file: ch.relativeFilePath,
+              rule: 'missing-date',
+              severity,
+              message: `Chapter missing valid ISO date in frontmatter \`date\` field`,
+            });
+          }
+        }
+      }
+
+      // 3. Built-in: Sequential dates check
       if (this.config.rules['non-sequential-dates'] !== 'off') {
         const severity = this.config.rules['non-sequential-dates'] as 'error' | 'warning';
         
@@ -433,15 +451,8 @@ export class LinterEngine {
         let lastChapterFile = '';
 
         for (const ch of sortedChapters) {
-          if (ch.dates.length === 0) {
-            diagnostics.push({
-              file: ch.relativeFilePath,
-              rule: 'missing-date',
-              severity: 'error',
-              message: `Chapter missing valid ISO date in frontmatter \`date\` field`,
-            });
-            continue;
-          }
+          // Undated chapters are reported by missing-date; there is nothing to order.
+          if (ch.dates.length === 0) continue;
 
           const chStartDate = ch.dates[0];
           if (lastStartDate && chStartDate < lastStartDate) {
@@ -457,7 +468,7 @@ export class LinterEngine {
         }
       }
 
-      // 3. Built-in: Co-presence conflicts check (same character in different locations on same date range)
+      // 4. Built-in: Co-presence conflicts check (same character in different locations on same date range)
       if (this.config.rules['co-presence-conflict'] !== 'off') {
         const severity = this.config.rules['co-presence-conflict'] as 'error' | 'warning';
         
@@ -518,7 +529,7 @@ export class LinterEngine {
         }
       }
 
-      // 4. Built-in: the public-register rule for authored posts.
+      // 5. Built-in: the public-register rule for authored posts.
       //
       // Every other record is projected out of prose and cannot contradict it.
       // A post is written *as* the character and goes out on a permanent public
@@ -547,8 +558,7 @@ export class LinterEngine {
               // The register is the first term: `public -> private (...)` is a
               // performance that begins in public, which is what the reader of
               // the feed sees.
-              const first = String(val).split(/->|\u2192/)[0].trim().split('(')[0].trim();
-              registerAt.set(`${ch.chapterNum}::${hit.id}`, first);
+              registerAt.set(`${ch.chapterNum}::${hit.id}`, parseRegister(String(val)).register);
             }
           }
 

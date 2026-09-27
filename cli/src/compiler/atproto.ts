@@ -6,6 +6,7 @@ import { ChapterData, Diagnostic, LinterEngine, StretchSource } from '../linter/
 import { lintStretches, SourceIndex, StretchEntry } from '../linter/stretches.js';
 import { buildLexiconDocs, compileLexiconDocs, validateRecords, writeLexiconDocs } from '../lexicons/index.js';
 import { pruneStale } from './prune.js';
+import { parseRegister } from '../linter/registers.js';
 
 function getBookKey(storyDir: string): string {
   const base = path.basename(storyDir);
@@ -149,14 +150,6 @@ function asInteger(value: unknown): number | undefined {
   if (typeof value === 'number' && Number.isInteger(value)) return value;
   if (typeof value === 'string' && /^\d+$/.test(value.trim())) return parseInt(value, 10);
   return undefined;
-}
-
-function splitRegister(value: string): { register: string; expr: string } {
-  const val = value.trim();
-  const m = val.match(/^([^(]+?)\s*(\(.*)?$/);
-  const expr = (m ? m[1] : val).trim().replace(/;$/, '').trim();
-  const register = expr.split(/\s*(?:->|→)\s*/)[0].trim();
-  return { register, expr };
 }
 
 export interface CompilationResult {
@@ -383,7 +376,7 @@ export function compileProject(
         const resolved = registry.resolve(name, 'character');
         if (!resolved) continue;
 
-        const { register, expr } = splitRegister(val);
+        const { register, expr } = parseRegister(val);
 
         events.push(
           compact({

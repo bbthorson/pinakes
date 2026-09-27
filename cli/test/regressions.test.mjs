@@ -168,6 +168,29 @@ test('post-register matches a chapter written as a zero-padded string', () => {
   );
 });
 
+describe('missing-date', () => {
+  const undated = { [CH1]: chapter({ num: 1, date: '2026-10-01' }).replace('date: "2026-10-01"', 'date: "someday"') };
+
+  test('still reports an undated chapter when non-sequential-dates is off', () => {
+    // It used to run inside the sequence check, so this setting disabled it too.
+    withUniverse(undated, (root) => {
+      appendConfig(root, 'rules:\n  non-sequential-dates: "off"\n');
+      const { status, output } = run(root, 'lint');
+      assert.equal(status, 1);
+      assert.match(output, /\[missing-date\] 🔴 ERROR/);
+    });
+  });
+
+  test('is configurable on its own', () => {
+    withUniverse(undated, (root) => {
+      appendConfig(root, 'rules:\n  missing-date: warning\n');
+      const { status, output } = run(root, 'lint');
+      assert.equal(status, 0);
+      assert.match(output, /\[missing-date\] 🟡 WARNING/);
+    });
+  });
+});
+
 describe('custom rules', () => {
   /** A universe whose config points `paths.rules` at `glob`. The fixture config ends inside `paths:`. */
   const withRules = (glob, rule, fn) =>
@@ -198,6 +221,81 @@ describe('custom rules', () => {
       const { status, output } = run(root, 'lint');
       assert.equal(status, 1);
       assert.match(output, /failed to load custom rule/);
+    });
+  });
+
+  test('a glob that matches no files fails lint instead of loading nothing', () => {
+    withRules('rules/*.yml', rule('^[a-z]'), (root) => {
+      const { status, output } = run(root, 'lint');
+      assert.equal(status, 1);
+      assert.match(output, /paths\.rules 'rules\/\*\.yml' matches no files/);
+    });
+  });
+
+  // Each of these loaded, then checked nothing, and lint reported OK.
+  const register = (validate) =>
+    `name: registers\ndescription: Known registers only\nselector: stateEvent\nvalidate:\n${validate}`;
+  for (const [what, body, message] of [
+    ['a stateEvent rule on a field other than register', register('  field: pov\n  pattern: "^x$"\n'), /can only check `field: register`/],
+    ['a stateEvent rule using required', register('  field: register\n  pattern: "^x$"\n  required: true\n'), /`required` is not checked for state events/],
+    ['a stateEvent rule with no pattern', register('  field: register\n'), /needs a `pattern`/],
+    ['a chapter rule with neither pattern nor required', 'name: r\ndescription: d\nvalidate:\n  field: title\n', /checks nothing/],
+  ]) {
+    test(`${what} fails lint instead of never running`, () => {
+      withRules('rules/*.yaml', body, (root) => {
+        const { status, output } = run(root, 'lint');
+        assert.equal(status, 1);
+        assert.match(output, /failed to load custom rule rules\/r\.yaml/);
+        assert.match(output, message);
+      });
+    });
+  }
+
+  describe('a stateEvent register rule reads registers the way the compiler does', () => {
+    const vocabulary = register('  field: register\n  pattern: "^(public|private|under-pressure)$"\n');
+    const withRegister = (value, fn) =>
+      withUniverse(
+        {
+          [CH1]: chapter({ num: 1, date: '2026-10-01', extra: `registers:\n  Emma: "${value}"\n` }),
+          'rules/r.yaml': vocabulary,
+        },
+        (root) => {
+          appendConfig(root, '  rules: "rules/*.yaml"\n');
+          fn(run(root, 'lint'));
+        }
+      );
+
+    test('a note in parentheses is not part of the register', () => {
+      // Tested in full, this was 86 of Supper Club Secrets' 99 annotations failing.
+      withRegister('private (sentiment flipping in real time)', ({ status, output }) => {
+        assert.equal(status, 0, output);
+      });
+    });
+
+    test('an arrow inside a note is not a transition', () => {
+      withRegister('private (curious → quietly alarmed)', ({ status, output }) => {
+        assert.equal(status, 0, output);
+      });
+    });
+
+    test('every step of a transition is checked, not only the first', () => {
+      withRegister('private (tired) → briefly animated (a glance)', ({ status, output }) => {
+        assert.equal(status, 1);
+        assert.match(output, /register state 'briefly animated' does not match/);
+        assert.doesNotMatch(output, /register state 'private/);
+      });
+    });
+  });
+
+  test('a stateEvent register rule still loads and enforces', () => {
+    const files = {
+      'stories/01_book/chapters/01_one.md': chapter({ num: 1, date: '2026-10-01', extra: 'registers:\n  Emma: "guarded (tired)"\n' }),
+    };
+    withUniverse({ ...files, 'rules/r.yaml': register('  field: register\n  pattern: "^public$"\n') }, (root) => {
+      appendConfig(root, '  rules: "rules/*.yaml"\n');
+      const { status, output } = run(root, 'lint');
+      assert.equal(status, 1);
+      assert.match(output, /\[registers\] 🔴 ERROR/);
     });
   });
 });
