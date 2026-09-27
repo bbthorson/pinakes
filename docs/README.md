@@ -81,34 +81,31 @@ Things these guides describe as absent, gathered here so they are easy to find.
 None of them block the pipeline; all of them are places where the documented
 model and the shipped code disagree.
 
-1. **Two custom-rule setups still pass silently.** A `paths.rules` glob that
-   matches no files, such as `rules/*.yml` when the rules are `.yaml`, loads
-   no rules and reports `OK — all checks passed cleanly`. So does a
-   `selector: stateEvent` rule with any `field` other than `register`: it
-   loads, then never runs. `pinakes init` also creates no `rules/` directory,
-   and neither the template nor Supper Club Secrets sets `paths.rules`. See
-   [continuity-and-drift.md](continuity-and-drift.md#custom-yaml-rules).
-2. **The `stateEvent` rule selector cannot express a register vocabulary.** It
+1. **The `stateEvent` rule selector cannot express a register vocabulary.** It
    never strips the parenthetical the way the compiler does, and it checks only
    the term left of a transition arrow. Run the example rule from
    [`pinakes lint`](commands/lint.md#custom-yaml-rules) against Book 1 and 86
    of 99 annotations fail as false positives, while the three genuinely
    off-vocabulary values pass. See
    [continuity-and-drift.md](continuity-and-drift.md#custom-yaml-rules).
-3. **`missing-date` cannot be configured or disabled**, and turning off
+2. **`missing-date` cannot be configured or disabled**, and turning off
    `non-sequential-dates` silently turns it off too. See
    [continuity-and-drift.md](continuity-and-drift.md#the-built-in-rules).
-4. **DIDs are described, not implemented.** [Concepts](concepts.md#at-protocol-and-identity)
+3. **DIDs are described, not implemented.** [Concepts](concepts.md#at-protocol-and-identity)
    lists them as planned; the compiler emits local registry ids and a bare
    handle string, and nothing in the CLI mints, resolves, or writes a DID. See
    [record-types.md](record-types.md#identity-today-and-identity-later).
 
 ### Closed since these guides were written
 
-- **A rule that cannot load fails `lint`.** Setting `paths.rules` to a
-  directory (`rules` rather than `rules/*.yaml`) used to warn, load nothing,
-  and report OK. It now fails, as does a rule file with invalid YAML, the
-  wrong shape, or a `pattern` that is not a valid regex.
+- **A custom rule that would never run fails `lint`.** Each of these used to
+  load nothing, or load a rule that checked nothing, and report `OK — all
+  checks passed cleanly`. Now each is an error: `paths.rules` set to a
+  directory (`rules` rather than `rules/*.yaml`), a glob that matches no files,
+  a rule file with invalid YAML, the wrong shape, or an invalid regex, a
+  `stateEvent` rule on a field other than `register` or using `required`, and
+  a rule with neither a `pattern` nor `required: true`. `pinakes init` still
+  creates no `rules/` directory, since custom rules are optional.
 - **A registry entry that fails validation fails `lint`.** It used to be
   skipped with only a console warning. It is now an `invalid-registry-entry`
   error; see

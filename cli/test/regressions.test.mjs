@@ -200,4 +200,43 @@ describe('custom rules', () => {
       assert.match(output, /failed to load custom rule/);
     });
   });
+
+  test('a glob that matches no files fails lint instead of loading nothing', () => {
+    withRules('rules/*.yml', rule('^[a-z]'), (root) => {
+      const { status, output } = run(root, 'lint');
+      assert.equal(status, 1);
+      assert.match(output, /paths\.rules 'rules\/\*\.yml' matches no files/);
+    });
+  });
+
+  // Each of these loaded, then checked nothing, and lint reported OK.
+  const register = (validate) =>
+    `name: registers\ndescription: Known registers only\nselector: stateEvent\nvalidate:\n${validate}`;
+  for (const [what, body, message] of [
+    ['a stateEvent rule on a field other than register', register('  field: pov\n  pattern: "^x$"\n'), /can only check `field: register`/],
+    ['a stateEvent rule using required', register('  field: register\n  pattern: "^x$"\n  required: true\n'), /`required` is not checked for state events/],
+    ['a stateEvent rule with no pattern', register('  field: register\n'), /needs a `pattern`/],
+    ['a chapter rule with neither pattern nor required', 'name: r\ndescription: d\nvalidate:\n  field: title\n', /checks nothing/],
+  ]) {
+    test(`${what} fails lint instead of never running`, () => {
+      withRules('rules/*.yaml', body, (root) => {
+        const { status, output } = run(root, 'lint');
+        assert.equal(status, 1);
+        assert.match(output, /failed to load custom rule rules\/r\.yaml/);
+        assert.match(output, message);
+      });
+    });
+  }
+
+  test('a stateEvent register rule still loads and enforces', () => {
+    const files = {
+      'stories/01_book/chapters/01_one.md': chapter({ num: 1, date: '2026-10-01', extra: 'registers:\n  Emma: "guarded (tired)"\n' }),
+    };
+    withUniverse({ ...files, 'rules/r.yaml': register('  field: register\n  pattern: "^public$"\n') }, (root) => {
+      appendConfig(root, '  rules: "rules/*.yaml"\n');
+      const { status, output } = run(root, 'lint');
+      assert.equal(status, 1);
+      assert.match(output, /\[registers\] 🔴 ERROR/);
+    });
+  });
 });

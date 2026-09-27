@@ -124,8 +124,9 @@ validate:
 a regex, or asserts it is present with `required: true`. `selector: stateEvent`
 is narrower: it only supports `field: register`, and it tests the base register
 with any transition arrow stripped, so `private → under-pressure` is checked as
-`private`. A `stateEvent` rule naming any other field loads without complaint
-and never runs.
+`private`. It needs a `pattern`, and a `stateEvent` rule naming another field or
+using `required` fails to load, since neither would ever be checked. A
+`chapter` rule needs a `pattern`, `required: true`, or both.
 
 That example looks like a good fit for character-driven work, because a fixed
 register vocabulary is exactly the kind of convention that erodes silently
@@ -147,11 +148,11 @@ separate limits cause that:
 Note that `paths.rules` is a **glob, not a directory**: it needs
 `rules/*.yaml`. Setting `rules: "rules"` matches the directory itself. This
 used to print a warning, load zero rules, and report `OK — all checks passed
-cleanly.` It now fails `lint`. A glob that matches no files at all is still
-not an error: it loads zero rules and `lint` passes, so check that a new rule
-fires before relying on it. A rule file that cannot be loaded — unreadable, invalid YAML, the
-wrong shape, or a `pattern` that is not a valid regex — now fails `lint`
-outright, because a rule that silently stops running is worse than no rule.
+cleanly.` It now fails `lint`, and so does a glob that matches no files at
+all, such as `rules/*.yml` when the files end in `.yaml`. A rule file that
+cannot be loaded — unreadable, invalid YAML, the wrong shape, or a `pattern`
+that is not a valid regex — also fails `lint` outright, because a rule that
+silently stops running is worse than no rule.
 
 So custom rules are usable today for `selector: chapter` checks on frontmatter
 fields, which is where the feature is sound. Treat `selector: stateEvent` as

@@ -5,17 +5,50 @@ import YAML from 'yaml';
 import { z } from 'zod';
 import { Diagnostic, ChapterData } from './engine.js';
 
-export const CustomRuleSchema = z.object({
+const ruleBase = {
   name: z.string(),
   description: z.string(),
   severity: z.union([z.literal('error'), z.literal('warning')]).default('error'),
-  selector: z.union([z.literal('chapter'), z.literal('stateEvent')]).default('chapter'),
-  validate: z.object({
-    field: z.string(),
-    pattern: z.string().optional(),
-    required: z.boolean().optional(),
-  }),
-});
+};
+
+/**
+ * Each selector accepts only what it can check. Every shape rejected here used
+ * to load and then check nothing, so lint passed on a rule that never ran: a
+ * stateEvent rule on a field other than `register` (only registers are
+ * walked), a stateEvent rule relying on `required` (never read there), and a
+ * rule with neither a `pattern` nor `required: true`.
+ */
+export const CustomRuleSchema = z.preprocess(
+  // `selector` defaults to chapter, but the union needs it present to discriminate.
+  (v) => (v && typeof v === 'object' && !('selector' in v) ? { ...v, selector: 'chapter' } : v),
+  z.discriminatedUnion('selector', [
+    z.object({
+      ...ruleBase,
+      selector: z.literal('chapter'),
+      validate: z
+        .object({
+          field: z.string(),
+          pattern: z.string().optional(),
+          required: z.boolean().optional(),
+        })
+        .refine((v) => v.pattern !== undefined || v.required === true, {
+          message: 'a chapter rule needs a `pattern`, `required: true`, or both; with neither it checks nothing',
+        }),
+    }),
+    z.object({
+      ...ruleBase,
+      selector: z.literal('stateEvent'),
+      validate: z
+        .object({
+          field: z.literal('register', {
+            errorMap: () => ({ message: 'a stateEvent rule can only check `field: register`' }),
+          }),
+          pattern: z.string({ required_error: 'a stateEvent rule needs a `pattern`' }),
+        })
+        .strict('a stateEvent rule supports only `field` and `pattern`; `required` is not checked for state events'),
+    }),
+  ])
+);
 
 export type CustomRule = z.infer<typeof CustomRuleSchema>;
 
@@ -33,6 +66,12 @@ export class YamlRulesLoader {
   private loadRules(rulesGlob: string) {
     const searchPath = path.resolve(this.projectRoot, rulesGlob);
     const files = globSync(searchPath);
+    // Setting `paths.rules` says rules exist. A glob that finds none (a
+    // `.yml`/`.yaml` mismatch, a moved directory) used to load zero rules and
+    // report OK, which looks exactly like every rule passing.
+    if (files.length === 0) {
+      throw new Error(`paths.rules '${rulesGlob}' matches no files, so no custom rules would run`);
+    }
 
     for (const file of files) {
       if (!fs.existsSync(file)) continue;
@@ -45,7 +84,12 @@ export class YamlRulesLoader {
         if (validated.validate.pattern) new RegExp(validated.validate.pattern);
         this.rules.push(validated);
       } catch (e: any) {
-        throw new Error(`failed to load custom rule ${path.relative(this.projectRoot, file)}: ${e.message}`);
+        // A schema failure's message is a JSON dump of every issue; one line per issue reads as a lint error.
+        const reason =
+          e instanceof z.ZodError
+            ? e.issues.map((i) => (i.path.length ? `${i.path.join('.')}: ${i.message}` : i.message)).join('; ')
+            : e.message;
+        throw new Error(`failed to load custom rule ${path.relative(this.projectRoot, file)}: ${reason}`);
       }
     }
   }
