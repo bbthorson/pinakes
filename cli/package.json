@@ -11,7 +11,7 @@
     "dist"
   ],
   "scripts": {
-    "build": "tsc && node -e \"import('fs').then(fs => { fs.cpSync('../template', './dist/template', { recursive: true }); fs.rmSync('./dist/template/.git', { recursive: true, force: true }); })\"",
+    "build": "tsc && node -e \"import('fs').then(fs => { fs.cpSync('../template', './dist/template', { recursive: true }); fs.rmSync('./dist/template/.git', { recursive: true, force: true }); })\" && node scripts/sync-readme.mjs",
     "watch": "tsc -w",
     "start": "node dist/cli.js",
     "test": "npm run build && node --test 'test/**/*.test.mjs'"
