@@ -2,6 +2,7 @@ import fs from 'fs';
 import path from 'path';
 import { lintStretches } from '../linter/stretches.js';
 import { buildLexiconDocs, compileLexiconDocs, validateRecords, writeLexiconDocs } from '../lexicons/index.js';
+import { pruneStale } from './prune.js';
 function getBookKey(storyDir) {
     const base = path.basename(storyDir);
     const m = base.match(/^0*(\d+)/);
@@ -150,6 +151,8 @@ export function compileProject(projectRoot, config, registry, engine, options = 
     const results = [];
     const diagnostics = [];
     const allRecords = [];
+    /** Absolute paths written this run; everything else pinakes-named is stale. */
+    const written = new Set();
     const lexiconDocs = buildLexiconDocs(NS);
     const schemas = compileLexiconDocs(lexiconDocs);
     /** Validates, then writes — invalid records are still written so the author can inspect them. */
@@ -160,6 +163,7 @@ export function compileProject(projectRoot, config, registry, engine, options = 
         if (write) {
             fs.mkdirSync(path.dirname(filePath), { recursive: true });
             fs.writeFileSync(filePath, JSON.stringify(records, null, 2) + '\n', 'utf-8');
+            written.add(path.resolve(filePath));
         }
         results.push({ file: relative, count: records.length });
     };
@@ -626,8 +630,13 @@ export function compileProject(projectRoot, config, registry, engine, options = 
             idFiles.set(r.id, r.sourceFile || '');
         }
     }
-    const lexiconFiles = write
-        ? writeLexiconDocs(outputDir, lexiconDocs).map(f => path.relative(projectRoot, f))
-        : [];
-    return { results, lexiconFiles, diagnostics, stretchFindings, records: allRecords };
+    const lexiconPaths = write ? writeLexiconDocs(outputDir, lexiconDocs) : [];
+    for (const f of lexiconPaths)
+        written.add(path.resolve(f));
+    const lexiconFiles = lexiconPaths.map(f => path.relative(projectRoot, f));
+    // Only a writing compile prunes: `lint` and `context` build records in
+    // memory and must leave the output directory exactly as they found it.
+    const pruned = write ? pruneStale(projectRoot, outputDir, written) : [];
+    const removed = pruned && pruned.map(f => path.relative(projectRoot, f));
+    return { results, lexiconFiles, diagnostics, stretchFindings, records: allRecords, removed };
 }

@@ -188,6 +188,8 @@ records/
     └── items.json                     # Lexicon: *.item
 ```
 
+`compile` also removes files from a previous run that it no longer produces — a deleted book's directory, a record type a book stopped producing, Lexicon documents for an old NSID — and lists each as `removed stale`. Only the file names above are ever removed.
+
 #### What the codex carries into records
 
 Records are the only thing reader-facing surfaces should have to read, so

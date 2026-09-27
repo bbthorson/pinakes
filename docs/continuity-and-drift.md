@@ -218,16 +218,28 @@ compiled output and fail the gate on a pull request that touched nothing.
 Upgrading is a deliberate act: bump the variable, recompile locally, commit the
 regenerated records in the same pull request.
 
-**The gate only sees paths `compile` writes.** A file sitting in `records/`
-that no Pinakes command produces is invisible to it — it never changes, so it
-never diffs, and it sails through a check whose entire purpose is catching stale
-records.
+**Stale files are removed, and the removal diffs.** `compile` deletes any
+record file it did not produce this run: `scenes.json`,
+`character_state_events.json`, `custody_events.json`, `character_posts.json`,
+`character_stretches.json`, `places.json`, `character_profiles.json`, or
+`items.json` one level below `records/`, and `*.<type>.json` Lexicon documents
+in `records/lexicons/`. A book that was renamed or deleted, a record type a book
+stopped producing, or an NSID change therefore shows up as a deletion, and the
+gate fails until it is committed. Before this, those files stayed forever and
+never diffed.
+
+Nothing else in `records/` is touched. The gate still cannot see a file under
+some other name that no Pinakes command produces: it never changes, so it
+never diffs. If `paths.output` is the project root (or above it), `compile`
+skips removal entirely and says so, because those file names one level down
+could be the author's own.
 
 This is not hypothetical. Supper Club Secrets carried hand-written
 `records/book1/items.json` and `custody_events.json` for months in exactly that
 state: unvalidated, schema-less, consumed by the site at build time, and green
 on every run. Both are compiled records now, but the lesson generalises — if you
-hand-write anything into `records/`, the gate is not protecting it. The check to
+hand-write anything into `records/`, the gate is not protecting it, and under
+one of the file names above `compile` will delete it. The check to
 add, if you want one, is for files under `records/` that a fresh `compile` into
 an empty directory does not produce.
 

@@ -5,6 +5,7 @@ import { Registry } from '../registry/entities.js';
 import { ChapterData, Diagnostic, LinterEngine, StretchSource } from '../linter/engine.js';
 import { lintStretches, SourceIndex, StretchEntry } from '../linter/stretches.js';
 import { buildLexiconDocs, compileLexiconDocs, validateRecords, writeLexiconDocs } from '../lexicons/index.js';
+import { pruneStale } from './prune.js';
 
 function getBookKey(storyDir: string): string {
   const base = path.basename(storyDir);
@@ -177,6 +178,12 @@ export interface CompilationReport {
   stretchFindings: Diagnostic[];
   /** Every compiled record, across types, for consumers such as `context`. */
   records: any[];
+  /**
+   * Stale record and Lexicon files this compile deleted, relative to the
+   * project root. `null` when pruning was skipped because the output
+   * directory is not a directory of its own (see `prune.ts`).
+   */
+  removed: string[] | null;
 }
 
 export interface CompileOptions {
@@ -200,6 +207,8 @@ export function compileProject(
   const results: CompilationResult[] = [];
   const diagnostics: Diagnostic[] = [];
   const allRecords: any[] = [];
+  /** Absolute paths written this run; everything else pinakes-named is stale. */
+  const written = new Set<string>();
 
   const lexiconDocs = buildLexiconDocs(NS);
   const schemas = compileLexiconDocs(lexiconDocs);
@@ -212,6 +221,7 @@ export function compileProject(
     if (write) {
       fs.mkdirSync(path.dirname(filePath), { recursive: true });
       fs.writeFileSync(filePath, JSON.stringify(records, null, 2) + '\n', 'utf-8');
+      written.add(path.resolve(filePath));
     }
     results.push({ file: relative, count: records.length });
   };
@@ -722,9 +732,14 @@ export function compileProject(
     }
   }
 
-  const lexiconFiles = write
-    ? writeLexiconDocs(outputDir, lexiconDocs).map(f => path.relative(projectRoot, f))
-    : [];
+  const lexiconPaths = write ? writeLexiconDocs(outputDir, lexiconDocs) : [];
+  for (const f of lexiconPaths) written.add(path.resolve(f));
+  const lexiconFiles = lexiconPaths.map(f => path.relative(projectRoot, f));
 
-  return { results, lexiconFiles, diagnostics, stretchFindings, records: allRecords };
+  // Only a writing compile prunes: `lint` and `context` build records in
+  // memory and must leave the output directory exactly as they found it.
+  const pruned = write ? pruneStale(projectRoot, outputDir, written) : [];
+  const removed = pruned && pruned.map(f => path.relative(projectRoot, f));
+
+  return { results, lexiconFiles, diagnostics, stretchFindings, records: allRecords, removed };
 }
