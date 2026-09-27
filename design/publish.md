@@ -9,11 +9,26 @@ driver: Supper Club Secrets, Book 1 (live Oct 1 – Oct 31, 2026)
 
 ## Decisions
 
-Nothing here is decided yet. This is the proposal. As each open question in §12
-is settled, record it in this block with its date and move the doc's `status`
-to `accepted`.
+The proposal as a whole isn't accepted yet. As each open question in §12 is
+settled, it's recorded here with its date. The doc's `status` moves to `accepted`
+once the rest is.
 
-- *(none yet)*
+- **2026-09-27. Rich content is `at.markpub.markdown`** (§12.1). Chapters are
+  already markdown. Every document also carries plain `textContent`.
+- **2026-09-27. One `site.standard.publication` per book** (§12.3). Each book
+  gets its own cover, logline and theme. A document's `site` therefore
+  identifies its book, and the chapter extension needn't repeat it.
+- **2026-09-27. No lock gate. `publishDate` is the lock** (§12.5). A chapter
+  becomes a document on its `publishDate`, the same moment the site serves it,
+  and never before. A chapter edited after it drops is updated in place with
+  `updatedAt` set, on the understanding that its earlier text may persist in
+  caches. There's no separate `status: locked` field.
+- **2026-09-27. Located places may carry a Foursquare id** (§12.7) as a
+  `location.fsq` entry, for real public venues only. The record stays keyed by
+  its story id.
+- **2026-09-27. Key management is out of scope** (§12.8). Pinakes reads and
+  checks DIDs. Creating accounts, rotation keys and PLC operations stay with the
+  author.
 
 ## 1. The gap
 
@@ -256,7 +271,7 @@ worth it only once a second surface exists.
 ## 7. Chapters as `site.standard.document`
 
 Each served chapter becomes a `site.standard.document` in the project repo, under
-one `site.standard.publication` per universe (or per book, see §12). **The
+one `site.standard.publication` per book (decided, §12.3). **The
 document carries the chapter's text**, not just metadata.
 
 This reverses a decision SCS made on purpose. Its `site/src/lib/standard-site.ts`
@@ -283,9 +298,9 @@ Here's how that reasoning holds up:
 
 - **Permanence.** A record can be updated or deleted by rkey, but relays and
   indexers may keep what they saw. A revised chapter's old text should be treated
-  as public forever. The practical consequence is to publish a chapter once it's
-  locked, not while it's still settling. Pinakes can enforce this with a chapter
-  `status: locked` gate on the document lane.
+  as public forever. `publishDate` is the lock (decided, §12.5): the document
+  appears when the chapter drops, and a later edit is an update with `updatedAt`
+  set.
 - **Rights.** Full text in an open data layer is trivially copyable. The
   publication record should carry the license, and the author should decide the
   license before the first document goes out.
@@ -487,31 +502,30 @@ matter much either way.
 2. Move DIDs into `entities.yaml`, and lane from tags into a field.
 3. Swap the poster's internals for `planPublish`/`applyPublish`. Delete
    `publish_records.mjs` and most of `posting.mjs`.
-4. Turn on chapter text in documents only after the author has decided §12's
-   license and lock questions.
+4. Turn on chapter text in documents only after the author has decided the
+   license (§12.4).
 
 ## 12. Open questions
 
-1. **Rich content format.** `textContent` alone reaches most readers, but it
-   loses italics and scene breaks, and chapter prose uses both. For `content`,
-   the options are an existing markdown def (`at.markpub.markdown`), Leaflet's
-   block format (the richest reader, but tied to one platform), or none for now.
-   The leaning is `at.markpub.markdown`, since chapters are already markdown. That
-   needs a check of its schema and who renders it before it's adopted.
-2. **Where chapter metadata lives on the document.** An extension field under the
-   universe's NSID on `site.standard.document`, a separate `<nsid>.chapter`
-   record pointing at the document, or only the scene's back-reference?
-3. **One publication per universe or per book?** Per universe keeps one
-   subscribable thing. Per book gives each its own cover, logline and theme.
+1. ~~**Rich content format.**~~ Decided: `at.markpub.markdown`. What's left is
+   implementation: check its schema, and strip what the site strips (the leading
+   chapter heading) so the two render the same prose.
+2. **Where chapter metadata lives on the document.** The fields considered
+   are the reader-safe ones from chapter frontmatter: `chapter` (number),
+   `sequence` (the meal), `storyDate`/`storyDateEnd` and `sceneRefs`. Everything
+   else stays off: `beat`, `beat_purpose`, `clues`, `threads`, `registers`, and the
+   annotated `pov` and cast lines, which carry author notes. Who was present and
+   where it happened are already on the scene record, which the document points
+   to. The proposal is a small extension object under the universe's NSID on the
+   document itself, rather than a separate record. It's four fields, and a
+   separate record would be one more thing to keep in step.
+3. ~~**One publication per universe or per book?**~~ Decided: per book.
 4. **License.** Which license goes on the publication record, and is it
    Pinakes config or the author's free text?
-5. **Lock gate.** Should a document require `status: locked` on the chapter,
-   given text on the network is permanent?
-6. **Meals as calendar events** (§8). Is it worth modelling, and is it
-   Pinakes or universe?
-7. **Record key for places once located.** Should a place with real coordinates
-   stay keyed by its story id (`place.mcgolrick-market`), or also carry a
-   reference to an external place id (Foursquare) so other apps can join on it?
-8. **DID custody.** Moving `did` into `entities.yaml` makes the registry the
-   identity authority. Is PLC rotation-key handling in or out of scope? (It's
-   proposed out: account and key management stay with the author.)
+5. ~~**Lock gate.**~~ Decided: `publishDate` is the lock.
+6. **Meals as calendar events** (§8). The idea is liked, but its use on a
+   reader surface is unclear. Candidate uses are listed below, and the question is
+   whether any of them earns the build.
+7. ~~**External place ids.**~~ Decided: an optional `location.fsq` entry for
+   real public venues. The record stays keyed by its story id.
+8. ~~**DID custody.**~~ Decided: out of scope.
