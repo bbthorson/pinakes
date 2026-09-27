@@ -6,8 +6,10 @@ file covers working on the code.
 
 ## Layout
 
-- `cli/src/` — the TypeScript source. `cli.ts` wires the commands; `linter/`,
-  `compiler/`, `context/`, `lexicons/`, `registry/` and `prose/` hold the logic.
+- `cli/src/` — the TypeScript source. `index.ts` is the public library API
+  (the package's `main`); `cli.ts` wires the commands on top of it and only
+  formats output and sets exit codes. `linter/`, `compiler/`, `context/`,
+  `lexicons/`, `registry/` and `prose/` hold the logic.
 - `cli/dist/` — **committed** build output. Never edit it by hand.
 - `cli/test/` — tests, run with Node's built-in runner.
 - `template/` — the starter universe `pinakes init` copies. The build copies it
@@ -58,6 +60,10 @@ npm test        # build, then run cli/test/**/*.test.mjs
   file name goes into `RECORD_FILES` there.
 - **Registry lookups always name a type.** `registry.resolve(name, type)`:
   aliases are indexed per type, so a character and a place may share a name.
+- **`index.ts` exports are public API.** Removing or changing one is a breaking
+  change for importers. Put a command's logic there, not in `cli.ts`, so the
+  library and the CLI can't reach different verdicts. `package.json`'s
+  `exports` map blocks deep imports, so nothing else is public.
 - Severity defaults for configurable rules live in `DEFAULT_RULES` in
   `config.ts`. A universe's `rules:` block is merged over them.
 

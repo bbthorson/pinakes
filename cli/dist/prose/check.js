@@ -19,8 +19,6 @@
  *            The taxonomy records this tell as having zero mechanical signal;
  *            the report is an assembly aid, not a detector, and says so.
  */
-import fs from 'fs';
-import path from 'path';
 /**
  * Verbatim from the taxonomy's mechanical pre-pass. A universe can add its own
  * signals or replace these through `prose.signals` in `pinakes.yaml`, but the
@@ -349,22 +347,12 @@ export function reportClosers(chapters, config) {
     }
     return out.join('\n');
 }
-// -------------------------------------------------------------------- run
-export function runProseCheck(chapters, config, which, outDir) {
+/** The requested reports as Markdown, keyed by report name. Nothing is printed or written. */
+export function buildProseReports(chapters, config, which) {
     const wanted = which === 'all' ? ['tells', 'closers'] : [which];
     const produced = {};
     for (const name of wanted) {
         produced[name] = name === 'tells' ? reportTells(chapters, config) : reportClosers(chapters, config);
     }
-    if (outDir) {
-        fs.mkdirSync(outDir, { recursive: true });
-        for (const [name, body] of Object.entries(produced)) {
-            const file = path.join(outDir, `${name}.md`);
-            fs.writeFileSync(file, body + '\n', 'utf-8');
-            console.log(`wrote ${file}`);
-        }
-    }
-    else {
-        console.log(Object.values(produced).join('\n\n'));
-    }
+    return produced;
 }
