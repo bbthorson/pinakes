@@ -81,29 +81,38 @@ Things these guides describe as absent, gathered here so they are easy to find.
 None of them block the pipeline; all of them are places where the documented
 model and the shipped code disagree.
 
-1. **`rules/` is documented but not scaffolded.** The root README documents
-   custom YAML rules and `paths.rules` supports them, but `pinakes init` creates
-   no `rules/` directory and neither the template nor Supper Club Secrets sets
-   `paths.rules`. Worse, `paths.rules` is a **glob, not a directory**: setting
-   it to `rules` matches the directory itself, fails to read it, warns, and
-   then reports `OK — all checks passed cleanly` having loaded no rules at all.
-   It needs `rules/*.yaml`. See
+1. **Two custom-rule setups still pass silently.** A `paths.rules` glob that
+   matches no files, such as `rules/*.yml` when the rules are `.yaml`, loads
+   no rules and reports `OK — all checks passed cleanly`. So does a
+   `selector: stateEvent` rule with any `field` other than `register`: it
+   loads, then never runs. `pinakes init` also creates no `rules/` directory,
+   and neither the template nor Supper Club Secrets sets `paths.rules`. See
    [continuity-and-drift.md](continuity-and-drift.md#custom-yaml-rules).
 2. **The `stateEvent` rule selector cannot express a register vocabulary.** It
    never strips the parenthetical the way the compiler does, and it checks only
-   the term left of a transition arrow. Run the root README's own example rule
-   against Book 1 and 86 of 99 annotations fail as false positives, while the
-   three genuinely off-vocabulary values pass. See
+   the term left of a transition arrow. Run the example rule from
+   [`pinakes lint`](commands/lint.md#custom-yaml-rules) against Book 1 and 86
+   of 99 annotations fail as false positives, while the three genuinely
+   off-vocabulary values pass. See
    [continuity-and-drift.md](continuity-and-drift.md#custom-yaml-rules).
 3. **`missing-date` cannot be configured or disabled**, and turning off
    `non-sequential-dates` silently turns it off too. See
    [continuity-and-drift.md](continuity-and-drift.md#the-built-in-rules).
-4. **DIDs are described, not implemented.** The compiler emits local registry
-   ids and a bare handle string; nothing in the CLI mints, resolves, or writes a
-   DID. See [record-types.md](record-types.md#identity-today-and-identity-later).
+4. **DIDs are described, not implemented.** [Concepts](concepts.md#at-protocol-and-identity)
+   lists them as planned; the compiler emits local registry ids and a bare
+   handle string, and nothing in the CLI mints, resolves, or writes a DID. See
+   [record-types.md](record-types.md#identity-today-and-identity-later).
 
 ### Closed since these guides were written
 
+- **A rule that cannot load fails `lint`.** Setting `paths.rules` to a
+  directory (`rules` rather than `rules/*.yaml`) used to warn, load nothing,
+  and report OK. It now fails, as does a rule file with invalid YAML, the
+  wrong shape, or a `pattern` that is not a valid regex.
+- **A registry entry that fails validation fails `lint`.** It used to be
+  skipped with only a console warning. It is now an `invalid-registry-entry`
+  error; see
+  [continuity-and-drift.md](continuity-and-drift.md#the-built-in-rules).
 - **`item` and `custodyEvent` now exist.** Both are compiled and validated; see
   [record-types.md](record-types.md#item-and-custodyevent). A universe carrying
   hand-written `items.json` or `custody_events.json` from before this should
