@@ -297,6 +297,14 @@ Two defaults are deliberately conservative:
   Withheld material is counted, never named, because a heading like "The Online
   Life" is itself a disclosure. A per-character exclusion that no longer matches
   a heading is an error, so renaming a held section cannot quietly un-hold it.
+- **Paragraphs that name an unended chapter are withheld.** Codex prose is
+  written with the whole book in view and carries direction like "after Chapter
+  15 he must not…". Any shown paragraph (or `frontmatter` value) naming a chapter
+  that has not ended by `--as-of` is withheld and counted: `Chapter 15`,
+  `Ch. 15`, `Ch15`, ranges like `Chapters 14–16`, and explicit `Book 1, Chapter
+  15` or `book1#ch15`. Chapter numbers repeat across books, so a bare reference
+  counts as past only once every book's chapter of that number has ended, and a
+  chapter the records don't know is treated as future.
 - **State annotations are off by default.** They are written *about* the
   character and routinely carry things the character does not know ("misses
   her warning text"). `--full-state` includes them with a warning.

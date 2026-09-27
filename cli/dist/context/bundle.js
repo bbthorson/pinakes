@@ -25,6 +25,67 @@
 import fs from 'fs';
 import path from 'path';
 import { isCalendarDate } from '../linter/stretches.js';
+const RANGE = String.raw `(\d+)(?:\s*(?:[-–—]|to|and|&)\s*(\d+))?`;
+const EXPLICIT_HASH = /\bbook\s*(\d+)\s*#\s*ch(?:apter)?\s*(\d+)/gi;
+const EXPLICIT_WORDS = new RegExp(String.raw `\bbook\s*(\d+)\s*[,:]?\s*(?:chapters?|ch\.?)\s*` + RANGE, 'gi');
+const BARE = new RegExp(String.raw `\b(?:chapters?|ch\.?)\s*` + RANGE, 'gi');
+function expand(from, to) {
+    const a = parseInt(from, 10);
+    const b = to ? parseInt(to, 10) : a;
+    const [lo, hi] = a <= b ? [a, b] : [b, a];
+    const out = [];
+    for (let n = lo; n <= Math.min(hi, lo + 200); n++)
+        out.push(n);
+    return out;
+}
+/**
+ * Every chapter a piece of codex text names: `book1#ch15`, `Book 1, Chapter 15`,
+ * `Chapter 15`, `Ch. 15`, `Ch15`, and ranges such as `Chapters 14–16`.
+ */
+export function chapterRefs(text) {
+    const refs = [];
+    let rest = text;
+    for (const re of [EXPLICIT_HASH, EXPLICIT_WORDS]) {
+        rest = rest.replace(re, (_m, book, from, to) => {
+            for (const chapter of expand(from, to))
+                refs.push({ book: parseInt(book, 10), chapter });
+            return ' ';
+        });
+    }
+    for (const m of rest.matchAll(BARE)) {
+        for (const chapter of expand(m[1], m[2]))
+            refs.push({ chapter });
+    }
+    return refs;
+}
+/**
+ * Whether text names a chapter that has not ended by `asOf`.
+ *
+ * Codex prose is written by an author who knows the whole book, and it carries
+ * direction tied to chapters that have not happened yet ("after Chapter 15 he
+ * must not…"). Such a sentence tells a drafter the future. So a reference counts
+ * as past only when it provably is: an explicit `Book N, Chapter M` must have
+ * ended by `asOf`; a bare `Chapter M` must have ended in every book that has one,
+ * because chapter numbers repeat across books. A chapter the records do not know
+ * — a planned one, or a typo — is treated as the future. This fails closed.
+ *
+ * `chapterEnds` maps `bookN` to chapter number to end date, from scene records.
+ */
+export function namesUnendedChapter(text, asOf, chapterEnds) {
+    for (const ref of chapterRefs(text)) {
+        if (ref.book !== undefined) {
+            const end = chapterEnds.get(`book${ref.book}`)?.get(ref.chapter);
+            if (!end || end > asOf)
+                return true;
+        }
+        else {
+            const ends = [...chapterEnds.values()].map((m) => m.get(ref.chapter)).filter((e) => Boolean(e));
+            if (ends.length === 0 || ends.some((e) => e > asOf))
+                return true;
+        }
+    }
+    return false;
+}
 function matches(heading, patterns) {
     const h = heading.trim().toLowerCase();
     return patterns.some((p) => h.startsWith(p.trim().toLowerCase()));
@@ -36,7 +97,9 @@ function matches(heading, patterns) {
  * Content before the first heading is not under any included heading, so it is
  * not shown either.
  */
-export function cutCodex(body, include, exclude, excludeParagraphs) {
+export function cutCodex(body, include, exclude, excludeParagraphs, 
+/** Extra paragraph test; `true` withholds. Used for the chapter horizon. */
+withholdParagraph = () => false) {
     const lines = body.split(/\r?\n/);
     const stack = [];
     const sections = [];
@@ -63,7 +126,7 @@ export function cutCodex(body, include, exclude, excludeParagraphs) {
         if (para.length)
             paragraphs.push(para);
         const kept = paragraphs.filter((p) => {
-            const drop = excludeParagraphs.some((prefix) => p[0].trim().startsWith(prefix));
+            const drop = excludeParagraphs.some((prefix) => p[0].trim().startsWith(prefix)) || withholdParagraph(p.join('\n'));
             if (drop)
                 withheld++;
             return !drop;
@@ -128,6 +191,22 @@ export function buildContext(root, config, registry, engine, records, characterN
         if (hit.id === id)
             excludeFor.push(...headings);
     }
+    const typed = (t) => records.filter((r) => r.$type === `${NS}.${t}`);
+    const ends = (r) => r.storyDateEnd ?? r.storyDate;
+    // Chapter horizon: when each chapter ends, per book, from the scene records.
+    const chapterEnds = new Map();
+    for (const s of typed('scene')) {
+        const m = String(s.id).match(/^scene\.(.+)\.ch(\d+)$/);
+        if (!m)
+            continue;
+        const perBook = chapterEnds.get(m[1]) ?? new Map();
+        const n = parseInt(m[2], 10);
+        const end = ends(s);
+        if (!perBook.has(n) || end > perBook.get(n))
+            perBook.set(n, end);
+        chapterEnds.set(m[1], perBook);
+    }
+    const unended = (text) => namesUnendedChapter(text, asOf, chapterEnds);
     // Long tier
     const codexCfg = config.context.codex;
     const frontmatter = {};
@@ -138,12 +217,17 @@ export function buildContext(root, config, registry, engine, records, characterN
         const parsed = engine.parseFrontmatter(fs.readFileSync(srcFile, 'utf-8'));
         for (const key of codexCfg.frontmatter) {
             const v = parsed.data?.[key];
-            if (v !== undefined && v !== null && typeof v !== 'object')
-                frontmatter[key] = String(v);
+            if (v === undefined || v === null || typeof v === 'object')
+                continue;
+            if (unended(String(v))) {
+                withheld++;
+                continue;
+            }
+            frontmatter[key] = String(v);
         }
-        const cut = cutCodex(parsed.body, codexCfg.include, excludeFor, codexCfg.excludeParagraphs);
+        const cut = cutCodex(parsed.body, codexCfg.include, excludeFor, codexCfg.excludeParagraphs, unended);
         sections = cut.sections;
-        withheld = cut.withheld;
+        withheld += cut.withheld;
         // The unmatched heading text is deliberately not printed: naming a held
         // section is itself a disclosure. The count and the file are enough to act on.
         if (cut.unmatchedExcludes.length > 0) {
@@ -153,8 +237,6 @@ export function buildContext(root, config, registry, engine, records, characterN
     }
     if (errors.length)
         return { errors };
-    const typed = (t) => records.filter((r) => r.$type === `${NS}.${t}`);
-    const ends = (r) => r.storyDateEnd ?? r.storyDate;
     // Mid tier
     const stretches = typed('character.stretch')
         .filter((r) => r.subject === id && typeof r.asOf === 'string' && r.asOf <= asOf)
