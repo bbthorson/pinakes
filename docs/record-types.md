@@ -85,6 +85,7 @@ never published.
   "subject": "char.emma",
   "displayName": "Emma Hartley",
   "handle": "emmacooks",
+  "did": "did:plc:b4xqf5g2j52z3y7mcnk6jtms",
   "oneLine": "A grounded and creative chef with a bubbly, optimistic energy, who is learning to trust her intuition.",
   "status": "active",
   "sourceFile": "codex/characters/emma.md"
@@ -402,23 +403,30 @@ in prose *and* in frontmatter. Supper Club Secrets registers "the mogul" and
 "the developer" as aliases of `char.garrett-pike` because both appear as
 pre-naming epithets.
 
-[Concepts](concepts.md#at-protocol-and-identity) also describes characters as DIDs —
-`did:plc:…` or `did:web:emma.supperclub.site`, each owning a cryptographically
-signed history. **That is a design target, not shipped behaviour.** Nothing in
-the CLI mints, resolves, writes, or validates a DID. What exists is:
+On top of those ids, a profile carries two optional public identifiers from the
+character's codex frontmatter:
 
-- local ids (`char.emma`) in every record, and
-- an optional `handle` string on the profile, carried from codex frontmatter as
-  a bare label (`emmacooks`, with any leading `@` stripped).
+- `handle`, a bare label (`emmacooks`, with any leading `@` stripped), and
+- `did`, the character's account DID: `did:plc:…` or
+  `did:web:emma.supperclub.site`.
+
+Pinakes **carries and checks** a DID; it never mints or resolves one. `lint`
+and `compile` both fail on a DID atproto would reject (`invalid-did`) and on one
+DID claimed by two characters (`duplicate-did`), but neither goes to the
+network, so both stay offline and deterministic. Whether the DID's document
+actually names the account you think it does is the publishing layer's check,
+because that layer holds the accounts and their keys. Records still reference
+each other by local id (`char.emma`), never by DID, so a character can be given
+a DID, or change it, without any other record's id moving.
 
 The `handle` field is deliberately unqualified. Until a universe is bound to a
 domain it controls, `emmacooks` is a label; once it is,
 `emmacooks.supperclubsecrets.com` is a handle. Qualifying it is the consumer's
 job, which keeps the domain decision out of every compiled record.
 
-This is the right sequencing rather than an omission. Local ids are free,
-reversible, and testable; DIDs require a purchased domain, real accounts, and
-DNS. Supper Club Secrets is working through exactly that sequence in its own
+Minting and resolving stay out of pinakes deliberately. Local ids are free,
+reversible and testable; a DID requires real accounts and, for `did:web`, a
+domain and DNS. Supper Club Secrets is working through exactly that sequence in its own
 `protocol/SERIALIZED_PUBLISHING.md`.
 
 ## `item` and `custodyEvent`
