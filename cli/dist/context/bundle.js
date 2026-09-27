@@ -25,67 +25,8 @@
 import fs from 'fs';
 import path from 'path';
 import { isCalendarDate } from '../linter/stretches.js';
-const RANGE = String.raw `(\d+)(?:\s*(?:[-–—]|to|and|&)\s*(\d+))?`;
-const EXPLICIT_HASH = /\bbook\s*(\d+)\s*#\s*ch(?:apter)?\s*(\d+)/gi;
-const EXPLICIT_WORDS = new RegExp(String.raw `\bbook\s*(\d+)\s*[,:]?\s*(?:chapters?|ch\.?)\s*` + RANGE, 'gi');
-const BARE = new RegExp(String.raw `\b(?:chapters?|ch\.?)\s*` + RANGE, 'gi');
-function expand(from, to) {
-    const a = parseInt(from, 10);
-    const b = to ? parseInt(to, 10) : a;
-    const [lo, hi] = a <= b ? [a, b] : [b, a];
-    const out = [];
-    for (let n = lo; n <= Math.min(hi, lo + 200); n++)
-        out.push(n);
-    return out;
-}
-/**
- * Every chapter a piece of codex text names: `book1#ch15`, `Book 1, Chapter 15`,
- * `Chapter 15`, `Ch. 15`, `Ch15`, and ranges such as `Chapters 14–16`.
- */
-export function chapterRefs(text) {
-    const refs = [];
-    let rest = text;
-    for (const re of [EXPLICIT_HASH, EXPLICIT_WORDS]) {
-        rest = rest.replace(re, (_m, book, from, to) => {
-            for (const chapter of expand(from, to))
-                refs.push({ book: parseInt(book, 10), chapter });
-            return ' ';
-        });
-    }
-    for (const m of rest.matchAll(BARE)) {
-        for (const chapter of expand(m[1], m[2]))
-            refs.push({ chapter });
-    }
-    return refs;
-}
-/**
- * Whether text names a chapter that has not ended by `asOf`.
- *
- * Codex prose is written by an author who knows the whole book, and it carries
- * direction tied to chapters that have not happened yet ("after Chapter 15 he
- * must not…"). Such a sentence tells a drafter the future. So a reference counts
- * as past only when it provably is: an explicit `Book N, Chapter M` must have
- * ended by `asOf`; a bare `Chapter M` must have ended in every book that has one,
- * because chapter numbers repeat across books. A chapter the records do not know
- * — a planned one, or a typo — is treated as the future. This fails closed.
- *
- * `chapterEnds` maps `bookN` to chapter number to end date, from scene records.
- */
-export function namesUnendedChapter(text, asOf, chapterEnds) {
-    for (const ref of chapterRefs(text)) {
-        if (ref.book !== undefined) {
-            const end = chapterEnds.get(`book${ref.book}`)?.get(ref.chapter);
-            if (!end || end > asOf)
-                return true;
-        }
-        else {
-            const ends = [...chapterEnds.values()].map((m) => m.get(ref.chapter)).filter((e) => Boolean(e));
-            if (ends.length === 0 || ends.some((e) => e > asOf))
-                return true;
-        }
-    }
-    return false;
-}
+import { namesUnendedChapter } from './chapter-refs.js';
+export { chapterRefs, namesUnendedChapter } from './chapter-refs.js';
 function matches(heading, patterns) {
     const h = heading.trim().toLowerCase();
     return patterns.some((p) => h.startsWith(p.trim().toLowerCase()));
@@ -95,12 +36,15 @@ function matches(heading, patterns) {
  *
  * The level-1 title is never shown (the bundle names the character itself).
  * Content before the first heading is not under any included heading, so it is
- * not shown either.
+ * not shown either. `withholdParagraph` is applied to headings as well as
+ * paragraphs: a heading like "After Chapter 20" withholds its whole section,
+ * subsections included, because the heading says what the section is about.
  */
 export function cutCodex(body, include, exclude, excludeParagraphs, 
 /** Extra paragraph test; `true` withholds. Used for the chapter horizon. */
 withholdParagraph = () => false) {
     const lines = body.split(/\r?\n/);
+    /** `held`: this heading names the future, so everything under it is withheld. */
     const stack = [];
     const sections = [];
     const headingsSeen = [];
@@ -143,15 +87,16 @@ withholdParagraph = () => false) {
             headingsSeen.push(text);
             while (stack.length && stack[stack.length - 1].level >= level)
                 stack.pop();
-            stack.push({ level, text });
+            const held = level > 1 && withholdParagraph(text);
+            stack.push({ level, text, held });
             if (level === 1)
                 continue;
             const included = stack.some((h) => matches(h.text, include));
-            const excludedHere = stack.some((h) => matches(h.text, exclude));
-            if (included && excludedHere) {
-                // Count only the heading that triggered the exclusion, not each of its
-                // subsections, so the count reads as "sections withheld".
-                if (matches(text, exclude))
+            const withholds = (h) => h.held || matches(h.text, exclude);
+            if (included && stack.some(withholds)) {
+                // Count only the outermost heading that triggered the withholding, not
+                // each subsection under it, so the count reads as "sections withheld".
+                if (!stack.slice(0, -1).some(withholds))
                     withheld++;
                 continue;
             }
