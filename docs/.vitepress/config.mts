@@ -14,7 +14,7 @@ export default defineConfig({
   // docs/. On the site it lives at /guides; index.md is the home page.
   rewrites: { 'README.md': 'guides.md' },
   // package.json and node_modules sit in docs/ too; nothing but pages is content.
-  srcExclude: ['node_modules/**'],
+  srcExclude: ['node_modules/**', 'scripts/**'],
 
   themeConfig: {
     nav: [
@@ -22,6 +22,7 @@ export default defineConfig({
       { text: 'Commands', link: '/commands/lint' },
       { text: 'Library', link: '/library' },
       { text: 'Guides', link: '/guides' },
+      { text: 'Demo', link: '/demo' },
     ],
 
     sidebar: [
