@@ -35,7 +35,7 @@ The working detail behind the tour above — what the compiler reads, what it
 emits, and what keeps the two in step — lives in [`docs/`](docs/), worked
 through against a real six-book universe:
 
-* **[Record types](docs/record-types.md)** — the five types `compile` emits, the Lexicon documents generated for them, and how identity works today
+* **[Record types](docs/record-types.md)** — the eight types `compile` emits, the Lexicon documents generated for them, and how identity works today
 * **[Prose to records](docs/prose-to-records.md)** — the frontmatter contract, name resolution, and what never leaves the repo
 * **[Continuity and drift](docs/continuity-and-drift.md)** — the lint rules, Lexicon validation, the CI drift gate, and the judgment passes kept out of CI
 
@@ -127,6 +127,7 @@ FAIL — pinakes found errors.
 * **Sequential Timelines:** Ensures start dates do not retrogress across sequential chapters.
 * **Co-Presence Conflicts:** Flags physical impossibilities, such as a character being marked as present in two distinct locations at the same time.
 * **Custody Resolution:** Verifies that every item and holder named in a chapter's `custody:` block resolves, so a hand-off is never silently dropped.
+* **Stretch Horizon:** Verifies that a character stretch cites only records that have ended by its `asOf` date, so a character never draws on what hasn't happened yet.
 
 #### Custom YAML Rules:
 Authors can write custom rules in the `rules/` directory to enforce style guidelines or state transitions:
@@ -164,11 +165,15 @@ records/
 │   ├── <nsid>.character.profile.json
 │   ├── <nsid>.place.json
 │   ├── <nsid>.item.json
-│   └── <nsid>.custodyEvent.json
+│   ├── <nsid>.custodyEvent.json
+│   ├── <nsid>.character.post.json
+│   └── <nsid>.character.stretch.json
 ├── book1/
 │   ├── scenes.json                    # Lexicon: *.scene
 │   ├── character_state_events.json    # Lexicon: *.character.stateEvent
-│   └── custody_events.json            # Lexicon: *.custodyEvent
+│   ├── custody_events.json            # Lexicon: *.custodyEvent
+│   ├── character_posts.json           # Lexicon: *.character.post (only with posts/)
+│   └── character_stretches.json       # Lexicon: *.character.stretch (only with stretches/)
 └── series/
     ├── places.json                    # Lexicon: *.place
     ├── character_profiles.json        # Lexicon: *.character.profile

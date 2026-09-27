@@ -44,6 +44,24 @@ export const ConfigSchema = z.object({
     })
     .default({ publicRegisters: ['public'] }),
   /**
+   * Stretches are the mid tier of character state: how a character would
+   * describe the last few weeks, written from one story date and looking only
+   * backward from it. Like posts they are authored, and they are emitted only
+   * when a story has a `stretches/` directory, so nothing here turns them on.
+   *
+   * `registers` is the vocabulary a stretch's `register` must come from. Left
+   * unset, it is every register first-term the universe's chapters already use,
+   * so a stretch cannot name a register no scene has ever been in.
+   * `softMaxChars` is the length past which `stretch-length` warns: a stretch is
+   * a paragraph, and one that is growing into a summary has stopped being one.
+   */
+  stretches: z
+    .object({
+      registers: z.array(z.string()).optional(),
+      softMaxChars: z.number().default(600),
+    })
+    .default({ softMaxChars: 600 }),
+  /**
    * `prose-check` configuration. Every field is optional: the defaults are the
    * AI-tells catalogue itself, so the command is useful before a universe
    * configures anything.
@@ -83,6 +101,14 @@ export const ConfigSchema = z.object({
     'non-sequential-dates': 'error',
     'co-presence-conflict': 'warning',
     'post-register': 'error',
+    'stretch-dates': 'error',
+    'stretch-filename': 'error',
+    'stretch-duplicate': 'error',
+    'stretch-status': 'error',
+    'stretch-register': 'error',
+    'stretch-source-unresolved': 'error',
+    'stretch-source-future': 'error',
+    'stretch-length': 'warning',
   }),
 });
 

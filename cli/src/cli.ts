@@ -41,6 +41,11 @@ program
       // Run built-in linting
       const diagnostics = engine.lint();
 
+      // Stretch rules need every compiled record's dates, so build the record
+      // set in memory (nothing is written) and take its stretch findings.
+      const { stretchFindings } = compileProject(root, config, registry, engine, { write: false });
+      diagnostics.push(...stretchFindings);
+
       // Run custom rules if path is defined
       if (config.paths.rules) {
         const customRulesLoader = new YamlRulesLoader(root, config.paths.rules);

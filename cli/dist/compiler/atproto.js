@@ -1,5 +1,6 @@
 import fs from 'fs';
 import path from 'path';
+import { lintStretches } from '../linter/stretches.js';
 import { buildLexiconDocs, compileLexiconDocs, validateRecords, writeLexiconDocs } from '../lexicons/index.js';
 function getBookKey(storyDir) {
     const base = path.basename(storyDir);
@@ -74,6 +75,16 @@ function tagList(value) {
     }
     return present(tags);
 }
+/**
+ * A story date, however YAML handed it over. Quoted dates arrive as strings;
+ * an unquoted `2026-10-02` may arrive as a Date under some YAML schemas, and
+ * `text()` drops objects, which would turn a valid date into a missing one.
+ */
+function dateText(value) {
+    if (value instanceof Date && !isNaN(value.getTime()))
+        return value.toISOString().slice(0, 10);
+    return text(value);
+}
 function getOverviewOneline(content) {
     const lines = content.split(/\r?\n/);
     for (let i = 0; i < lines.length; i++) {
@@ -132,7 +143,8 @@ function splitRegister(value) {
     const register = expr.split(/\s*(?:->|→)\s*/)[0].trim();
     return { register, expr };
 }
-export function compileProject(projectRoot, config, registry, engine) {
+export function compileProject(projectRoot, config, registry, engine, options = {}) {
+    const write = options.write ?? true;
     const NS = config.project.nsid;
     const outputDir = path.resolve(projectRoot, config.paths.output);
     const results = [];
@@ -143,10 +155,22 @@ export function compileProject(projectRoot, config, registry, engine) {
     const writeRecords = (filePath, records) => {
         const relative = path.relative(projectRoot, filePath);
         diagnostics.push(...validateRecords(records, schemas, relative));
-        fs.mkdirSync(path.dirname(filePath), { recursive: true });
-        fs.writeFileSync(filePath, JSON.stringify(records, null, 2) + '\n', 'utf-8');
+        if (write) {
+            fs.mkdirSync(path.dirname(filePath), { recursive: true });
+            fs.writeFileSync(filePath, JSON.stringify(records, null, 2) + '\n', 'utf-8');
+        }
         results.push({ file: relative, count: records.length });
     };
+    /** Every citable record's end date (`null` = undated), for the stretch rules. */
+    const sourceIndex = new Map();
+    const indexDated = (records) => {
+        for (const r of records)
+            sourceIndex.set(r.id, r.storyDateEnd ?? r.storyDate ?? null);
+    };
+    /** Register first-terms the chapters use: the default stretch vocabulary. */
+    const registersSeen = new Set();
+    /** Stretches from every book, compiled after the series records exist. */
+    const stretchSources = [];
     const stories = engine.getStories();
     const allPlaces = [];
     const allProfiles = [];
@@ -361,8 +385,19 @@ export function compileProject(projectRoot, config, registry, engine) {
                     return a.storyDate.localeCompare(b.storyDate);
                 return a.id.localeCompare(b.id);
             });
+            indexDated(posts);
             writeRecords(path.join(outputDir, book, 'character_posts.json'), posts);
         }
+        // Stretches are read here but compiled after the stories loop: `supersedes`
+        // chains a character's stretches across books, and a stretch may cite a
+        // profile, which does not exist until the series pass.
+        for (const src of engine.loadStretches(storyDir))
+            stretchSources.push({ book, src });
+        indexDated(scenes);
+        indexDated(events);
+        indexDated(custodyEvents);
+        for (const e of events)
+            registersSeen.add(e.register);
         const bookDir = path.join(outputDir, book);
         writeRecords(path.join(bookDir, 'scenes.json'), scenes);
         writeRecords(path.join(bookDir, 'character_state_events.json'), events);
@@ -443,6 +478,101 @@ export function compileProject(projectRoot, config, registry, engine) {
             sourceFile: ent.sourceFile || undefined,
         }));
     }
+    for (const r of [...allPlaces, ...allProfiles, ...allItems])
+        sourceIndex.set(r.id, null);
+    // 5. Stretches — authored, like posts. Compiled last so that `supersedes` can
+    // run across books and the stretch rules can see every record's dates.
+    const stretchEntries = [];
+    for (const { book, src } of stretchSources) {
+        const fm = src.frontmatter;
+        const name = text(fm.character);
+        const resolved = name ? registry.resolve(name, 'character') : undefined;
+        if (!resolved) {
+            diagnostics.push({
+                file: src.relativeFilePath,
+                rule: 'stretch-character',
+                severity: 'error',
+                message: name
+                    ? `Stretch character '${name}' does not resolve to a registry character.`
+                    : 'Stretch is missing a `character` in frontmatter.',
+            });
+            continue;
+        }
+        const slug = resolved.id.split('.', 2)[1];
+        const asOf = dateText(fm.asOf) ?? '';
+        const carrying = Array.isArray(fm.carrying)
+            ? fm.carrying.map((c) => text(c)).filter((c) => Boolean(c))
+            : [];
+        const sources = Array.isArray(fm.sources)
+            ? fm.sources.map((c) => text(c)).filter((c) => Boolean(c))
+            : [];
+        stretchEntries.push({
+            book,
+            folder: src.folder,
+            fileName: src.fileName,
+            slug,
+            record: compact({
+                $type: `${NS}.character.stretch`,
+                id: `stretch.${slug}.${book}.${asOf}`,
+                subject: resolved.id,
+                asOf,
+                since: dateText(fm.since) ?? '',
+                register: text(fm.register) ?? '',
+                state: src.body,
+                carrying: present(carrying),
+                // Required and never compacted away: an empty list is a Lexicon failure
+                // the author should see, not an absence.
+                sources,
+                status: text(fm.status) ?? '',
+                createdAt: storyDateToDatetime(asOf),
+                sourceFile: src.relativeFilePath,
+            }),
+        });
+    }
+    // Derived `supersedes`: each stretch points at the one before it for the same
+    // character, across books. Authors never write it, so the chain cannot be
+    // wrong. Ties on `asOf` are a `stretch-duplicate` finding, not a chain.
+    const bySubject = new Map();
+    for (const e of stretchEntries) {
+        const list = bySubject.get(e.record.subject) ?? [];
+        list.push(e);
+        bySubject.set(e.record.subject, list);
+    }
+    for (const list of bySubject.values()) {
+        list.sort((a, b) => String(a.record.asOf).localeCompare(String(b.record.asOf)));
+        for (let i = 1; i < list.length; i++)
+            list[i].record.supersedes = list[i - 1].record.id;
+    }
+    const stretchBooks = [...new Set(stretchEntries.map((e) => e.book))].sort();
+    for (const book of stretchBooks) {
+        const records = stretchEntries
+            .filter((e) => e.book === book)
+            // Rebuilt in Lexicon field order, so the derived `supersedes` sits where
+            // a reader of the JSON expects it rather than trailing the record.
+            .map(({ record: r }) => compact({
+            $type: r.$type,
+            id: r.id,
+            subject: r.subject,
+            asOf: r.asOf,
+            since: r.since,
+            register: r.register,
+            state: r.state,
+            carrying: r.carrying,
+            sources: r.sources,
+            supersedes: r.supersedes,
+            status: r.status,
+            createdAt: r.createdAt,
+            sourceFile: r.sourceFile,
+        }))
+            .sort((a, b) => {
+            if (a.subject !== b.subject)
+                return a.subject.localeCompare(b.subject);
+            return String(a.asOf).localeCompare(String(b.asOf));
+        });
+        writeRecords(path.join(outputDir, book, 'character_stretches.json'), records);
+    }
+    const vocabulary = config.stretches.registers ?? [...registersSeen].sort();
+    const stretchFindings = lintStretches(stretchEntries, sourceIndex, vocabulary, config);
     const seriesDir = path.join(outputDir, 'series');
     if (allPlaces.length > 0) {
         writeRecords(path.join(seriesDir, 'places.json'), allPlaces);
@@ -453,6 +583,8 @@ export function compileProject(projectRoot, config, registry, engine) {
     if (allItems.length > 0) {
         writeRecords(path.join(seriesDir, 'items.json'), allItems);
     }
-    const lexiconFiles = writeLexiconDocs(outputDir, lexiconDocs).map(f => path.relative(projectRoot, f));
-    return { results, lexiconFiles, diagnostics };
+    const lexiconFiles = write
+        ? writeLexiconDocs(outputDir, lexiconDocs).map(f => path.relative(projectRoot, f))
+        : [];
+    return { results, lexiconFiles, diagnostics, stretchFindings };
 }

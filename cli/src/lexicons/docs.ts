@@ -71,6 +71,7 @@ export function buildLexiconDocs(nsid: string): LexiconDoc[] {
     item(nsid),
     custodyEvent(nsid),
     post(nsid),
+    stretch(nsid),
   ];
 }
 
@@ -328,6 +329,83 @@ function post(ns: string): LexiconDoc {
             tags: tags('Labels carried through from the source frontmatter.'),
             createdAt: { type: 'string', description: 'Story time as an RFC3339 datetime.', format: 'datetime' },
             sourceFile: { type: 'string', description: 'Repository-relative post path.', maxLength: 1024 },
+          },
+        },
+      },
+    },
+  };
+}
+
+/**
+ * The mid tier of character state. A stateEvent says how a character is in one
+ * scene; a profile says who they are across the series. A stretch sits between:
+ * how the character would describe the last few weeks, written from a single
+ * story date (`asOf`) and looking only backward from it.
+ *
+ * Every tier looks backward. A character knows what has happened to them and
+ * not what is planned, so a stretch may cite only sources that have ended by
+ * its `asOf` — the one rule `lint` enforces hardest (`stretch-source-future`).
+ *
+ * `supersedes` is derived, never authored: the compiler links each stretch to
+ * the one before it for the same character, across books, so the chain cannot
+ * be written wrong.
+ */
+function stretch(ns: string): LexiconDoc {
+  return {
+    lexicon: 1,
+    id: `${ns}.character.stretch`,
+    description: "A character's recent stretch — the last few weeks, as of one story date, looking backward.",
+    defs: {
+      main: {
+        type: 'record',
+        key: RECORD_KEY,
+        description: 'A character stretch record.',
+        record: {
+          type: 'object',
+          required: ['id', 'subject', 'asOf', 'since', 'register', 'state', 'sources', 'status', 'createdAt', 'sourceFile'],
+          properties: {
+            id: localId('Stable stretch id, e.g. `stretch.emma.book1.2026-10-02`.'),
+            subject: localId('Registry id of the character this stretch describes.'),
+            asOf: {
+              type: 'string',
+              description: 'The in-story date the stretch is written from, `YYYY-MM-DD`. It describes nothing after this.',
+              maxLength: 10,
+            },
+            since: {
+              type: 'string',
+              description: 'Start of the lookback, `YYYY-MM-DD`. May predate the story.',
+              maxLength: 10,
+            },
+            register: {
+              type: 'string',
+              description: "Dominant register over the stretch, from the universe's register vocabulary.",
+              maxLength: 128,
+            },
+            state: {
+              type: 'string',
+              description: 'The stretch itself: prose, in the character\'s own framing, blind spots included.',
+              maxLength: 1000,
+            },
+            carrying: {
+              type: 'array',
+              description: 'Short phrases for what is weighing on the character that they know about.',
+              items: { type: 'string', maxLength: 200 },
+            },
+            sources: {
+              type: 'array',
+              description: 'Record ids the stretch was written from. Each must have ended on or before `asOf`.',
+              items: localId('A compiled record id.'),
+              minLength: 1,
+            },
+            supersedes: localId('The previous stretch for this character. Derived by the compiler.'),
+            status: {
+              type: 'string',
+              description: 'Whether the author has approved the stretch. Consumers should read only `approved`.',
+              knownValues: ['draft', 'approved'],
+              maxLength: 32,
+            },
+            createdAt: { type: 'string', description: 'Story time (`asOf`) as an RFC3339 datetime.', format: 'datetime' },
+            sourceFile: { type: 'string', description: 'Repository-relative stretch path.', maxLength: 1024 },
           },
         },
       },

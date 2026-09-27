@@ -16,7 +16,7 @@ where it lives instead.
 
 ## The built-in rules
 
-Four checks run on `pinakes lint`. Severities are configurable in
+These checks run on `pinakes lint`. Severities are configurable in
 `pinakes.yaml` under `rules:`, with `error`, `warning`, or `off`:
 
 | Rule | Default | What it catches |
@@ -25,6 +25,22 @@ Four checks run on `pinakes lint`. Severities are configurable in
 | `non-sequential-dates` | `error` | A chapter whose start date precedes the previous chapter's |
 | `missing-date` | `error`, not configurable | A chapter with no `YYYY-MM-DD` anywhere in its `date` |
 | `co-presence-conflict` | `warning` | A character present in two chapters with overlapping dates and no shared location |
+| `post-register` | `error` | A post anchored to a chapter where its author is in a non-public register |
+| `stretch-source-future` | `error` | A stretch citing a source that **ends** after its `asOf`: a character drawing on what has not happened yet |
+| `stretch-source-unresolved` | `error` | A stretch source that is not a compiled record id |
+| `stretch-dates` | `error` | `asOf` or `since` not a real `YYYY-MM-DD` date, or `since` after `asOf` |
+| `stretch-filename` | `error` | A stretch not at `stretches/<character-slug>/<asOf>.md` |
+| `stretch-duplicate` | `error` | Two stretches for one character on the same `asOf` |
+| `stretch-status` | `error` | `status` other than `draft` or `approved` |
+| `stretch-register` | `error` | A register outside `stretches.registers`, or, when that is unset, outside the register first-terms the chapters use |
+| `stretch-length` | `warning` | A stretch longer than `stretches.softMaxChars` (default 600) |
+
+The stretch rules run against *compiled* records, because
+`stretch-source-future` needs every other record's end date. `lint` builds the
+record set in memory to get them and writes nothing. "Ends" means
+`storyDateEnd` where a record has one: a chapter dated `2026-10-12 to
+2026-10-14` has two days still to run on Oct 12, and a stretch written that day
+cannot cite it.
 
 Supper Club Secrets sets no `rules:` block at all, so Book 1 runs on these
 defaults and passes clean.

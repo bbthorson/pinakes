@@ -56,6 +56,12 @@ export interface PostSource {
   body: string;
 }
 
+export interface StretchSource extends PostSource {
+  /** The character folder the file sits in, or `''` for a file at the root. */
+  folder: string;
+  fileName: string;
+}
+
 export class LinterEngine {
   private config: Config;
   private registry: Registry;
@@ -232,6 +238,48 @@ export class LinterEngine {
           body: this.splitBody(content),
         };
       });
+  }
+
+  /**
+   * Stretches live in `stretches/<character-slug>/<asOf>.md` beside a story's
+   * `chapters/`. Unlike posts they are nested one level, because a character's
+   * stretches form a chain and read best together.
+   *
+   * A stray `.md` at the root (other than a `00_` file) is still loaded, with an
+   * empty `folder`, so the filename lint can say where it belongs instead of
+   * the file being silently ignored.
+   */
+  public loadStretches(storyDir: string): StretchSource[] {
+    const dir = path.join(storyDir, 'stretches');
+    if (!fs.existsSync(dir)) return [];
+
+    const found: { filePath: string; folder: string; fileName: string }[] = [];
+    for (const entry of fs.readdirSync(dir).sort()) {
+      if (entry.startsWith('00_') || entry.startsWith('.')) continue;
+      const entryPath = path.join(dir, entry);
+      if (fs.statSync(entryPath).isDirectory()) {
+        for (const fileName of fs.readdirSync(entryPath).sort()) {
+          if (fileName.endsWith('.md') && !fileName.startsWith('00_')) {
+            found.push({ filePath: path.join(entryPath, fileName), folder: entry, fileName });
+          }
+        }
+      } else if (entry.endsWith('.md')) {
+        found.push({ filePath: entryPath, folder: '', fileName: entry });
+      }
+    }
+
+    return found.map(({ filePath, folder, fileName }) => {
+      const content = fs.readFileSync(filePath, 'utf-8');
+      const { data } = this.parseFrontmatter(content);
+      return {
+        filePath,
+        relativeFilePath: path.relative(this.projectRoot, filePath),
+        frontmatter: data || {},
+        body: this.splitBody(content),
+        folder,
+        fileName,
+      };
+    });
   }
 
   // Get active stories (non-templates)

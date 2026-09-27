@@ -166,6 +166,48 @@ export class LinterEngine {
             };
         });
     }
+    /**
+     * Stretches live in `stretches/<character-slug>/<asOf>.md` beside a story's
+     * `chapters/`. Unlike posts they are nested one level, because a character's
+     * stretches form a chain and read best together.
+     *
+     * A stray `.md` at the root (other than a `00_` file) is still loaded, with an
+     * empty `folder`, so the filename lint can say where it belongs instead of
+     * the file being silently ignored.
+     */
+    loadStretches(storyDir) {
+        const dir = path.join(storyDir, 'stretches');
+        if (!fs.existsSync(dir))
+            return [];
+        const found = [];
+        for (const entry of fs.readdirSync(dir).sort()) {
+            if (entry.startsWith('00_') || entry.startsWith('.'))
+                continue;
+            const entryPath = path.join(dir, entry);
+            if (fs.statSync(entryPath).isDirectory()) {
+                for (const fileName of fs.readdirSync(entryPath).sort()) {
+                    if (fileName.endsWith('.md') && !fileName.startsWith('00_')) {
+                        found.push({ filePath: path.join(entryPath, fileName), folder: entry, fileName });
+                    }
+                }
+            }
+            else if (entry.endsWith('.md')) {
+                found.push({ filePath: entryPath, folder: '', fileName: entry });
+            }
+        }
+        return found.map(({ filePath, folder, fileName }) => {
+            const content = fs.readFileSync(filePath, 'utf-8');
+            const { data } = this.parseFrontmatter(content);
+            return {
+                filePath,
+                relativeFilePath: path.relative(this.projectRoot, filePath),
+                frontmatter: data || {},
+                body: this.splitBody(content),
+                folder,
+                fileName,
+            };
+        });
+    }
     // Get active stories (non-templates)
     getStories() {
         const storiesPath = path.join(this.projectRoot, this.config.paths.stories);
