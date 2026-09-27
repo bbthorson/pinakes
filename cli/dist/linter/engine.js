@@ -251,9 +251,25 @@ export class LinterEngine {
             .map(name => path.join(storiesPath, name))
             .filter(p => fs.statSync(p).isDirectory() && !path.basename(p).startsWith('_') && !path.basename(p).startsWith('.'));
     }
+    /**
+     * Registry entries that make resolution a guess: one alias claimed by two
+     * entities of the same type, or one id registered twice. Shared by `lint`
+     * and `compile`, since either would otherwise pick an entity silently.
+     */
+    registryDiagnostics() {
+        return this.registry.conflicts().map((c) => ({
+            file: this.registry.registryFile,
+            rule: c.kind,
+            severity: 'error',
+            message: c.kind === 'duplicate-id'
+                ? `Entity id '${c.name}' is registered more than once.`
+                : `Alias '${c.name}' is claimed by more than one ${c.type}: ${c.ids.join(', ')}. ` +
+                    'It resolves to neither until one entry drops it.',
+        }));
+    }
     // Perform linting
     lint() {
-        const diagnostics = [];
+        const diagnostics = this.registryDiagnostics();
         const stories = this.getStories();
         for (const storyDir of stories) {
             diagnostics.push(...this.frontmatterDiagnostics(storyDir));
@@ -469,7 +485,8 @@ export class LinterEngine {
         const resolved = this.registry.resolve(norm, type);
         if (resolved)
             return;
-        if (this.registry.isNonEntity(norm))
+        const ambiguousIds = this.registry.ambiguity(norm, type);
+        if (!ambiguousIds && this.registry.isNonEntity(norm))
             return;
         // Line number search in frontmatter
         let line;
@@ -486,7 +503,9 @@ export class LinterEngine {
             line,
             rule: 'unresolved-entities',
             severity,
-            message: `Unresolved reference to ${type} '${norm}' in field '${field}'`,
+            message: ambiguousIds
+                ? `Ambiguous reference to ${type} '${norm}' in field '${field}': it could be ${ambiguousIds.join(' or ')}`
+                : `Unresolved reference to ${type} '${norm}' in field '${field}'`,
         });
     }
 }

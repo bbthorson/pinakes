@@ -205,7 +205,8 @@ export function compileProject(
   const NS = config.project.nsid;
   const outputDir = path.resolve(projectRoot, config.paths.output);
   const results: CompilationResult[] = [];
-  const diagnostics: Diagnostic[] = [];
+  // An ambiguous alias drops a reference from every record that uses it.
+  const diagnostics: Diagnostic[] = engine.registryDiagnostics();
   const allRecords: any[] = [];
   /** Absolute paths written this run; everything else pinakes-named is stale. */
   const written = new Set<string>();

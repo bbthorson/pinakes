@@ -149,7 +149,8 @@ export function compileProject(projectRoot, config, registry, engine, options = 
     const NS = config.project.nsid;
     const outputDir = path.resolve(projectRoot, config.paths.output);
     const results = [];
-    const diagnostics = [];
+    // An ambiguous alias drops a reference from every record that uses it.
+    const diagnostics = engine.registryDiagnostics();
     const allRecords = [];
     /** Absolute paths written this run; everything else pinakes-named is stale. */
     const written = new Set();

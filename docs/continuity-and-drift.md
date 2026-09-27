@@ -26,6 +26,8 @@ block is merged over the defaults, so it only needs the rules you change:
 | `non-sequential-dates` | `error` | A chapter whose start date precedes the previous chapter's |
 | `missing-date` | `error`, not configurable | A chapter with no `YYYY-MM-DD` anywhere in its `date` |
 | `malformed-frontmatter` | `error` / `warning`, not configurable | A chapter file whose frontmatter is not valid YAML (error), or has no `chapter` key (warning); either way it would otherwise be skipped by every check |
+| `ambiguous-alias` | `error`, not configurable | One alias (or display name) claimed by two registry entities of the same type. It resolves to neither, and every reference to it is reported as ambiguous. Different types may share a name |
+| `duplicate-id` | `error`, not configurable | One entity id registered twice in `entities.yaml` |
 | `duplicate-chapter` | `error`, not configurable | Two chapter files in one story declaring the same `chapter` number, which would compile two scenes under one id |
 | `co-presence-conflict` | `warning` | A character present in two chapters with overlapping dates and no shared location |
 | `post-register` | `error` | A post anchored to a chapter where its author is in a non-public register |
