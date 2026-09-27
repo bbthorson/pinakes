@@ -123,3 +123,27 @@ places:
     assert.equal(status, 0, output);
   });
 });
+
+test('a registry entry that fails validation is an error, not a silent skip', () => {
+  // The entry was dropped with a console warning and lint passed, leaving
+  // Sam unresolvable with nothing in the report to say why.
+  const registry = `characters:
+  - { id: char.emma, type: character, displayName: Emma }
+  - { type: character, displayName: Sam }
+places:
+  - { id: place.bar, type: place, displayName: The Bar }
+`;
+  withUniverse({ 'codex/entities.yaml': registry }, (root) => {
+    const lint = run(root, 'lint');
+    assert.equal(lint.status, 1, lint.output);
+    assert.match(
+      lint.output,
+      /entities\.yaml[\s\S]*\[invalid-registry-entry\] 🔴 ERROR: Entry 2 under 'characters' is not a valid entity \(id: /
+    );
+    assert.doesNotMatch(lint.output, /Warning: failed to parse registry item/);
+
+    const compile = run(root, 'compile');
+    assert.equal(compile.status, 1, compile.output);
+    assert.match(compile.output, /\[invalid-registry-entry\]/);
+  });
+});

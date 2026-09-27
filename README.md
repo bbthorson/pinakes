@@ -141,6 +141,7 @@ FAIL — pinakes found errors.
 * **Frontmatter Integrity:** A chapter whose frontmatter is not valid YAML is an error, and a file in `chapters/` with no `chapter` key is a warning. Either would otherwise drop out of every check.
 * **Unique Chapters:** Two chapter files in one story with the same `chapter` number are an error, since chapter numbers become record ids.
 * **Registry Conflicts:** One alias claimed by two entities of the same type is an error, and the alias resolves to neither until one entry drops it. A character and a place may share a name. An id registered twice is also an error.
+* **Registry Validity:** An `entities.yaml` entry that is missing `id`, `type` or `displayName`, or has a field of the wrong type, is an error. It is left out of the registry, and `lint` would otherwise pass with the entity silently missing.
 
 Severities are set per rule under `rules:` in `pinakes.yaml`, and a `rules:` block only needs the rules you change: the rest keep their defaults. The full table is in [Continuity and drift](docs/continuity-and-drift.md#the-built-in-rules).
 
@@ -345,6 +346,39 @@ context:
 The bundle is horizon-safe, not knowledge-safe. It guarantees nothing from the
 future; it cannot guarantee the included past contains only what the character
 knows. That judgment stays with the author.
+
+## 📦 Using Pinakes as a Library
+
+The commands are also exported as functions, for editor plugins, sites, and
+build scripts. They return what the CLI would print instead of printing it,
+and they never exit the process.
+
+```js
+import { openUniverse, lint, compile, context, proseCheck, renderContextMarkdown } from '@bbthorson/pinakes';
+
+const universe = openUniverse('./my-universe');   // reads pinakes.yaml and the registry once
+
+const { ok, diagnostics } = lint(universe);        // ok === false exactly when `pinakes lint` exits 1
+const { records } = compile(universe);             // in memory; nothing written
+compile(universe, { write: true });                // what `pinakes compile` does, pruning included
+
+const { bundle, errors } = context(universe, 'Jasper', '2026-10-11');
+if (bundle) console.log(renderContextMarkdown(bundle));
+
+const { tells } = proseCheck(universe, { report: 'tells' });
+```
+
+Every function also takes a root path in place of an opened universe.
+
+* **`compile` does not write by default.** This is the one place the library
+  differs from the CLI. Writing also prunes stale files from `paths.output`,
+  and a caller that only wanted records shouldn't find its directory changed.
+* **Bad input throws, findings are returned.** A missing or invalid
+  `pinakes.yaml` throws, and so does a `proseCheck` whose `story` filter
+  matches nothing. Continuity problems come back as `diagnostics`, and a
+  character or date that `context` cannot use comes back in `errors`.
+
+The package is ESM-only and ships TypeScript types.
 
 ## 🦋 AT Protocol & Identity Alignment
 

@@ -32,6 +32,22 @@ export interface RegistryConflict {
   ids: string[];
 }
 
+/**
+ * A registry entry that failed schema validation. It is left out of the
+ * registry, so every name it would have resolved goes unresolved; this used to
+ * be a console warning, and `lint` passed with the entity silently missing.
+ */
+export interface RegistryInvalidEntry {
+  /** The group it sits under: characters, places, or items. */
+  group: string;
+  /** Its position within the group, since a malformed entry may have no id. */
+  index: number;
+  /** The entry's id, when it has a string one. */
+  id?: string;
+  /** Each schema issue, as `field: message`. */
+  issues: string[];
+}
+
 export class Registry {
   /**
    * `type -> lowercase(alias) -> entity`. Keyed by type first because every
@@ -44,6 +60,8 @@ export class Registry {
   private nonEntityExact = new Set<string>();
   private nonEntityPrefixes: string[] = [];
   public allEntities: Entity[] = [];
+  /** Entries that failed validation, for `lint` and `compile` to report. */
+  public readonly invalidEntries: RegistryInvalidEntry[] = [];
   public readonly registryFile: string;
 
   constructor(projectRoot: string, registryRelPath: string, nonEntitiesRelPath: string) {
@@ -68,35 +86,41 @@ export class Registry {
     for (const group of groups) {
       const items = parsed[group];
       if (Array.isArray(items)) {
-        for (const item of items) {
-          try {
-            const validated = EntitySchema.parse(item);
-            this.allEntities.push(validated);
-            
-            // Add primary displayName and id as aliases
-            const aliases = new Set<string>([
-              validated.id.toLowerCase(),
-              validated.displayName.toLowerCase(),
-              ...validated.aliases.map(a => a.toLowerCase())
-            ]);
-
-            const byAlias = this.aliasMap.get(validated.type) ?? new Map<string, ResolvedEntity>();
-            this.aliasMap.set(validated.type, byAlias);
-            for (const alias of aliases) {
-              const prior = byAlias.get(alias);
-              if (prior && prior.id !== validated.id) {
-                const key = `${validated.type}::${alias}`;
-                const ids = this.ambiguous.get(key) ?? [prior.id];
-                if (!ids.includes(validated.id)) ids.push(validated.id);
-                this.ambiguous.set(key, ids);
-                continue;
-              }
-              byAlias.set(alias, { id: validated.id, type: validated.type });
-            }
-          } catch (e) {
-            console.warn(`Warning: failed to parse registry item in group ${group}:`, item, e);
+        items.forEach((item, index) => {
+          const result = EntitySchema.safeParse(item);
+          if (!result.success) {
+            this.invalidEntries.push({
+              group,
+              index,
+              id: typeof item?.id === 'string' ? item.id : undefined,
+              issues: result.error.issues.map((i) => `${i.path.join('.') || '(entry)'}: ${i.message}`),
+            });
+            return;
           }
-        }
+          const validated = result.data;
+          this.allEntities.push(validated);
+
+          // Add primary displayName and id as aliases
+          const aliases = new Set<string>([
+            validated.id.toLowerCase(),
+            validated.displayName.toLowerCase(),
+            ...validated.aliases.map(a => a.toLowerCase())
+          ]);
+
+          const byAlias = this.aliasMap.get(validated.type) ?? new Map<string, ResolvedEntity>();
+          this.aliasMap.set(validated.type, byAlias);
+          for (const alias of aliases) {
+            const prior = byAlias.get(alias);
+            if (prior && prior.id !== validated.id) {
+              const key = `${validated.type}::${alias}`;
+              const ids = this.ambiguous.get(key) ?? [prior.id];
+              if (!ids.includes(validated.id)) ids.push(validated.id);
+              this.ambiguous.set(key, ids);
+              continue;
+            }
+            byAlias.set(alias, { id: validated.id, type: validated.type });
+          }
+        });
       }
     }
   }

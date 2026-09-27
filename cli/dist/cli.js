@@ -4,13 +4,7 @@ import { fileURLToPath } from 'url';
 import { Command } from 'commander';
 import path from 'path';
 import fs from 'fs';
-import { loadConfig } from './config.js';
-import { Registry } from './registry/entities.js';
-import { LinterEngine } from './linter/engine.js';
-import { YamlRulesLoader } from './linter/yaml-loader.js';
-import { compileProject } from './compiler/atproto.js';
-import { runProseCheck } from './prose/check.js';
-import { buildContext, renderMarkdown } from './context/bundle.js';
+import { openUniverse, lint, compile, context, proseCheck, renderContextMarkdown } from './index.js';
 /**
  * The version comes from package.json rather than a literal here. A
  * hand-maintained copy drifts: `--version` reported 0.2.0 against a 0.2.1
@@ -30,28 +24,9 @@ program
     .action((options) => {
     const root = path.resolve(options.root);
     try {
-        const { config } = loadConfig(root);
-        const registry = new Registry(root, config.paths.registry, config.paths.nonEntities);
-        const engine = new LinterEngine(root, config, registry);
-        // Run built-in linting
-        const diagnostics = engine.lint();
-        // Stretch rules need every compiled record's dates, so build the record
-        // set in memory (nothing is written) and take its stretch findings.
-        const { stretchFindings } = compileProject(root, config, registry, engine, { write: false });
-        diagnostics.push(...stretchFindings);
-        // Run custom rules if path is defined
-        if (config.paths.rules) {
-            const customRulesLoader = new YamlRulesLoader(root, config.paths.rules);
-            const stories = engine.getStories();
-            for (const storyDir of stories) {
-                const chapters = engine.loadChapters(storyDir);
-                const customDiagnostics = customRulesLoader.runCustomRules(chapters);
-                diagnostics.push(...customDiagnostics);
-            }
-        }
+        const { diagnostics, ok } = lint(root);
         reportDiagnostics(diagnostics);
-        const hasErrors = diagnostics.some((d) => d.severity === 'error');
-        if (hasErrors) {
+        if (!ok) {
             console.log(`\nFAIL — pinakes found errors.`);
             process.exit(1);
         }
@@ -72,10 +47,9 @@ program
     .action((options) => {
     const root = path.resolve(options.root);
     try {
-        const { config } = loadConfig(root);
-        const registry = new Registry(root, config.paths.registry, config.paths.nonEntities);
-        const engine = new LinterEngine(root, config, registry);
-        const { results, lexiconFiles, diagnostics, removed } = compileProject(root, config, registry, engine);
+        const universe = openUniverse(root);
+        const { config } = universe;
+        const { results, lexiconFiles, diagnostics, removed } = compile(universe, { write: true });
         console.log('='.repeat(68));
         console.log('PINAKES COMPILATION — repo -> records');
         console.log('='.repeat(68));
@@ -116,28 +90,19 @@ program
     .action((options) => {
     const root = path.resolve(options.root);
     try {
-        const { config } = loadConfig(root);
-        const registry = new Registry(root, config.paths.registry, config.paths.nonEntities);
-        const engine = new LinterEngine(root, config, registry);
-        let stories = engine.getStories();
-        if (options.story) {
-            const needle = String(options.story).toLowerCase();
-            stories = stories.filter(s => path.basename(s).toLowerCase().includes(needle));
+        const produced = proseCheck(root, { story: options.story, report: options.report });
+        if (options.out) {
+            const outDir = path.resolve(options.out);
+            fs.mkdirSync(outDir, { recursive: true });
+            for (const [name, body] of Object.entries(produced)) {
+                const file = path.join(outDir, `${name}.md`);
+                fs.writeFileSync(file, body + '\n', 'utf-8');
+                console.log(`wrote ${file}`);
+            }
         }
-        if (stories.length === 0) {
-            console.error('No stories found.');
-            process.exit(1);
+        else {
+            console.log(Object.values(produced).join('\n\n'));
         }
-        const chapters = stories.flatMap(s => engine.loadChapters(s));
-        if (chapters.length === 0) {
-            console.error('No chapters found.');
-            process.exit(1);
-        }
-        if (!['tells', 'closers', 'all'].includes(options.report)) {
-            console.error(`Unknown report '${options.report}'. Expected tells, closers or all.`);
-            process.exit(1);
-        }
-        runProseCheck(chapters, config, options.report, options.out ? path.resolve(options.out) : undefined);
         // Deliberately no findings-based exit code. These reports are judgment
         // inputs, not pass/fail; `ai_tells.md` is explicit that counts are inputs,
         // not verdicts, and an AI tell is never a blocking finding. Gating CI on
@@ -160,20 +125,13 @@ program
     .action((character, options) => {
     const root = path.resolve(options.root);
     try {
-        const { config } = loadConfig(root);
-        const registry = new Registry(root, config.paths.registry, config.paths.nonEntities);
-        const engine = new LinterEngine(root, config, registry);
-        // The bundle is built from compiled records, in memory: nothing is written.
-        const { records } = compileProject(root, config, registry, engine, { write: false });
-        const { bundle, errors } = buildContext(root, config, registry, engine, records, character, options.asOf, {
-            fullState: Boolean(options.fullState),
-        });
+        const { bundle, errors } = context(root, character, options.asOf, { fullState: Boolean(options.fullState) });
         if (!bundle) {
             for (const e of errors)
                 console.error(`Error: ${e}`);
             process.exit(1);
         }
-        const output = options.json ? JSON.stringify(bundle, null, 2) + '\n' : renderMarkdown(bundle);
+        const output = options.json ? JSON.stringify(bundle, null, 2) + '\n' : renderContextMarkdown(bundle);
         if (options.out) {
             fs.writeFileSync(path.resolve(options.out), output, 'utf-8');
             console.error(`Wrote ${options.out}`);

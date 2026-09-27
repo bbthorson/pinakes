@@ -20,8 +20,6 @@
  *            the report is an assembly aid, not a detector, and says so.
  */
 
-import fs from 'fs';
-import path from 'path';
 import type { ChapterData } from '../linter/engine.js';
 import type { Config } from '../config.js';
 
@@ -399,26 +397,18 @@ export function reportClosers(chapters: ChapterData[], config: Config): string {
 
 // -------------------------------------------------------------------- run
 
-export function runProseCheck(
+export type ProseReport = 'tells' | 'closers';
+
+/** The requested reports as Markdown, keyed by report name. Nothing is printed or written. */
+export function buildProseReports(
   chapters: ChapterData[],
   config: Config,
-  which: string,
-  outDir?: string
-): void {
-  const wanted = which === 'all' ? ['tells', 'closers'] : [which];
-  const produced: Record<string, string> = {};
+  which: ProseReport | 'all'
+): Partial<Record<ProseReport, string>> {
+  const wanted: ProseReport[] = which === 'all' ? ['tells', 'closers'] : [which];
+  const produced: Partial<Record<ProseReport, string>> = {};
   for (const name of wanted) {
     produced[name] = name === 'tells' ? reportTells(chapters, config) : reportClosers(chapters, config);
   }
-
-  if (outDir) {
-    fs.mkdirSync(outDir, { recursive: true });
-    for (const [name, body] of Object.entries(produced)) {
-      const file = path.join(outDir, `${name}.md`);
-      fs.writeFileSync(file, body + '\n', 'utf-8');
-      console.log(`wrote ${file}`);
-    }
-  } else {
-    console.log(Object.values(produced).join('\n\n'));
-  }
+  return produced;
 }
