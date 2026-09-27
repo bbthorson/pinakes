@@ -55,3 +55,26 @@ jobs:
             echo "$UNTRACKED"
             exit 1
           fi
+
+  test:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: cli/package-lock.json
+
+      - name: Install
+        working-directory: cli
+        run: npm ci
+
+      # `npm test` builds first, so the tests run against the source in this
+      # commit rather than whatever dist happens to be committed.
+      - name: Test
+        working-directory: cli
+        run: npm test

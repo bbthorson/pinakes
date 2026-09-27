@@ -13,7 +13,8 @@
   "scripts": {
     "build": "tsc && node -e \"import('fs').then(fs => { fs.cpSync('../template', './dist/template', { recursive: true }); fs.rmSync('./dist/template/.git', { recursive: true, force: true }); })\"",
     "watch": "tsc -w",
-    "start": "node dist/cli.js"
+    "start": "node dist/cli.js",
+    "test": "npm run build && node --test 'test/**/*.test.mjs'"
   },
   "dependencies": {
     "@atproto/lex": "^0.3.6",

@@ -85,6 +85,14 @@ Or run directly without installing:
 npx @bbthorson/pinakes <command>
 ```
 
+### Developing
+
+```sh
+cd cli && npm ci && npm test
+```
+
+`npm test` builds from `src/` and runs `cli/test/` with Node's built-in test runner. The tests create throwaway universes in a temp directory and check what `lint`, `compile`, and `context` report and exit with. Commit the rebuilt `cli/dist` along with your change; CI checks that it matches a fresh build.
+
 ### Initializing a Universe
 
 Bootstrap the standard `lore/`, `codex/`, and `stories/` folders with a default configuration:
