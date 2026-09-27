@@ -302,8 +302,9 @@ Here's how that reasoning holds up:
   appears when the chapter drops, and a later edit is an update with `updatedAt`
   set.
 - **Rights.** Full text in an open data layer is trivially copyable. The
-  publication record should carry the license, and the author should decide the
-  license before the first document goes out.
+  author should decide the license before the first document goes out (§12.4).
+  `site.standard.publication` has no license field, so it has to go somewhere
+  else.
 - **Size.** The lexicon puts no cap on `textContent`, but PDSes cap record size.
   A 4,000-word chapter is about 25 KB, so there's plenty of room. A compile
   warning on unusually large chapters is enough.
@@ -520,8 +521,18 @@ matter much either way.
    document itself, rather than a separate record. It's four fields, and a
    separate record would be one more thing to keep in step.
 3. ~~**One publication per universe or per book?**~~ Decided: per book.
-4. **License.** Which license goes on the publication record, and is it
-   Pinakes config or the author's free text?
+4. **License.** The leaning is **CC BY-NC-ND 4.0**: share it with credit, but
+   no commercial use and no derivative works. That's not final. Neither
+   standard.site lexicon has a license field, so it would be carried in three
+   places:
+   - an extension field under the universe's NSID on the publication
+     (`license: { id: "CC-BY-NC-ND-4.0", url }`, as an SPDX id) for machines;
+   - one closing line in the publication's `description` for people, since
+     that's what readers display;
+   - `<link rel="license">` on the site.
+
+   It's Pinakes config (`publish.license`, an SPDX id), so the three places can't
+   disagree. The choice itself stays with the author.
 5. ~~**Lock gate.**~~ Decided: `publishDate` is the lock.
 6. **Meals as calendar events** (§8). The idea is liked, but its use on a
    reader surface is unclear. Candidate uses are listed below, and the question is
