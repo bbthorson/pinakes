@@ -8,6 +8,7 @@ type Severity = 'error' | 'warning' | 'off';
 const DEFAULT_RULES: Record<string, Severity> = {
   'unresolved-entities': 'error',
   'non-sequential-dates': 'error',
+  'missing-date': 'error',
   'co-presence-conflict': 'warning',
   'post-register': 'error',
   'stretch-dates': 'error',

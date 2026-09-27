@@ -131,8 +131,11 @@ One register annotation, at one point in story time.
 Three fields hold the same annotation at three levels of fidelity, on purpose:
 
 - **`state`** is the author's line, verbatim. Never lossy, never machine-friendly.
-- **`registerExpr`** is the annotation with the parenthetical reason stripped —
-  present only when it encodes a transition (`public → private`). A chapter
+- **`registerExpr`** is the annotation with every parenthetical note stripped —
+  present only when it encodes a transition (`public → private`). A note on
+  the first step does not hide the transition:
+  `under-pressure (hyperdrive) → private (the confide)` gives
+  `under-pressure → private`. A chapter
   where the character simply *is* somewhere omits it.
 - **`register`** is the first term alone (`public`). This is the queryable one:
   group by it, colour a timeline by it, filter a feed on it.

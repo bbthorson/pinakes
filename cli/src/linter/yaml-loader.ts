@@ -4,6 +4,7 @@ import { globSync } from 'glob';
 import YAML from 'yaml';
 import { z } from 'zod';
 import { Diagnostic, ChapterData } from './engine.js';
+import { parseRegister } from './registers.js';
 
 const ruleBase = {
   name: z.string(),
@@ -158,16 +159,18 @@ export class YamlRulesLoader {
         if (rule.selector === 'stateEvent') {
           if (field === 'register') {
             for (const [char, val] of Object.entries(ch.registers)) {
-              // Registers usually contain transitions like "private -> under-pressure"
-              // Split and check the base state
-              const baseRegister = val.split(/->|→/)[0].trim();
-              if (regex && !regex.test(baseRegister)) {
-                diagnostics.push({
-                  file: ch.relativeFilePath,
-                  rule: rule.name,
-                  severity: rule.severity,
-                  message: `${rule.description}: Character '${char}' register state '${baseRegister}' does not match pattern /${rule.validate.pattern}/`,
-                });
+              // Parsed the way the compiler parses it: notes in parentheses
+              // dropped, and every step of a transition checked, not only
+              // the one it starts from.
+              for (const step of parseRegister(val).steps) {
+                if (regex && !regex.test(step)) {
+                  diagnostics.push({
+                    file: ch.relativeFilePath,
+                    rule: rule.name,
+                    severity: rule.severity,
+                    message: `${rule.description}: Character '${char}' register state '${step}' does not match pattern /${rule.validate.pattern}/`,
+                  });
+                }
               }
             }
           }

@@ -3,6 +3,7 @@ import path from 'path';
 import { lintStretches } from '../linter/stretches.js';
 import { buildLexiconDocs, compileLexiconDocs, validateRecords, writeLexiconDocs } from '../lexicons/index.js';
 import { pruneStale } from './prune.js';
+import { parseRegister } from '../linter/registers.js';
 function getBookKey(storyDir) {
     const base = path.basename(storyDir);
     const m = base.match(/^0*(\d+)/);
@@ -136,13 +137,6 @@ function asInteger(value) {
     if (typeof value === 'string' && /^\d+$/.test(value.trim()))
         return parseInt(value, 10);
     return undefined;
-}
-function splitRegister(value) {
-    const val = value.trim();
-    const m = val.match(/^([^(]+?)\s*(\(.*)?$/);
-    const expr = (m ? m[1] : val).trim().replace(/;$/, '').trim();
-    const register = expr.split(/\s*(?:->|→)\s*/)[0].trim();
-    return { register, expr };
 }
 export function compileProject(projectRoot, config, registry, engine, options = {}) {
     const write = options.write ?? true;
@@ -310,7 +304,7 @@ export function compileProject(projectRoot, config, registry, engine, options = 
                 const resolved = registry.resolve(name, 'character');
                 if (!resolved)
                     continue;
-                const { register, expr } = splitRegister(val);
+                const { register, expr } = parseRegister(val);
                 events.push(compact({
                     $type: `${NS}.character.stateEvent`,
                     id: `stateEvent.${resolved.id.split('.', 2)[1]}.${book}.ch${ch.chapterNum}`,

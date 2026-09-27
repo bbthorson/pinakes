@@ -81,17 +81,7 @@ Things these guides describe as absent, gathered here so they are easy to find.
 None of them block the pipeline; all of them are places where the documented
 model and the shipped code disagree.
 
-1. **The `stateEvent` rule selector cannot express a register vocabulary.** It
-   never strips the parenthetical the way the compiler does, and it checks only
-   the term left of a transition arrow. Run the example rule from
-   [`pinakes lint`](commands/lint.md#custom-yaml-rules) against Book 1 and 86
-   of 99 annotations fail as false positives, while the three genuinely
-   off-vocabulary values pass. See
-   [continuity-and-drift.md](continuity-and-drift.md#custom-yaml-rules).
-2. **`missing-date` cannot be configured or disabled**, and turning off
-   `non-sequential-dates` silently turns it off too. See
-   [continuity-and-drift.md](continuity-and-drift.md#the-built-in-rules).
-3. **DIDs are described, not implemented.** [Concepts](concepts.md#at-protocol-and-identity)
+1. **DIDs are described, not implemented.** [Concepts](concepts.md#at-protocol-and-identity)
    lists them as planned; the compiler emits local registry ids and a bare
    handle string, and nothing in the CLI mints, resolves, or writes a DID. See
    [record-types.md](record-types.md#identity-today-and-identity-later).
@@ -106,6 +96,16 @@ model and the shipped code disagree.
   `stateEvent` rule on a field other than `register` or using `required`, and
   a rule with neither a `pattern` nor `required: true`. `pinakes init` still
   creates no `rules/` directory, since custom rules are optional.
+- **`stateEvent` rules can express a register vocabulary.** They used to test
+  each annotation with its parenthetical note included and check only the term
+  left of an arrow, so the example rule on the
+  [`pinakes lint`](commands/lint.md#custom-yaml-rules) page reported 86 false
+  positives on Book 1 and missed the three real off-vocabulary values. It now
+  reports exactly those three; see
+  [continuity-and-drift.md](continuity-and-drift.md#custom-yaml-rules).
+- **`missing-date` is its own configurable rule.** It used to be hardcoded to
+  `error` and evaluated inside `non-sequential-dates`, so turning the ordering
+  check off silently stopped reporting undated chapters.
 - **A registry entry that fails validation fails `lint`.** It used to be
   skipped with only a console warning. It is now an `invalid-registry-entry`
   error; see
