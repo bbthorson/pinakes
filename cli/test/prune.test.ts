@@ -6,22 +6,13 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
-import { chapter, cleanup, makeUniverse, run } from './helpers.mjs';
+import { chapter, run, withUniverse } from './helpers.ts';
 
 const CH1 = 'stories/01_book/chapters/01_one.md';
 const CUSTODY = 'custody:\n  - item: Key\n    holder: Emma\n';
 
-function withUniverse(files, fn) {
-  const root = makeUniverse(files);
-  try {
-    fn(root);
-  } finally {
-    cleanup(root);
-  }
-}
-
-const exists = (root, rel) => fs.existsSync(path.join(root, rel));
-const write = (root, rel, content) => {
+const exists = (root: string, rel: string) => fs.existsSync(path.join(root, rel));
+const write = (root: string, rel: string, content: string) => {
   fs.mkdirSync(path.dirname(path.join(root, rel)), { recursive: true });
   fs.writeFileSync(path.join(root, rel), content);
 };
