@@ -83,17 +83,19 @@ model and the shipped code disagree.
 
 1. **DIDs are carried, not resolved.** A character's `did` is checked for
    syntax and uniqueness and carried onto its profile, but nothing in the CLI
-   mints a DID or confirms that one resolves to the account the codex means.
-   That is left to the publishing layer. See
+   mints a DID or confirms that one resolves to the account the registry
+   means, since that needs the network. See
    [record-types.md](record-types.md#identity-today-and-identity-later).
 
 ### Closed since these guides were written
 
 - **A character's DID reaches its profile record.** `did` in codex
   frontmatter used to be ignored, so a consumer that needed it had to re-read
-  the codex. It is now carried onto `character.profile`, and a DID atproto
-  would reject (`invalid-did`) or two characters share (`duplicate-did`) fails
-  both `lint` and `compile`.
+  the codex. A DID now lives on the character's `entities.yaml` entry and is
+  carried onto `character.profile`. A DID atproto would reject
+  (`invalid-did`), one two characters share (`duplicate-did`) and one still in
+  codex frontmatter (`did-in-codex`) each fail both `lint` and `compile`. A
+  universe with DIDs in its codex files has to move them to upgrade.
 - **A custom rule that would never run fails `lint`.** Each of these used to
   load nothing, or load a rule that checked nothing, and report `OK — all
   checks passed cleanly`. Now each is an error: `paths.rules` set to a

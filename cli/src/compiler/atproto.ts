@@ -111,7 +111,6 @@ function getOverviewOneline(content: string): string | undefined {
 /** The publishable surface of a character's codex file. */
 interface CharacterCodex {
   handle?: string;
-  did?: string;
   oneLine?: string;
   description?: string;
   tags?: string[];
@@ -127,8 +126,8 @@ interface CharacterCodex {
  * The DID a profile carries. An invalid one is carried too, as written, so the
  * record shows what `invalid-did` rejected rather than silently losing it.
  */
-function didValue(data: Record<string, unknown> | undefined): string | undefined {
-  const field = readDid(data);
+function didValue(ent: { did?: unknown }): string | undefined {
+  const field = readDid(ent);
   if (field.kind === 'valid') return field.did;
   if (field.kind === 'invalid') return typeof field.value === 'string' ? field.value : JSON.stringify(field.value);
   return undefined;
@@ -141,7 +140,6 @@ function readCharacterFile(filePath: string, engine: LinterEngine): CharacterCod
   const handleRaw = text(data?.handle);
   return {
     handle: handleRaw ? handleRaw.replace(/^@/, '') : undefined,
-    did: didValue(data),
     oneLine: getOverviewOneline(content),
     description: text(data?.description),
     tags: tagList(data?.tags),
@@ -569,7 +567,7 @@ export function compileProject(
           subject: ent.id,
           displayName: ent.displayName,
           handle: codex.handle,
-          did: codex.did,
+          did: didValue(ent),
           description: codex.description,
           oneLine: codex.oneLine,
           tags: codex.tags,

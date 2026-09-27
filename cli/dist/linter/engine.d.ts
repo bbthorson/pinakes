@@ -106,11 +106,17 @@ export declare class LinterEngine {
      */
     registryDiagnostics(): Diagnostic[];
     /**
-     * DIDs in character codex files: one that atproto would reject, or one two
-     * characters claim. Either would publish a profile under the wrong identity,
-     * so, like the registry checks, both `lint` and `compile` report them.
-     * Every character is checked, not only the active ones that get a profile:
-     * a retired character still owns its DID.
+     * Character DIDs, which live on registry entries beside the id they belong
+     * to. Three ways a profile could go out under the wrong identity, so, like
+     * the registry checks, both `lint` and `compile` report them:
+     *
+     * - `invalid-did`: a DID atproto would reject, or a DID on something other
+     *   than a character (places and items have no accounts).
+     * - `duplicate-did`: one DID on two characters. Every character is checked,
+     *   not only active ones: a retired character still owns its DID.
+     * - `did-in-codex`: a `did` left in a character's codex frontmatter, where it
+     *   lived before 0.9.0. It is an error rather than a fallback, so a universe
+     *   has one place its DIDs come from, not two that can disagree.
      */
     identityDiagnostics(): Diagnostic[];
     lint(): Diagnostic[];
