@@ -227,7 +227,6 @@ type: Character
 title: "Emma Hartley"
 id: char.emma
 status: active
-handle: emmacooks
 ---
 
 # Emma Hartley
@@ -236,7 +235,7 @@ handle: emmacooks
 A grounded and creative chef with a bubbly, optimistic energy, who is learning to trust her intuition.
 ```
 
-`handle` loses a leading `@`. `did` is the one profile field that comes from
+The account, `did` and `handle`, is the one part of a profile that comes from
 the registry entry rather than the file; see
 [Record types](record-types.md#identity-today-and-identity-later). `oneLine` is the first non-empty line within five
 lines of the `## Overview` heading, with leading `-` and wrapping `*` stripped.

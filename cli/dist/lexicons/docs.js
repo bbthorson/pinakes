@@ -197,7 +197,7 @@ function profile(ns) {
                         displayName: { type: 'string', description: 'Name as readers see it.', maxLength: 640 },
                         handle: {
                             type: 'string',
-                            description: "The character's handle, without an `@`. A bare label such as `emmacooks` until the universe is bound to a domain; consumers qualify it themselves.",
+                            description: "The character's account handle without its domain or an `@`, from the character's registry entry: `emmacooks` for `emmacooks.supperclubsecrets.com`. The domain is a publishing decision; consumers qualify it themselves.",
                             maxLength: 253,
                         },
                         did: {

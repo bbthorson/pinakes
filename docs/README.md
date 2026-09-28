@@ -81,21 +81,23 @@ Things these guides describe as absent, gathered here so they are easy to find.
 None of them block the pipeline; all of them are places where the documented
 model and the shipped code disagree.
 
-1. **DIDs are carried, not resolved.** A character's `did` is checked for
-   syntax and uniqueness and carried onto its profile, but nothing in the CLI
-   mints a DID or confirms that one resolves to the account the registry
-   means, since that needs the network. See
+1. **Accounts are carried, not resolved.** A character's `did` and `handle`
+   are checked for syntax and uniqueness and carried onto its profile, but
+   nothing in the CLI mints a DID or confirms that the handle resolves to it,
+   since that needs the network. See
    [record-types.md](record-types.md#identity-today-and-identity-later).
 
 ### Closed since these guides were written
 
-- **A character's DID reaches its profile record.** `did` in codex
-  frontmatter used to be ignored, so a consumer that needed it had to re-read
-  the codex. A DID now lives on the character's `entities.yaml` entry and is
-  carried onto `character.profile`. A DID atproto would reject
-  (`invalid-did`), one two characters share (`duplicate-did`) and one still in
-  codex frontmatter (`did-in-codex`) each fail both `lint` and `compile`. A
-  universe with DIDs in its codex files has to move them to upgrade.
+- **A character's account lives on its registry entry and reaches its
+  profile record.** `did` in codex frontmatter used to be ignored, so a
+  consumer that needed it had to re-read the codex, and `handle` was carried
+  from the codex unchecked. Since 0.9.1 both live on the character's
+  `entities.yaml` entry and are carried onto `character.profile`. An invalid
+  one (`invalid-did`, `invalid-handle`), one two characters share
+  (`duplicate-did`, `duplicate-handle`) and one still in codex frontmatter
+  (`did-in-codex`, `handle-in-codex`) each fail both `lint` and `compile`. A
+  universe with either field in its codex files has to move it to upgrade.
 - **A custom rule that would never run fails `lint`.** Each of these used to
   load nothing, or load a rule that checked nothing, and report `OK — all
   checks passed cleanly`. Now each is an error: `paths.rules` set to a

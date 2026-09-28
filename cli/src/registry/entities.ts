@@ -11,11 +11,13 @@ export const EntitySchema = z.object({
   sourceFile: z.string().nullable().optional(),
   status: z.string().nullable().optional().default('active'),
   /**
-   * A character's account DID. Unchecked here: a malformed DID must not drop
-   * the whole entry and leave the character unresolvable, so it is carried as
-   * written and `invalid-did` reports it (see `linter/identity.ts`).
+   * A character's account: its DID, and its handle without the domain.
+   * Unchecked here: a malformed value must not drop the whole entry and leave
+   * the character unresolvable, so it is carried as written and
+   * `invalid-did` / `invalid-handle` report it (see `linter/identity.ts`).
    */
   did: z.unknown().optional(),
+  handle: z.unknown().optional(),
 });
 
 export type Entity = z.infer<typeof EntitySchema>;
