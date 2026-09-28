@@ -51,6 +51,7 @@ export default defineConfig({
           { text: 'Prose to records', link: '/prose-to-records' },
           { text: 'Continuity and drift', link: '/continuity-and-drift' },
           { text: 'Prose triage', link: '/prose-triage' },
+          { text: 'Keystatic CMS', link: '/keystatic' },
         ],
       },
     ],

@@ -15,6 +15,7 @@ import { YamlRulesLoader } from './linter/yaml-loader.js';
 import { compileProject } from './compiler/atproto.js';
 import { buildContext, renderMarkdown } from './context/bundle.js';
 import { buildProseReports } from './prose/check.js';
+export * from './keystatic/index.js';
 /** Reads `pinakes.yaml` and the registry. Throws if the config is missing or invalid. */
 export function openUniverse(root) {
     const abs = path.resolve(root);

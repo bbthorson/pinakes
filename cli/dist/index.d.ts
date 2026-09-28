@@ -5,6 +5,7 @@ import { type CompilationReport, type CompilationResult } from './compiler/atpro
 import { type ContextBundle, type CodexSection } from './context/bundle.js';
 import { type ProseReport } from './prose/check.js';
 export type { Config, Diagnostic, ChapterData, CompilationReport, CompilationResult, ContextBundle, CodexSection, ProseReport, RegistryConflict, RegistryInvalidEntry, };
+export * from './keystatic/index.js';
 /**
  * A loaded universe. Open one when making several calls against the same
  * root, so the config and registry are read once; every function also
