@@ -2,6 +2,7 @@ import fs from 'fs';
 import path from 'path';
 import YAML from 'yaml';
 import { parseRegister } from './registers.js';
+import { ACCOUNT_FIELDS, readAccountField } from './identity.js';
 export class LinterEngine {
     config;
     registry;
@@ -276,9 +277,88 @@ export class LinterEngine {
                     'It resolves to neither until one entry drops it.',
         })));
     }
+    /**
+     * Character accounts: a `did` and a `handle`, which live on the registry
+     * entry beside the id they belong to (see `linter/identity.ts`). Each is a
+     * way a profile could go out under the wrong identity, so, like the registry
+     * checks, both `lint` and `compile` report them. For each field:
+     *
+     * - `invalid-did` / `invalid-handle`: a value atproto would reject, or one on
+     *   something other than a character (places and items have no accounts).
+     * - `duplicate-did` / `duplicate-handle`: one value on two characters. Every
+     *   character is checked, not only active ones: a retired character still
+     *   owns its account.
+     * - `did-in-codex` / `handle-in-codex`: the field in a character's codex
+     *   frontmatter. It is an error rather than a fallback, so a universe has one
+     *   place its accounts come from, not two that can disagree.
+     */
+    identityDiagnostics() {
+        const out = [];
+        const registryFile = this.registry.registryFile;
+        for (const name of ACCOUNT_FIELDS) {
+            /** Lower-cased value -> the entity that claimed it first. Handles and did:web hosts are case-insensitive. */
+            const claimed = new Map();
+            for (const ent of this.registry.allEntities) {
+                const field = readAccountField(ent, name);
+                if (field.kind !== 'absent' && ent.type !== 'character') {
+                    out.push({
+                        file: registryFile,
+                        rule: `invalid-${name}`,
+                        severity: 'error',
+                        message: `${ent.id} has a ${name}, but only characters have accounts.`,
+                    });
+                }
+                else if (field.kind === 'invalid') {
+                    out.push({
+                        file: registryFile,
+                        rule: `invalid-${name}`,
+                        severity: 'error',
+                        message: `${name === 'did' ? 'DID' : 'Handle'} ${JSON.stringify(field.value)} for ${ent.id} is not valid: ${field.reason}.`,
+                    });
+                }
+                else if (field.kind === 'valid') {
+                    const key = field.value.toLowerCase();
+                    const first = claimed.get(key);
+                    if (first) {
+                        out.push({
+                            file: registryFile,
+                            rule: `duplicate-${name}`,
+                            severity: 'error',
+                            message: `${name === 'did' ? 'DID' : 'Handle'} '${field.value}' for ${ent.id} is also claimed by ${first}. Each character needs its own.`,
+                        });
+                    }
+                    else {
+                        claimed.set(key, ent.id);
+                    }
+                }
+            }
+        }
+        for (const ent of this.registry.allEntities) {
+            if (ent.type !== 'character' || !ent.sourceFile)
+                continue;
+            const file = path.resolve(this.projectRoot, ent.sourceFile);
+            if (!fs.existsSync(file))
+                continue;
+            const data = this.parseFrontmatter(fs.readFileSync(file, 'utf-8')).data;
+            if (!data || typeof data !== 'object')
+                continue;
+            for (const name of ACCOUNT_FIELDS) {
+                if (!(name in data))
+                    continue;
+                out.push({
+                    file: path.relative(this.projectRoot, file),
+                    rule: `${name}-in-codex`,
+                    severity: 'error',
+                    message: `\`${name}\` belongs on ${ent.id}'s entry in ${registryFile}, not in its codex file. ` +
+                        'Move it there; the codex value is not read.',
+                });
+            }
+        }
+        return out;
+    }
     // Perform linting
     lint() {
-        const diagnostics = this.registryDiagnostics();
+        const diagnostics = [...this.registryDiagnostics(), ...this.identityDiagnostics()];
         const stories = this.getStories();
         for (const storyDir of stories) {
             diagnostics.push(...this.frontmatterDiagnostics(storyDir));

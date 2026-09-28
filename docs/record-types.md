@@ -85,6 +85,7 @@ never published.
   "subject": "char.emma",
   "displayName": "Emma Hartley",
   "handle": "emmacooks",
+  "did": "did:plc:b4xqf5g2j52z3y7mcnk6jtms",
   "oneLine": "A grounded and creative chef with a bubbly, optimistic energy, who is learning to trust her intuition.",
   "status": "active",
   "sourceFile": "codex/characters/emma.md"
@@ -394,6 +395,8 @@ id:
   aliases: ["Emma", "Emma Hartley"]
   sourceFile: codex/characters/emma.md
   status: active
+  did: did:plc:b4xqf5g2j52z3y7mcnk6jtms
+  handle: emmacooks
 ```
 
 Ids are permanent — `char.emma` survives a rename of the character or the file —
@@ -402,23 +405,39 @@ in prose *and* in frontmatter. Supper Club Secrets registers "the mogul" and
 "the developer" as aliases of `char.garrett-pike` because both appear as
 pre-naming epithets.
 
-[Concepts](concepts.md#at-protocol-and-identity) also describes characters as DIDs —
-`did:plc:…` or `did:web:emma.supperclub.site`, each owning a cryptographically
-signed history. **That is a design target, not shipped behaviour.** Nothing in
-the CLI mints, resolves, writes, or validates a DID. What exists is:
+On top of those ids, a character's registry entry can name its **account**,
+which its profile carries:
 
-- local ids (`char.emma`) in every record, and
-- an optional `handle` string on the profile, carried from codex frontmatter as
-  a bare label (`emmacooks`, with any leading `@` stripped).
+- `did`, the account's DID: `did:plc:…` or `did:web:emma.supperclub.site`, and
+- `handle`, the account's handle without its domain: `emmacooks` for
+  `emmacooks.supperclubsecrets.com`, with any leading `@` stripped.
 
-The `handle` field is deliberately unqualified. Until a universe is bound to a
-domain it controls, `emmacooks` is a label; once it is,
-`emmacooks.supperclubsecrets.com` is a handle. Qualifying it is the consumer's
-job, which keeps the domain decision out of every compiled record.
+On atproto the two are one identity (the DID document names the handle, and the
+handle resolves back to the DID), so they live together on the registry entry,
+beside the id they belong to, and nowhere else. A `did` or `handle` in codex
+frontmatter is an error (`did-in-codex`, `handle-in-codex`) rather than a
+fallback, so a universe never has two accounts for one character that could
+disagree.
 
-This is the right sequencing rather than an omission. Local ids are free,
-reversible, and testable; DIDs require a purchased domain, real accounts, and
-DNS. Supper Club Secrets is working through exactly that sequence in its own
+Pinakes **carries and checks** an account; it never mints, registers or
+resolves one. `lint` and `compile` both fail on a DID atproto would reject
+(`invalid-did`), on a handle that is not one DNS label (`invalid-handle`), and
+on a DID or handle two characters claim (`duplicate-did`, `duplicate-handle`),
+but neither goes to the network, so both stay offline and deterministic.
+Whether the handle actually resolves to that DID can only be checked over the
+network, so it belongs to publishing, not to `lint`. Records still reference
+each other by local id (`char.emma`), never by DID, so a character can be given
+an account, or change it, without any other record's id moving.
+
+The `handle` field is deliberately unqualified. The domain a universe's
+accounts live under is a publishing decision, so qualifying `emmacooks` as
+`emmacooks.supperclubsecrets.com` is the consumer's job, which keeps it out of
+every compiled record. A qualified handle in the registry is an
+`invalid-handle` error rather than something to guess about.
+
+Minting and resolving stay out of pinakes deliberately. Local ids are free,
+reversible and testable; a DID requires real accounts and, for `did:web`, a
+domain and DNS. Supper Club Secrets is working through exactly that sequence in its own
 `protocol/SERIALIZED_PUBLISHING.md`.
 
 ## `item` and `custodyEvent`

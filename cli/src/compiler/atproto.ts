@@ -7,6 +7,7 @@ import { lintStretches, SourceIndex, StretchEntry } from '../linter/stretches.js
 import { buildLexiconDocs, compileLexiconDocs, validateRecords, writeLexiconDocs } from '../lexicons/index.js';
 import { pruneStale } from './prune.js';
 import { parseRegister } from '../linter/registers.js';
+import { readAccountField, type AccountFieldName } from '../linter/identity.js';
 
 function getBookKey(storyDir: string): string {
   const base = path.basename(storyDir);
@@ -109,7 +110,6 @@ function getOverviewOneline(content: string): string | undefined {
 
 /** The publishable surface of a character's codex file. */
 interface CharacterCodex {
-  handle?: string;
   oneLine?: string;
   description?: string;
   tags?: string[];
@@ -119,20 +119,31 @@ interface CharacterCodex {
 /**
  * Reads the publishable surface of a character's codex file: the frontmatter a
  * reader surface renders from, plus the one-line summary under its Overview
- * heading.
+ * heading. The account (`did`, `handle`) comes from the registry entry instead;
+ * see `accountValue`.
  */
 function readCharacterFile(filePath: string, engine: LinterEngine): CharacterCodex {
   if (!filePath || !fs.existsSync(filePath)) return {};
   const content = fs.readFileSync(filePath, 'utf-8');
   const { data } = engine.parseFrontmatter(content);
-  const handleRaw = text(data?.handle);
   return {
-    handle: handleRaw ? handleRaw.replace(/^@/, '') : undefined,
     oneLine: getOverviewOneline(content),
     description: text(data?.description),
     tags: tagList(data?.tags),
     status: text(data?.status),
   };
+}
+
+/**
+ * An account field a profile carries, from the registry entry. An invalid one
+ * is carried too, as written, so the record shows what `invalid-did` or
+ * `invalid-handle` rejected rather than silently losing it.
+ */
+function accountValue(ent: Record<string, unknown>, name: AccountFieldName): string | undefined {
+  const field = readAccountField(ent, name);
+  if (field.kind === 'valid') return field.value;
+  if (field.kind === 'invalid') return typeof field.value === 'string' ? field.value : JSON.stringify(field.value);
+  return undefined;
 }
 
 /**
@@ -198,8 +209,9 @@ export function compileProject(
   const NS = config.project.nsid;
   const outputDir = path.resolve(projectRoot, config.paths.output);
   const results: CompilationResult[] = [];
-  // An ambiguous alias drops a reference from every record that uses it.
-  const diagnostics: Diagnostic[] = engine.registryDiagnostics();
+  // An ambiguous alias drops a reference from every record that uses it, and
+  // a bad DID publishes a profile under the wrong identity.
+  const diagnostics: Diagnostic[] = [...engine.registryDiagnostics(), ...engine.identityDiagnostics()];
   const allRecords: any[] = [];
   /** Absolute paths written this run; everything else pinakes-named is stale. */
   const written = new Set<string>();
@@ -553,7 +565,8 @@ export function compileProject(
           id: `profile.${ent.id.split('.', 2)[1]}`,
           subject: ent.id,
           displayName: ent.displayName,
-          handle: codex.handle,
+          handle: accountValue(ent, 'handle'),
+          did: accountValue(ent, 'did'),
           description: codex.description,
           oneLine: codex.oneLine,
           tags: codex.tags,

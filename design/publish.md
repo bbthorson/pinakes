@@ -245,8 +245,9 @@ publish:
     documentPath: "/books/{book}/read/{chapter}"
 ```
 
-DIDs move from codex frontmatter into `entities.yaml`, beside the id they
-belong to. The registry is already the identity layer. `did` lives there as a
+DIDs and handles live in `entities.yaml`, beside the id they belong to (done
+in 0.9.1, which also rejects both in codex frontmatter). The registry is
+already the identity layer. `did` lives there as a
 fact about the entity, and the DID guard (resolved DID must equal registry DID)
 checks it.
 
@@ -512,7 +513,8 @@ matter much either way.
 1. Ship `pinakes publish` with a dry-run plan that matches SCS's
    `publish_records.mjs` output byte for byte on the same `--at`. This parity
    test is the acceptance gate.
-2. Move DIDs into `entities.yaml`, and lane from tags into a field.
+2. Move lane from tags into a field. (DIDs and handles already moved into
+   `entities.yaml`, in 0.9.1.)
 3. Swap the poster's internals for `planPublish`/`applyPublish`. Delete
    `publish_records.mjs` and most of `posting.mjs`.
 4. Turn on chapter text in documents, under the CC BY-NC-ND 4.0 license (§12.4).

@@ -234,8 +234,15 @@ function profile(ns: string): LexiconDoc {
             handle: {
               type: 'string',
               description:
-                "The character's handle, without an `@`. A bare label such as `emmacooks` until the universe is bound to a domain; consumers qualify it themselves.",
+                "The character's account handle without its domain or an `@`, from the character's registry entry: `emmacooks` for `emmacooks.supperclubsecrets.com`. The domain is a publishing decision; consumers qualify it themselves.",
               maxLength: 253,
+            },
+            did: {
+              type: 'string',
+              format: 'did',
+              description:
+                "The character's account DID (`did:plc:…` or `did:web:…`), from the character's registry entry. Carried, never minted or resolved: pinakes checks only its syntax.",
+              maxLength: 2048,
             },
             description: {
               type: 'string',

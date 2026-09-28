@@ -6,6 +6,14 @@ export declare const EntitySchema: z.ZodObject<{
     aliases: z.ZodDefault<z.ZodArray<z.ZodString, "many">>;
     sourceFile: z.ZodOptional<z.ZodNullable<z.ZodString>>;
     status: z.ZodDefault<z.ZodOptional<z.ZodNullable<z.ZodString>>>;
+    /**
+     * A character's account: its DID, and its handle without the domain.
+     * Unchecked here: a malformed value must not drop the whole entry and leave
+     * the character unresolvable, so it is carried as written and
+     * `invalid-did` / `invalid-handle` report it (see `linter/identity.ts`).
+     */
+    did: z.ZodOptional<z.ZodUnknown>;
+    handle: z.ZodOptional<z.ZodUnknown>;
 }, "strip", z.ZodTypeAny, {
     type: string;
     status: string | null;
@@ -13,6 +21,8 @@ export declare const EntitySchema: z.ZodObject<{
     displayName: string;
     aliases: string[];
     sourceFile?: string | null | undefined;
+    did?: unknown;
+    handle?: unknown;
 }, {
     type: string;
     id: string;
@@ -20,6 +30,8 @@ export declare const EntitySchema: z.ZodObject<{
     status?: string | null | undefined;
     aliases?: string[] | undefined;
     sourceFile?: string | null | undefined;
+    did?: unknown;
+    handle?: unknown;
 }>;
 export type Entity = z.infer<typeof EntitySchema>;
 export interface ResolvedEntity {

@@ -4,6 +4,7 @@ import { lintStretches } from '../linter/stretches.js';
 import { buildLexiconDocs, compileLexiconDocs, validateRecords, writeLexiconDocs } from '../lexicons/index.js';
 import { pruneStale } from './prune.js';
 import { parseRegister } from '../linter/registers.js';
+import { readAccountField } from '../linter/identity.js';
 function getBookKey(storyDir) {
     const base = path.basename(storyDir);
     const m = base.match(/^0*(\d+)/);
@@ -105,21 +106,33 @@ function getOverviewOneline(content) {
 /**
  * Reads the publishable surface of a character's codex file: the frontmatter a
  * reader surface renders from, plus the one-line summary under its Overview
- * heading.
+ * heading. The account (`did`, `handle`) comes from the registry entry instead;
+ * see `accountValue`.
  */
 function readCharacterFile(filePath, engine) {
     if (!filePath || !fs.existsSync(filePath))
         return {};
     const content = fs.readFileSync(filePath, 'utf-8');
     const { data } = engine.parseFrontmatter(content);
-    const handleRaw = text(data?.handle);
     return {
-        handle: handleRaw ? handleRaw.replace(/^@/, '') : undefined,
         oneLine: getOverviewOneline(content),
         description: text(data?.description),
         tags: tagList(data?.tags),
         status: text(data?.status),
     };
+}
+/**
+ * An account field a profile carries, from the registry entry. An invalid one
+ * is carried too, as written, so the record shows what `invalid-did` or
+ * `invalid-handle` rejected rather than silently losing it.
+ */
+function accountValue(ent, name) {
+    const field = readAccountField(ent, name);
+    if (field.kind === 'valid')
+        return field.value;
+    if (field.kind === 'invalid')
+        return typeof field.value === 'string' ? field.value : JSON.stringify(field.value);
+    return undefined;
 }
 /**
  * The kind of place a location file describes, from its body (`**Type:** Bar`).
@@ -143,8 +156,9 @@ export function compileProject(projectRoot, config, registry, engine, options = 
     const NS = config.project.nsid;
     const outputDir = path.resolve(projectRoot, config.paths.output);
     const results = [];
-    // An ambiguous alias drops a reference from every record that uses it.
-    const diagnostics = engine.registryDiagnostics();
+    // An ambiguous alias drops a reference from every record that uses it, and
+    // a bad DID publishes a profile under the wrong identity.
+    const diagnostics = [...engine.registryDiagnostics(), ...engine.identityDiagnostics()];
     const allRecords = [];
     /** Absolute paths written this run; everything else pinakes-named is stale. */
     const written = new Set();
@@ -464,7 +478,8 @@ export function compileProject(projectRoot, config, registry, engine, options = 
                 id: `profile.${ent.id.split('.', 2)[1]}`,
                 subject: ent.id,
                 displayName: ent.displayName,
-                handle: codex.handle,
+                handle: accountValue(ent, 'handle'),
+                did: accountValue(ent, 'did'),
                 description: codex.description,
                 oneLine: codex.oneLine,
                 tags: codex.tags,

@@ -105,6 +105,22 @@ export declare class LinterEngine {
      * either would otherwise pick an entity, or lose one, silently.
      */
     registryDiagnostics(): Diagnostic[];
+    /**
+     * Character accounts: a `did` and a `handle`, which live on the registry
+     * entry beside the id they belong to (see `linter/identity.ts`). Each is a
+     * way a profile could go out under the wrong identity, so, like the registry
+     * checks, both `lint` and `compile` report them. For each field:
+     *
+     * - `invalid-did` / `invalid-handle`: a value atproto would reject, or one on
+     *   something other than a character (places and items have no accounts).
+     * - `duplicate-did` / `duplicate-handle`: one value on two characters. Every
+     *   character is checked, not only active ones: a retired character still
+     *   owns its account.
+     * - `did-in-codex` / `handle-in-codex`: the field in a character's codex
+     *   frontmatter. It is an error rather than a fallback, so a universe has one
+     *   place its accounts come from, not two that can disagree.
+     */
+    identityDiagnostics(): Diagnostic[];
     lint(): Diagnostic[];
     private checkEntity;
 }

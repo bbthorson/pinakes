@@ -40,7 +40,7 @@ consumers to re-parse the codex:
 
 | Record | Carried from |
 | --- | --- |
-| `*.character.profile` | `description`, `tags`, `status`, `handle` from the character file's frontmatter; `oneLine` from its Overview. `status` falls back to the registry entry for a character whose file doesn't state one. |
+| `*.character.profile` | `description`, `tags`, `status` from the character file's frontmatter; `oneLine` from its Overview; `did` and `handle` from the registry entry. `status` falls back to the registry entry for a character whose file doesn't state one. A `did` or `handle` that is invalid, that two characters share, or that sits in the codex file instead of the registry fails `compile` (`invalid-did`, `invalid-handle`, `duplicate-did`, `duplicate-handle`, `did-in-codex`, `handle-in-codex`). |
 | `*.place` | `description`, `tags`, `status`, `region`, `first_appearance`, `schedule` from the location file's frontmatter; `kind` from the `**Type:**` line in its body. |
 | `*.scene` | `tags` from the chapter's frontmatter, alongside the timeline and casting fields. |
 | `*.item` | `displayName` and `status` from the registry's `items:` entry; `description` and `tags` from its codex file when it has one; `firstAppearance` derived from the earliest custody event. |
