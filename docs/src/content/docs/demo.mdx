@@ -1,13 +1,12 @@
 ---
-aside: false
-sidebar: false
+title: Record browser
+tableOfContents: false
 ---
-
-# Record browser
+import RecordBrowser from '../../components/RecordBrowser.astro';
 
 A reader-facing surface for [Supper Club Secrets](https://github.com/bbthorson/supper_club_secrets),
 built from nothing but its compiled records. It is what the
-[outward layer](concepts.md#inward-and-outward-layers) is for: `pinakes compile`
+[outward layer](../concepts/#inward-and-outward-layers) is for: `pinakes compile`
 turns chapters and the codex into records, and anything can read them without
 knowing about Pinakes.
 
@@ -20,9 +19,9 @@ something you have read names them.
 
 ## How it's built
 
-The page fetches one file, [`records.json`](/demo/records.json), and filters it
+The page fetches one file, [`records.json`](/pinakes/demo/records.json), and filters it
 in the browser. `docs/scripts/sync-demo.mjs` produces that file by compiling the
-universe through the [library API](library.md) with `write: false`, so the
+universe through the [library API](../library/) with `write: false`, so the
 universe's own `records/` directory is never touched.
 
 Two choices a real surface would make too:
@@ -34,4 +33,4 @@ Two choices a real surface would make too:
   same reason.
 * **The reveal gate is `chapterRef`, not `publishDate`.** A serialized run can
   release a post before a late reader has earned it. See
-  [`character.post`](record-types.md#character-post) for how the two gates differ.
+  [`character.post`](../record-types/#character-post) for how the two gates differ.

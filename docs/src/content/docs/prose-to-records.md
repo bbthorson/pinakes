@@ -1,4 +1,6 @@
-# Prose to records
+---
+title: "Prose to records"
+---
 
 What `pinakes compile` reads, how it resolves names, and what it deliberately
 never touches.

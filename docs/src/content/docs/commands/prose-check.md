@@ -1,4 +1,6 @@
-# `pinakes prose-check`
+---
+title: "pinakes prose-check"
+---
 
 Mechanical prose triage: the countable half of the AI-tells pre-pass in
 `.claude/skills/story-audit/references/ai_tells.md`. Cheap to run, so the

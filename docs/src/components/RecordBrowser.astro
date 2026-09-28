@@ -1,0 +1,651 @@
+---
+// Native Astro RecordBrowser Component
+interface Props {
+  recordsUrl?: string;
+}
+
+const { recordsUrl } = Astro.props;
+const baseUrl = import.meta.env.BASE_URL.replace(/\/$/, '');
+const defaultUrl = `${baseUrl}/demo/records.json`;
+const url = recordsUrl || defaultUrl;
+---
+
+<record-browser data-records-url={url} class="rb-container">
+  <div class="rb">
+    <div class="rb-loading rb-muted">Loading records…</div>
+    <div class="rb-error" style="display: none;"></div>
+
+    <div class="rb-body" style="display: none;">
+      <div class="rb-position">
+        <label for="rb-read-input" class="rb-label">
+          <span class="rb-read-status"></span>
+        </label>
+        <input id="rb-read-input" class="rb-slider" type="range" min="0" max="25" step="1" value="6" />
+        <p class="rb-muted rb-small rb-filter-summary"></p>
+      </div>
+
+      <div class="rb-tabs" role="tablist">
+        <button type="button" role="tab" data-tab="timeline" class="rb-tab-btn active">Timeline</button>
+        <button type="button" role="tab" data-tab="characters" class="rb-tab-btn">Characters</button>
+        <button type="button" role="tab" data-tab="feed" class="rb-tab-btn">Feed</button>
+        <button type="button" role="tab" data-tab="items" class="rb-tab-btn">Items</button>
+      </div>
+
+      <div class="rb-tab-content">
+        <!-- Rendered dynamically by script -->
+      </div>
+
+      <p class="rb-source rb-small rb-muted"></p>
+    </div>
+  </div>
+</record-browser>
+
+<script>
+  interface Data {
+    source: { name: string; nsid: string; sequenceName: string; repo: string; commit: string | null; pinakes: string };
+    records: Record<string, any>[];
+  }
+
+  class RecordBrowserElement extends HTMLElement {
+    private data: Data | null = null;
+    private readThrough = 6;
+    private activeTab: 'timeline' | 'characters' | 'feed' | 'items' = 'timeline';
+    private selectedCharacter: string | null = null;
+
+    connectedCallback() {
+      const recordsUrl = this.dataset.recordsUrl || '/pinakes/demo/records.json';
+      this.fetchData(recordsUrl);
+    }
+
+    async fetchData(url: string) {
+      const loadingEl = this.querySelector<HTMLElement>('.rb-loading');
+      const errorEl = this.querySelector<HTMLElement>('.rb-error');
+      const bodyEl = this.querySelector<HTMLElement>('.rb-body');
+
+      try {
+        const res = await fetch(url);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        this.data = await res.json();
+
+        if (loadingEl) loadingEl.style.display = 'none';
+        if (bodyEl) bodyEl.style.display = 'block';
+
+        this.initControls();
+        this.render();
+      } catch (err: any) {
+        if (loadingEl) loadingEl.style.display = 'none';
+        if (errorEl) {
+          errorEl.textContent = `Could not load records.json (${err.message}).`;
+          errorEl.style.display = 'block';
+        }
+      }
+    }
+
+    private initControls() {
+      const slider = this.querySelector<HTMLInputElement>('.rb-slider');
+      if (slider) {
+        const scenes = (this.data?.records ?? []).filter((r) => r.$type.endsWith('.scene'));
+        slider.max = String(scenes.length);
+        slider.value = String(this.readThrough);
+        slider.addEventListener('input', (e) => {
+          this.readThrough = Number((e.target as HTMLInputElement).value);
+          this.render();
+        });
+      }
+
+      const tabs = this.querySelectorAll<HTMLButtonElement>('.rb-tab-btn');
+      tabs.forEach((tab) => {
+        tab.addEventListener('click', () => {
+          const tabName = tab.dataset.tab as 'timeline' | 'characters' | 'feed' | 'items';
+          if (tabName) {
+            this.activeTab = tabName;
+            tabs.forEach((t) => t.classList.toggle('active', t === tab));
+            this.renderTabContent();
+          }
+        });
+      });
+    }
+
+    private chapterOf(ref: string | undefined): number {
+      const m = /#ch(\d+)$/.exec(ref ?? '');
+      return m ? Number(m[1]) : Infinity;
+    }
+
+    private revealed(ref: string | undefined): boolean {
+      return this.chapterOf(ref) <= this.readThrough;
+    }
+
+    private escapeHtml(str: string): string {
+      return str
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+    }
+
+    private paragraphs(text: string): string[] {
+      return text
+        .split(/\n\s*\n/)
+        .map((p) => p.replace(/\s*\n\s*/g, ' ').trim())
+        .filter(Boolean);
+    }
+
+    private render() {
+      if (!this.data) return;
+
+      const scenes = this.data.records.filter((r) => r.$type.endsWith('.scene'));
+      const posts = this.data.records.filter((r) => r.$type.endsWith('.character.post'));
+      const events = this.data.records.filter((r) => r.$type.endsWith('.character.stateEvent'));
+
+      const shownScenes = scenes.filter((s) => this.revealed(s.chapterRefs[0]));
+      const shownPosts = posts.filter((p) => this.revealed(p.chapterRef));
+      const shownEvents = events.filter((e) => this.revealed(e.chapterRef));
+
+      // Update status label
+      const statusEl = this.querySelector('.rb-read-status');
+      if (statusEl) {
+        if (this.readThrough === 0) {
+          statusEl.innerHTML = "I haven't <strong>started</strong> the book yet";
+        } else {
+          statusEl.innerHTML = `I've read through <strong>chapter ${this.readThrough}</strong><span class="rb-muted"> of ${scenes.length}</span>`;
+        }
+      }
+
+      // Update filter summary
+      const summaryEl = this.querySelector('.rb-filter-summary');
+      if (summaryEl) {
+        const hiddenScenes = scenes.length - shownScenes.length;
+        const hiddenPosts = posts.length - shownPosts.length;
+        const hiddenEvents = events.length - shownEvents.length;
+        summaryEl.innerHTML = `Everything below is filtered by each record's <code>chapterRef</code>. ${hiddenScenes} chapters, ${hiddenPosts} posts and ${hiddenEvents} register changes are still hidden.`;
+      }
+
+      // Update source footer
+      const sourceEl = this.querySelector('.rb-source');
+      if (sourceEl) {
+        const src = this.data.source;
+        const commitLink = src.commit
+          ? `<a href="${src.repo}/tree/${src.commit}" target="_blank" rel="noopener"><code>${src.commit.slice(0, 7)}</code></a>`
+          : '';
+        sourceEl.innerHTML = `${this.data.records.length} records from <a href="${src.repo}" target="_blank" rel="noopener">${this.escapeHtml(src.name)}</a>${commitLink ? ` at ${commitLink}` : ''}, compiled by pinakes ${src.pinakes}. This page reads <a href="${this.dataset.recordsUrl}">records.json</a> and nothing else.`;
+      }
+
+      this.renderTabContent();
+    }
+
+    private renderTabContent() {
+      if (!this.data) return;
+
+      const contentEl = this.querySelector('.rb-tab-content');
+      if (!contentEl) return;
+
+      const records = this.data.records;
+      const scenes = records.filter((r) => r.$type.endsWith('.scene'));
+      const posts = records.filter((r) => r.$type.endsWith('.character.post'));
+      const events = records.filter((r) => r.$type.endsWith('.character.stateEvent'));
+      const custody = records.filter((r) => r.$type.endsWith('.custodyEvent'));
+      const profiles = records.filter((r) => r.$type.endsWith('.character.profile'));
+      const places = records.filter((r) => r.$type.endsWith('.place'));
+      const items = records.filter((r) => r.$type.endsWith('.item'));
+
+      const byId = new Map(records.map((r) => [r.id, r]));
+      const profileOf = new Map(profiles.map((p) => [p.subject, p]));
+      const getName = (id: string) => profileOf.get(id)?.displayName ?? byId.get(id)?.name ?? byId.get(id)?.displayName ?? id;
+      const getPlaceName = (id: string) => places.find((p) => p.id === id)?.name ?? id;
+
+      const shownScenes = [...scenes]
+        .sort((a, b) => this.chapterOf(a.chapterRefs[0]) - this.chapterOf(b.chapterRefs[0]))
+        .filter((s) => this.revealed(s.chapterRefs[0]));
+
+      const shownPosts = posts
+        .filter((p) => this.revealed(p.chapterRef))
+        .sort((a, b) => `${a.storyDate} ${a.storyTime ?? ''}`.localeCompare(`${b.storyDate} ${b.storyTime ?? ''}`));
+
+      const shownEvents = events.filter((e) => this.revealed(e.chapterRef));
+      const shownCustody = custody.filter((c) => this.revealed(c.chapterRef));
+
+      const formatDates = (r: Record<string, any>) =>
+        r.storyDateEnd && r.storyDateEnd !== r.storyDate ? `${r.storyDate} – ${r.storyDateEnd}` : r.storyDate;
+
+      const capitalize = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
+      const postChapter = (p: Record<string, any>) =>
+        this.chapterOf(p.chapterRef) === 0 ? 'before the book' : `ch. ${this.chapterOf(p.chapterRef)}`;
+
+      if (this.activeTab === 'timeline') {
+        if (!shownScenes.length) {
+          contentEl.innerHTML = '<p class="rb-muted">Move the slider to start reading.</p>';
+          return;
+        }
+
+        const groups = new Map<number, Record<string, any>[]>();
+        for (const s of shownScenes) {
+          const k = s.sequence ?? 0;
+          groups.set(k, [...(groups.get(k) ?? []), s]);
+        }
+
+        let html = '';
+        for (const [seq, group] of groups.entries()) {
+          html += `<div class="rb-seq">`;
+          html += `<h3>${capitalize(this.data.source.sequenceName)} ${seq}</h3>`;
+          for (const s of group) {
+            const ch = this.chapterOf(s.chapterRefs[0]);
+            html += `<article class="rb-card">`;
+            html += `<header>
+              <span class="rb-ch">Ch. ${ch}</span>
+              <strong>${this.escapeHtml(s.title)}</strong>
+              <span class="rb-muted rb-small">${formatDates(s)}</span>
+            </header>`;
+            if (s.primaryEvent) {
+              html += `<p class="rb-event">${this.escapeHtml(s.primaryEvent)}</p>`;
+            }
+            html += `<p class="rb-small rb-meta">`;
+            if (s.pov) html += `<span>POV ${this.escapeHtml(getName(s.pov))}</span>`;
+            if (s.placeRefs?.length) {
+              html += `<span> · ${s.placeRefs.map((id: string) => this.escapeHtml(getPlaceName(id))).join(', ')}</span>`;
+            }
+            html += `</p>`;
+            html += `<p class="rb-chips">`;
+            for (const id of s.participants ?? []) {
+              html += `<span class="rb-chip">${this.escapeHtml(getName(id))}</span>`;
+            }
+            for (const id of s.referenced ?? []) {
+              html += `<span class="rb-chip rb-chip-ref" title="referenced, not present">${this.escapeHtml(getName(id))}</span>`;
+            }
+            html += `</p>`;
+
+            const sceneCustody = shownCustody.filter((c) => c.sceneRef === s.id);
+            for (const c of sceneCustody) {
+              const from = c.fromHolder ? `${this.escapeHtml(getName(c.fromHolder))} → ` : '';
+              html += `<p class="rb-small rb-custody">🫙 ${this.escapeHtml(getName(c.item))}: ${from}${this.escapeHtml(getName(c.holder))}</p>`;
+            }
+            html += `</article>`;
+          }
+          html += `</div>`;
+        }
+        contentEl.innerHTML = html;
+      } else if (this.activeTab === 'characters') {
+        const seen = new Set<string>();
+        for (const s of shownScenes) {
+          for (const id of [s.pov, ...(s.participants ?? []), ...(s.referenced ?? [])]) {
+            if (id) seen.add(id);
+          }
+        }
+        for (const p of shownPosts) seen.add(p.author);
+
+        const knownCharacters = profiles.filter((p) => seen.has(p.subject));
+        if (!knownCharacters.length) {
+          contentEl.innerHTML = '<p class="rb-muted">No one has appeared yet.</p>';
+          return;
+        }
+
+        if (!knownCharacters.some((p) => p.subject === this.selectedCharacter)) {
+          this.selectedCharacter = knownCharacters[0]?.subject ?? null;
+        }
+
+        const selectedProfile = profileOf.get(this.selectedCharacter ?? '');
+        const selectedPosts = shownPosts.filter((p) => p.author === this.selectedCharacter);
+
+        const registerAt = new Map<string, Record<string, any>>();
+        for (const e of shownEvents) {
+          registerAt.set(`${e.subject}#${this.chapterOf(e.chapterRef)}`, e);
+        }
+
+        const chapters = shownScenes.map((s) => this.chapterOf(s.chapterRefs[0]));
+
+        let html = `<div class="rb-chars">`;
+        html += `<nav class="rb-char-list">`;
+        for (const p of knownCharacters) {
+          const isActive = p.subject === this.selectedCharacter ? 'active' : '';
+          html += `<button type="button" class="${isActive}" data-char="${p.subject}">${this.escapeHtml(p.displayName)}</button>`;
+        }
+        html += `</nav>`;
+
+        if (selectedProfile) {
+          html += `<div class="rb-char">`;
+          html += `<h3>${this.escapeHtml(selectedProfile.displayName)}`;
+          if (selectedProfile.handle) {
+            html += ` <span class="rb-muted rb-small">@${this.escapeHtml(selectedProfile.handle)}</span>`;
+          }
+          html += `</h3>`;
+          html += `<p>${this.escapeHtml(selectedProfile.description ?? selectedProfile.oneLine ?? '')}</p>`;
+
+          html += `<h4>Register, chapter by chapter</h4>`;
+          html += `<div class="rb-strip">`;
+          for (const ch of chapters) {
+            const ev = registerAt.get(`${this.selectedCharacter}#${ch}`);
+            const reg = ev?.register;
+            let regClass = 'reg-empty';
+            let title = `Ch. ${ch}: not on the page`;
+            if (reg) {
+              regClass = ['public', 'private', 'under-pressure'].includes(reg) ? `reg-${reg}` : 'reg-other';
+              title = `Ch. ${ch}: ${ev.registerExpr ?? reg}`;
+            }
+            html += `<div class="rb-cell ${regClass}" data-empty="${!ev}" title="${this.escapeHtml(title)}">${ch}</div>`;
+          }
+          html += `</div>`;
+          html += `<p class="rb-legend rb-small">
+            <span class="rb-key reg-public"></span> public
+            <span class="rb-key reg-private"></span> private
+            <span class="rb-key reg-under-pressure"></span> under pressure
+            <span class="rb-key reg-empty"></span> not on the page
+          </p>`;
+
+          html += `<h4>Posts (${selectedPosts.length})</h4>`;
+          if (!selectedPosts.length) {
+            html += `<p class="rb-muted">None yet.</p>`;
+          } else {
+            for (const p of selectedPosts) {
+              html += `<article class="rb-card rb-post">`;
+              html += `<p class="rb-small rb-muted">${p.storyDate} ${p.storyTime ?? ''} · ${postChapter(p)}</p>`;
+              for (const para of this.paragraphs(p.text)) {
+                html += `<p class="rb-text">${this.escapeHtml(para)}</p>`;
+              }
+              html += `</article>`;
+            }
+          }
+          html += `</div>`;
+        }
+        html += `</div>`;
+        contentEl.innerHTML = html;
+
+        // Attach character selection listeners
+        contentEl.querySelectorAll('.rb-char-list button').forEach((btn) => {
+          btn.addEventListener('click', (e) => {
+            const charId = (e.currentTarget as HTMLElement).dataset.char;
+            if (charId) {
+              this.selectedCharacter = charId;
+              this.renderTabContent();
+            }
+          });
+        });
+      } else if (this.activeTab === 'feed') {
+        if (!shownPosts.length) {
+          contentEl.innerHTML = '<p class="rb-muted">No posts yet.</p>';
+          return;
+        }
+
+        let html = '';
+        for (const p of shownPosts) {
+          const authorProfile = profileOf.get(p.author);
+          html += `<article class="rb-card rb-post">`;
+          html += `<p class="rb-small">
+            <strong>${this.escapeHtml(getName(p.author))}</strong>`;
+          if (authorProfile?.handle) {
+            html += `<span class="rb-muted"> @${this.escapeHtml(authorProfile.handle)}</span>`;
+          }
+          html += `<span class="rb-muted"> · ${p.storyDate} ${p.storyTime ?? ''} · ${postChapter(p)}</span>`;
+          html += `</p>`;
+          if (p.inReplyTo && byId.get(p.inReplyTo)) {
+            const replyAuthor = byId.get(p.inReplyTo).author;
+            html += `<p class="rb-small rb-muted">↳ replying to ${this.escapeHtml(getName(replyAuthor))}</p>`;
+          }
+          for (const para of this.paragraphs(p.text)) {
+            html += `<p class="rb-text">${this.escapeHtml(para)}</p>`;
+          }
+          html += `</article>`;
+        }
+        contentEl.innerHTML = html;
+      } else if (this.activeTab === 'items') {
+        const knownItems = items
+          .filter((i) => this.revealed(i.firstAppearance))
+          .map((i) => ({ item: i, chain: shownCustody.filter((c) => c.item === i.id) }));
+
+        if (!knownItems.length) {
+          contentEl.innerHTML = '<p class="rb-muted">No tracked items yet.</p>';
+          return;
+        }
+
+        let html = '';
+        for (const { item, chain } of knownItems) {
+          html += `<div class="rb-card">`;
+          html += `<header><strong>${this.escapeHtml(item.displayName ?? item.name ?? item.id)}</strong></header>`;
+          html += `<ol class="rb-chain">`;
+          for (const c of chain) {
+            const from = c.fromHolder ? `${this.escapeHtml(getName(c.fromHolder))} → ` : '';
+            html += `<li>
+              <span class="rb-small rb-muted">Ch. ${this.chapterOf(c.chapterRef)} · ${c.storyDate}</span><br />
+              ${from}<strong>${this.escapeHtml(getName(c.holder))}</strong>`;
+            if (c.event) {
+              html += `<span class="rb-muted"> — ${this.escapeHtml(c.event)}</span>`;
+            }
+            html += `</li>`;
+          }
+          html += `</ol>`;
+          html += `</div>`;
+        }
+        contentEl.innerHTML = html;
+      }
+    }
+  }
+
+  customElements.define('record-browser', RecordBrowserElement);
+</script>
+
+<style is:global>
+  record-browser {
+    display: block;
+  }
+  .rb {
+    margin-top: 1.5rem;
+    font-family: inherit;
+  }
+  .rb-muted {
+    color: var(--sl-color-gray-3, #64748b);
+  }
+  .rb-small {
+    font-size: 0.85rem;
+  }
+  .rb-error {
+    color: var(--sl-color-red, #ef4444);
+  }
+  .rb p {
+    margin: 0.25rem 0;
+  }
+
+  .rb-position {
+    padding: 0.75rem 1rem;
+    border: 1px solid var(--sl-color-hairline, #e2e8f0);
+    border-radius: 8px;
+    background: var(--sl-color-bg-inline-code, rgba(255, 255, 255, 0.05));
+    margin-bottom: 1rem;
+  }
+  @media (min-width: 960px) {
+    .rb-position {
+      position: sticky;
+      top: calc(var(--sl-nav-height, 3.5rem) + 0.5rem);
+      z-index: 5;
+      backdrop-filter: blur(8px);
+    }
+  }
+  .rb-position input {
+    width: 100%;
+    accent-color: var(--sl-color-accent, #6366f1);
+    margin: 0.5rem 0 0.25rem;
+  }
+
+  .rb-tabs {
+    display: flex;
+    gap: 0.25rem;
+    margin: 1rem 0;
+    border-bottom: 1px solid var(--sl-color-hairline, #e2e8f0);
+    flex-wrap: wrap;
+  }
+  .rb-tab-btn {
+    padding: 0.4rem 0.8rem;
+    background: transparent;
+    border: none;
+    border-bottom: 2px solid transparent;
+    color: var(--sl-color-gray-3, #64748b);
+    font-weight: 500;
+    cursor: pointer;
+    font-size: 0.95rem;
+  }
+  .rb-tab-btn:hover {
+    color: var(--sl-color-text, #1e293b);
+  }
+  .rb-tab-btn.active {
+    color: var(--sl-color-accent, #6366f1);
+    border-bottom-color: var(--sl-color-accent, #6366f1);
+  }
+
+  .rb-seq h3 {
+    margin: 1.5rem 0 0.5rem;
+    font-size: 1.15rem;
+  }
+  .rb-card {
+    padding: 0.75rem 1rem;
+    margin: 0.5rem 0;
+    border-radius: 8px;
+    background: var(--sl-color-bg-inline-code, rgba(255, 255, 255, 0.05));
+    border: 1px solid var(--sl-color-hairline, rgba(255, 255, 255, 0.1));
+  }
+  .rb-card header {
+    display: flex;
+    gap: 0.5rem;
+    align-items: baseline;
+    flex-wrap: wrap;
+  }
+  .rb-ch {
+    font-variant-numeric: tabular-nums;
+    color: var(--sl-color-gray-3, #64748b);
+    font-size: 0.85rem;
+  }
+  .rb-event {
+    margin-top: 0.4rem !important;
+  }
+  .rb-meta {
+    color: var(--sl-color-gray-3, #64748b);
+  }
+  .rb-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.3rem;
+  }
+  .rb-chip {
+    padding: 0 0.5rem;
+    border-radius: 999px;
+    font-size: 0.8rem;
+    background: var(--sl-color-gray-5, #e2e8f0);
+    color: var(--sl-color-text, #1e293b);
+  }
+  .rb-chip-ref {
+    background: transparent;
+    border: 1px dashed var(--sl-color-hairline, #cbd5e1);
+    color: var(--sl-color-gray-3, #64748b);
+  }
+  .rb-custody {
+    margin-top: 0.4rem !important;
+  }
+  .rb-text + .rb-text {
+    margin-top: 0.6rem !important;
+  }
+
+  .rb-chars {
+    display: grid;
+    grid-template-columns: minmax(9rem, 12rem) 1fr;
+    gap: 1.5rem;
+  }
+  @media (max-width: 640px) {
+    .rb-chars {
+      grid-template-columns: 1fr;
+    }
+  }
+  .rb-char-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+  }
+  @media (max-width: 640px) {
+    .rb-char-list {
+      flex-direction: row;
+      flex-wrap: wrap;
+    }
+  }
+  .rb-char-list button {
+    text-align: left;
+    padding: 0.3rem 0.6rem;
+    border-radius: 6px;
+    background: transparent;
+    border: none;
+    color: var(--sl-color-gray-3, #64748b);
+    cursor: pointer;
+  }
+  .rb-char-list button:hover {
+    color: var(--sl-color-text, #1e293b);
+  }
+  .rb-char-list button.active {
+    background: var(--sl-color-accent-low, rgba(99, 102, 241, 0.15));
+    color: var(--sl-color-accent, #6366f1);
+    font-weight: 600;
+  }
+  .rb-char h3 {
+    margin-top: 0;
+  }
+  .rb-char h4 {
+    margin: 1.25rem 0 0.5rem;
+  }
+
+  .rb-strip {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 3px;
+  }
+  .rb-cell {
+    width: 1.9rem;
+    height: 1.9rem;
+    display: grid;
+    place-items: center;
+    border-radius: 4px;
+    font-size: 0.7rem;
+    font-variant-numeric: tabular-nums;
+    color: #ffffff;
+  }
+  .rb-cell[data-empty='true'] {
+    background: transparent;
+    border: 1px dashed var(--sl-color-hairline, #cbd5e1);
+    color: var(--sl-color-gray-4, #94a3b8);
+  }
+  .reg-public {
+    background: #059669;
+  }
+  .reg-private {
+    background: #4f46e5;
+  }
+  .reg-under-pressure {
+    background: #dc2626;
+  }
+  .reg-other {
+    background: #4b5563;
+  }
+  .reg-empty {
+    border: 1px dashed var(--sl-color-hairline, #cbd5e1);
+  }
+  .rb-legend {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+    flex-wrap: wrap;
+    margin-top: 0.5rem !important;
+    color: var(--sl-color-gray-3, #64748b);
+  }
+  .rb-key {
+    display: inline-block;
+    width: 0.8rem;
+    height: 0.8rem;
+    border-radius: 2px;
+    margin-left: 0.5rem;
+  }
+
+  .rb-chain {
+    padding-left: 1.2rem;
+    margin: 0.5rem 0 0;
+  }
+  .rb-chain li {
+    margin: 0.4rem 0;
+  }
+  .rb-source {
+    margin-top: 2rem !important;
+    padding-top: 1rem;
+    border-top: 1px solid var(--sl-color-hairline, #e2e8f0);
+  }
+</style>

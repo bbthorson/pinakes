@@ -1,9 +1,7 @@
 name: docs
 
-# Builds the VitePress site from docs/ and deploys it to GitHub Pages
-# (bbthorson.github.io/pinakes). Pull requests build without deploying, so a
-# dead link fails the PR instead of the next deploy: VitePress refuses to
-# build with one. Pages must be set to deploy from "GitHub Actions" in the
+# Builds the Astro Starlight site from docs/ and deploys it to GitHub Pages
+# (bbthorson.github.io/pinakes). Pages must be set to deploy from "GitHub Actions" in the
 # repository settings.
 
 on:
@@ -48,7 +46,7 @@ jobs:
       - uses: actions/upload-pages-artifact@v5
         if: github.event_name != 'pull_request'
         with:
-          path: docs/.vitepress/dist
+          path: docs/dist
 
   deploy:
     if: github.event_name != 'pull_request'

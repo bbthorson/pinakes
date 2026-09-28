@@ -1,4 +1,6 @@
-# `pinakes compile`
+---
+title: "pinakes compile"
+---
 
 Extracts and translates your story files, locations, and character profiles into AT Protocol-compliant JSON records using namespaced Lexicons.
 

@@ -1,4 +1,6 @@
-# Concepts
+---
+title: "Concepts"
+---
 
 ## The historical inspiration
 

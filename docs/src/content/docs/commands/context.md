@@ -1,4 +1,6 @@
-# `pinakes context`
+---
+title: "pinakes context"
+---
 
 Assembles what one character can see on one story date: the input for drafting
 anything in their voice, whether the drafter is an author or a model.

@@ -1,4 +1,6 @@
-# Keystatic CMS Integration
+---
+title: "Keystatic CMS Integration"
+---
 
 Pinakes can be paired with [Keystatic](https://keystatic.com/) to provide a visual, distraction-free editing interface for authors while preserving Pinakes' file-based continuity linting and AT Protocol record compilation.
 

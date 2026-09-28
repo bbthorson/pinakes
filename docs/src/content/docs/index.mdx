@@ -1,0 +1,47 @@
+---
+title: Pinakes
+description: A continuity linter and AT Protocol record compiler for fiction
+template: splash
+hero:
+  tagline: A linter for the facts of your story, and a compiler from prose to AT Protocol records.
+  actions:
+    - text: Get started
+      link: /pinakes/getting-started/
+      icon: right-arrow
+      variant: primary
+    - text: Concepts
+      link: /pinakes/concepts/
+      variant: secondary
+    - text: Try the demo
+      link: /pinakes/demo/
+      variant: secondary
+    - text: GitHub
+      link: https://github.com/bbthorson/pinakes
+      icon: external
+      variant: minimal
+---
+
+import { Card, CardGrid } from '@astrojs/starlight/components';
+
+<CardGrid stagger>
+  <Card title="Prose is the source of truth" icon="pencil">
+    Pinakes runs downstream of the writing. When a finished chapter contradicts the codex, the chapter wins and the codex is what gets updated.
+    <br /><br />
+    <a href="/pinakes/concepts/">Read concepts &rarr;</a>
+  </Card>
+  <Card title="Continuity in CI" icon="approve-check">
+    <code>pinakes lint</code> catches retrogressing timelines, a character in two places at once, dropped item hand-offs, and names the codex doesn't know.
+    <br /><br />
+    <a href="/pinakes/commands/lint/">Read lint command &rarr;</a>
+  </Card>
+  <Card title="Records with a contract" icon="document">
+    <code>pinakes compile</code> turns chapters and the codex into AT Protocol records, validated against Lexicon schemas it writes for your universe.
+    <br /><br />
+    <a href="/pinakes/commands/compile/">Read compile command &rarr;</a>
+  </Card>
+  <Card title="Context that looks backward" icon="magnifier">
+    <code>pinakes context</code> assembles what one character can see on one story date, withholding anything from chapters that haven't happened yet.
+    <br /><br />
+    <a href="/pinakes/commands/context/">Read context command &rarr;</a>
+  </Card>
+</CardGrid>

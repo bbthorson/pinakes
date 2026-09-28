@@ -1,4 +1,6 @@
-# `pinakes lint`
+---
+title: "pinakes lint"
+---
 
 Scans the creative layers of your project, parses chapter frontmatter, resolves names against the codex registry, and checks for timeline or co-presence violations.
 

@@ -1,4 +1,6 @@
-# Using Pinakes as a library
+---
+title: "Using Pinakes as a library"
+---
 
 The commands are also exported as functions, for editor plugins, sites, and
 build scripts. They return what the CLI would print instead of printing it,

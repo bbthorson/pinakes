@@ -47,7 +47,7 @@ cd cli && npm ci && npm test
 
 Edit this README, not `cli/README.md`: the build regenerates that copy (the one npm shows) from this file, with links made absolute. Conventions for working in the code, for people and coding agents alike, are in [`CLAUDE.md`](https://github.com/bbthorson/pinakes/blob/main/CLAUDE.md).
 
-The documentation site is built from `docs/` with VitePress:
+The documentation site is built from `docs/` with Astro Starlight:
 
 ```sh
 cd docs && npm ci && npm run dev

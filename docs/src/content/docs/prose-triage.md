@@ -1,4 +1,6 @@
-# Prose triage
+---
+title: "Prose triage"
+---
 
 `pinakes prose-check` is the mechanical half of the AI-tells pass. It counts
 things. It does not decide anything.

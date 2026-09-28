@@ -3,15 +3,20 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "vitepress dev",
-    "build": "vitepress build",
-    "preview": "vitepress preview",
+    "dev": "astro dev",
+    "build": "astro build",
+    "preview": "astro preview",
     "sync-demo": "node scripts/sync-demo.mjs"
   },
   "engines": {
     "node": ">=22"
   },
+  "dependencies": {
+    "@astrojs/starlight": "^0.42.4",
+    "astro": "^7.2.10"
+  },
   "devDependencies": {
-    "vitepress": "^1.6.4"
+    "@types/node": "^20.11.0",
+    "typescript": "^5.7.0"
   }
 }

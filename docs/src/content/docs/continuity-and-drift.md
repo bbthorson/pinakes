@@ -1,4 +1,6 @@
-# Continuity and drift
+---
+title: "Continuity and drift"
+---
 
 Two different failure modes, two different mechanisms.
 

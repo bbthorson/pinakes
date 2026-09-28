@@ -1,4 +1,6 @@
-# Record types
+---
+title: "Record types"
+---
 
 `pinakes compile` emits eight record types and writes a Lexicon document for each
 one. This guide covers what they are, why the set is shaped this way, and where

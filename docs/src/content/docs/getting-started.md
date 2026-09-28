@@ -1,4 +1,6 @@
-# Getting started
+---
+title: "Getting started"
+---
 
 Pinakes is built in TypeScript on Node 22 or later. It uses the
 `unified`/`remark` Markdown parser and the official AT Protocol SDKs.
