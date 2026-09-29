@@ -1,0 +1,88 @@
+---
+import Base from '../layouts/Base.astro';
+import { getCollection } from 'astro:content';
+
+const allChapters = await getCollection('chapters');
+const chapters = allChapters.sort((a, b) => a.data.chapter - b.data.chapter);
+---
+
+<Base title="Table of Contents">
+  <section class="menu-intro">
+    <h1>Table of Contents</h1>
+    <p class="subtitle">Book 1</p>
+  </section>
+
+  <ol class="chapter-list">
+    {chapters.map((ch) => (
+      <li class="chapter-item">
+        <a href={`/books/book1/read/${ch.data.chapter}`} class="chapter-link">
+          <span class="chapter-num">Chapter {ch.data.chapter}</span>
+          <span class="chapter-name">{ch.data.title}</span>
+          {ch.data.day && <span class="chapter-day">{ch.data.day}</span>}
+        </a>
+      </li>
+    ))}
+  </ol>
+
+  {chapters.length === 0 && (
+    <p class="empty-notice">No chapters found yet. Draft your first chapter in Keystatic or in <code>stories/</code>!</p>
+  )}
+</Base>
+
+<style>
+  .menu-intro {
+    margin-bottom: 2rem;
+  }
+  .menu-intro h1 {
+    margin: 0;
+    font-size: 2.5rem;
+  }
+  .subtitle {
+    color: var(--color-text-muted);
+    font-family: var(--font-sans);
+    margin-top: 0.25rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    font-size: 0.9rem;
+  }
+  .chapter-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+  }
+  .chapter-item {
+    border-bottom: 1px solid var(--color-border);
+  }
+  .chapter-link {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    padding: 1rem 0;
+    color: var(--color-text);
+  }
+  .chapter-link:hover {
+    color: var(--color-accent);
+    text-decoration: none;
+  }
+  .chapter-num {
+    font-family: var(--font-sans);
+    font-size: 0.9rem;
+    color: var(--color-text-muted);
+    min-width: 6rem;
+  }
+  .chapter-name {
+    flex-grow: 1;
+    font-size: 1.25rem;
+    font-weight: 500;
+  }
+  .chapter-day {
+    font-family: var(--font-sans);
+    font-size: 0.85rem;
+    color: var(--color-text-muted);
+  }
+  .empty-notice {
+    color: var(--color-text-muted);
+    font-style: italic;
+    padding: 2rem 0;
+  }
+</style>

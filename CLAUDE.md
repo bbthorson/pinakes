@@ -16,8 +16,8 @@ authors; this file covers working on the code.
   only type-checks them.
 - `template/` — the starter universe `pinakes init` copies. The build copies it
   into `cli/dist/template/`; edit `template/`, not the copy.
-- `docs/` — the documentation site (VitePress, deployed to GitHub Pages by
-  `docs.yml`): getting started, one page per command in `docs/commands/`, the
+- `docs/` — the documentation site (Astro Starlight, deployed to GitHub Pages by
+  `docs.yml`): getting started, one page per command in `docs/src/content/docs/commands/`, the
   library API, and the long-form guides. `.claude/skills/` holds the story-authoring
   skills (canon-check, plot-suggest, story-audit) for use inside a universe.
 
@@ -46,9 +46,8 @@ npm test        # build, type-check the tests, then run cli/test/**/*.test.ts
   change to what `compile` emits, rebuild the CLI and run
   `cd docs && npm run sync-demo -- <path-to-supper_club_secrets>` to regenerate
   `docs/public/demo/records.json`, and commit it.
-- **Keep the docs site building.** `cd docs && npm ci && npm run build` fails
-  on a dead link. A new page also needs an entry in the sidebar in
-  `docs/.vitepress/config.mts`.
+- **Keep the docs site building.** `cd docs && npm ci && npm run build`. A new page also needs an entry in the sidebar in
+  `docs/astro.config.mjs`.
 - Publishing is manual (the `Publish` workflow). Bump the version in
   `cli/package.json` first; the workflow refuses to republish a version.
 

@@ -1,0 +1,61 @@
+---
+import Base from '../../layouts/Base.astro';
+import fs from 'node:fs';
+import path from 'node:path';
+
+// Load compiled character profiles if available, or empty list
+let characters: any[] = [];
+try {
+  const profilesPath = path.resolve('../records/series/character_profiles.json');
+  if (fs.existsSync(profilesPath)) {
+    characters = JSON.parse(fs.readFileSync(profilesPath, 'utf8'));
+  }
+} catch {}
+---
+
+<Base title="Cast of Characters">
+  <h1>Cast of Characters</h1>
+  
+  <div class="cast-grid">
+    {characters.map((char) => (
+      <article class="card char-card">
+        <h2>{char.displayName || char.name}</h2>
+        {char.handle && <p class="char-handle">@{char.handle}</p>}
+        {char.description && <p class="char-bio">{char.description}</p>}
+      </article>
+    ))}
+  </div>
+
+  {characters.length === 0 && (
+    <p class="empty-notice">No compiled character profiles found yet. Run <code>pinakes compile</code> to generate records.</p>
+  )}
+</Base>
+
+<style>
+  .cast-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(18rem, 1fr));
+    gap: 1.5rem;
+    margin-top: 1.5rem;
+  }
+  .char-card h2 {
+    margin: 0;
+    font-size: 1.35rem;
+  }
+  .char-handle {
+    font-family: var(--font-mono);
+    color: var(--color-accent);
+    font-size: 0.85rem;
+    margin: 0.25rem 0 0.5rem;
+  }
+  .char-bio {
+    font-size: 0.95rem;
+    color: var(--color-text-muted);
+    margin: 0;
+  }
+  .empty-notice {
+    color: var(--color-text-muted);
+    font-style: italic;
+    padding: 2rem 0;
+  }
+</style>

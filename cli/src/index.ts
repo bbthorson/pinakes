@@ -29,6 +29,9 @@ export type {
   RegistryInvalidEntry,
 };
 
+export * from './keystatic/index.js';
+export * from './compiler/affect.js';
+
 /**
  * A loaded universe. Open one when making several calls against the same
  * root, so the config and registry are read once; every function also

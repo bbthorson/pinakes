@@ -1,0 +1,36 @@
+---
+title: Record browser
+tableOfContents: false
+---
+import RecordBrowser from '../../components/RecordBrowser.astro';
+
+A reader-facing surface for [Supper Club Secrets](https://github.com/bbthorson/supper_club_secrets),
+built from nothing but its compiled records. It is what the
+[outward layer](../concepts/#inward-and-outward-layers) is for: `pinakes compile`
+turns chapters and the codex into records, and anything can read them without
+knowing about Pinakes.
+
+Set how far you have read. Scenes, posts, register changes and item hand-offs
+each carry a `chapterRef`, and nothing past your position is shown, so the page
+never spoils what you haven't reached. Characters and places appear once
+something you have read names them.
+
+<RecordBrowser />
+
+## How it's built
+
+The page fetches one file, [`records.json`](/pinakes/demo/records.json), and filters it
+in the browser. `docs/scripts/sync-demo.mjs` produces that file by compiling the
+universe through the [library API](../library/) with `write: false`, so the
+universe's own `records/` directory is never touched.
+
+Two choices a real surface would make too:
+
+* **It never shows a state event's `state`.** That field is the author's full
+  annotation, written by someone who knows the whole book, and it routinely says
+  what the character doesn't know. The browser shows `register` and
+  `registerExpr` only; `pinakes context` withholds `state` by default for the
+  same reason.
+* **The reveal gate is `chapterRef`, not `publishDate`.** A serialized run can
+  release a post before a late reader has earned it. See
+  [`character.post`](../record-types/#character-post) for how the two gates differ.

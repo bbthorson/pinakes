@@ -72,6 +72,7 @@ export function buildLexiconDocs(nsid: string): LexiconDoc[] {
     custodyEvent(nsid),
     post(nsid),
     stretch(nsid),
+    affectEvent(nsid),
   ];
 }
 
@@ -405,6 +406,22 @@ function stretch(ns: string): LexiconDoc {
               minLength: 1,
             },
             supersedes: localId('The previous stretch for this character. Derived by the compiler.'),
+            characterDid: { type: 'string', description: 'AT Protocol DID of the character account.' },
+            coordinates: {
+              type: 'ref',
+              ref: '#affectCoordinates',
+              description: 'Consolidated VAD coordinates scaled to [-100, 100].',
+            },
+            attractorBasin: {
+              type: 'string',
+              description: 'Dynamic attractor basin (e.g. grounded-stoic, hyper-vigilant, depressive-exhaustion).',
+              maxLength: 64,
+            },
+            behavioralDirectives: {
+              type: 'array',
+              description: 'Prompt-injection behavioral constraints for text generation.',
+              items: { type: 'string', maxLength: 200 },
+            },
             status: {
               type: 'string',
               description: 'Whether the author has approved the stretch. Consumers should read only `approved`.',
@@ -414,6 +431,17 @@ function stretch(ns: string): LexiconDoc {
             createdAt: { type: 'string', description: 'Story time (`asOf`) as an RFC3339 datetime.', format: 'datetime' },
             sourceFile: { type: 'string', description: 'Repository-relative stretch path.', maxLength: 1024 },
           },
+        },
+      },
+      affectCoordinates: {
+        type: 'object',
+        description: 'VAD coordinates scaled to [-100, 100].',
+        required: ['valence', 'arousal', 'dominance', 'baselineValence'],
+        properties: {
+          valence: { type: 'integer', minimum: -100, maximum: 100, description: 'Current immediate affect x_t.' },
+          arousal: { type: 'integer', minimum: -100, maximum: 100 },
+          dominance: { type: 'integer', minimum: -100, maximum: 100 },
+          baselineValence: { type: 'integer', minimum: -100, maximum: 100, description: 'Slow-moving homeostatic attractor mu_t.' },
         },
       },
     },
@@ -567,3 +595,76 @@ function custodyEvent(ns: string): LexiconDoc {
     },
   };
 }
+
+function affectEvent(ns: string): LexiconDoc {
+  return {
+    lexicon: 1,
+    id: `${ns}.character.affect.event`,
+    description: "An episodic narrative shock or stimulus that shifts a character's emotional state.",
+    defs: {
+      main: {
+        type: 'record',
+        key: RECORD_KEY,
+        description: 'An episodic affect event record.',
+        record: {
+          type: 'object',
+          required: [
+            'id',
+            'subject',
+            'storyDate',
+            'stimulus',
+            'register',
+            'delta',
+            'chapterRef',
+            'sceneRef',
+            'createdAt',
+            'sourceFile',
+          ],
+          properties: {
+            id: localId('Stable affect event id, e.g. `affect.event.emma.book1.ch11`.'),
+            subject: localId('Registry id of the character this event describes.'),
+            characterDid: { type: 'string', description: 'AT Protocol DID of the character account.' },
+            storyDate: { type: 'string', description: 'In-story date, `YYYY-MM-DD`.', maxLength: 10 },
+            chapterRef: { type: 'string', description: 'Source chapter, e.g. `book1#ch11`.', maxLength: 256 },
+            sceneRef: localId('Scene record this event belongs to.'),
+            stimulus: {
+              type: 'string',
+              description: 'Objective narrative trigger (e.g. "Discovered the stall was empty").',
+              maxLength: 500,
+            },
+            register: {
+              type: 'string',
+              description: "Qualitative register label from the universe's register vocabulary.",
+              maxLength: 128,
+            },
+            delta: {
+              type: 'ref',
+              ref: '#vadDelta',
+              description: 'Normalized instantaneous shift in Valence, Arousal, Dominance [-100 to 100].',
+            },
+            rpe: {
+              type: 'integer',
+              minimum: -200,
+              maximum: 200,
+              description: 'Reward Prediction Error: actual outcome minus expected outcome [-200 to 200].',
+            },
+            createdAt: { type: 'string', description: 'Story time as an RFC3339 datetime.', format: 'datetime' },
+            sourceFile: { type: 'string', description: 'Repository-relative chapter path.', maxLength: 1024 },
+          },
+        },
+      },
+      vadDelta: {
+        type: 'object',
+        description: 'Instantaneous shift in Valence, Arousal, Dominance scaled to [-100, 100].',
+        required: ['valence', 'arousal', 'dominance'],
+        properties: {
+          valence: { type: 'integer', minimum: -100, maximum: 100 },
+          arousal: { type: 'integer', minimum: -100, maximum: 100 },
+          dominance: { type: 'integer', minimum: -100, maximum: 100 },
+        },
+      },
+    },
+  };
+}
+
+

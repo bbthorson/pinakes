@@ -29,6 +29,7 @@ import { Registry } from '../registry/entities.js';
 import { LinterEngine } from '../linter/engine.js';
 import { isCalendarDate } from '../linter/stretches.js';
 import { namesUnendedChapter } from './chapter-refs.js';
+import { formatAffectPromptInjection } from '../compiler/affect.js';
 
 export interface CodexSection {
   heading: string;
@@ -39,6 +40,10 @@ export interface CodexSection {
 export interface ContextBundle {
   character: { id: string; displayName: string };
   asOf: string;
+  affect?: {
+    snapshot?: Record<string, any>;
+    promptBlock?: string;
+  };
   long: {
     frontmatter: Record<string, string>;
     sections: CodexSection[];
@@ -274,11 +279,24 @@ export function buildContext(
     .sort((a, b) => a.storyDate.localeCompare(b.storyDate) || a.id.localeCompare(b.id, undefined, { numeric: true }))
     .map((s) => ({ id: s.id, storyDate: s.storyDate, storyDateEnd: s.storyDateEnd, title: s.title }));
 
+  const affect = latest?.coordinates && latest?.attractorBasin
+    ? {
+        snapshot: latest,
+        promptBlock: formatAffectPromptInjection({
+          coordinates: latest.coordinates,
+          attractorBasin: latest.attractorBasin,
+          openTensions: latest.carrying,
+          behavioralDirectives: latest.behavioralDirectives,
+        }),
+      }
+    : undefined;
+
   return {
     errors: [],
     bundle: {
       character: { id, displayName },
       asOf,
+      affect,
       long: { frontmatter, sections, withheld, configured: codexCfg.include.length > 0 },
       mid: {
         latest,
@@ -332,6 +350,11 @@ export function renderMarkdown(b: ContextBundle): string {
     out.push('_No approved stretch on or before this date._', '');
   }
   if (b.mid.draftsIgnored > 0) out.push(`_${b.mid.draftsIgnored} draft stretch(es) ignored; only approved ones are shown._`, '');
+
+  if (b.affect?.promptBlock) {
+    out.push('## Affect state (generation prompt injection)', '');
+    out.push('```', b.affect.promptBlock, '```', '');
+  }
 
   out.push('## Short tier: right now', '');
   if (b.short.length === 0) {

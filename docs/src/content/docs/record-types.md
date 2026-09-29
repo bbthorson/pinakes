@@ -1,0 +1,521 @@
+---
+title: "Record types"
+---
+
+`pinakes compile` emits eight record types and writes a Lexicon document for each
+one. This guide covers what they are, why the set is shaped this way, and where
+identity fits.
+
+Examples are from [Supper Club Secrets](https://github.com/bbthorson/supper_club_secrets),
+whose `project.nsid` is `com.supperclubsecrets`.
+
+## The nine types
+
+| Record type | Grain | Emitted to | Book 1 count |
+| --- | --- | --- | --- |
+| `<nsid>.character.profile` | One per active character | `records/series/character_profiles.json` | 13 |
+| `<nsid>.character.stateEvent` | One per character per chapter they appear in | `records/<book>/character_state_events.json` | 97 |
+| `<nsid>.character.affect.event` | One per character per chapter register shift | `records/<book>/character_affect_events.json` | 97 |
+| `<nsid>.scene` | One per chapter | `records/<book>/scenes.json` | 25 |
+| `<nsid>.place` | One per location | `records/series/places.json` | 14 |
+| `<nsid>.item` | One per tracked object | `records/series/items.json` | 1 |
+| `<nsid>.custodyEvent` | One per hand-off | `records/<book>/custody_events.json` | 3 |
+| `<nsid>.character.post` | One per authored post | `records/<book>/character_posts.json` | 0 |
+| `<nsid>.character.stretch` | One per character per stretch (decorated with affect coordinates & attractor basin) | `records/<book>/character_stretches.json` | 6 |
+
+Seven of the nine are projected out of finished prose and codex files. `character.post` and
+`character.stretch` are authored, and each compiles into corresponding AT Protocol streams. `character.stretch` acts as the mid-tier consolidated affect snapshot, decorated with continuous VAD coordinates, dynamic attractor basin, and prompt constraints.
+
+Three are series-wide and five are per-book. That split is not cosmetic: a
+character's identity and a location's description are properties of the
+universe, while what happened and how someone felt are properties of a
+particular story inside it. Book 2 will add
+`records/book2/scenes.json` without touching `records/series/`.
+
+## Why these six are projected
+
+The six extracted types decompose a character-driven narrative along the two
+axes that actually have to stay continuous.
+
+**Who and where are stable.** `character.profile` and `place` are the standing
+cast and the standing set. They change slowly, between books rather than between
+chapters, and they are what a reader-facing surface renders a character page or
+a location page from.
+
+**What and how are events.** `scene`, `character.stateEvent`, and
+`custodyEvent` are dated, append-only, and ordered by story time. They are the
+stream.
+
+The same split runs through objects: `item` is the standing prop, `custodyEvent`
+is where it went.
+
+The reason there is a separate `stateEvent` type at all — rather than a
+`currentRegister` field on the profile — is the whole modelling argument. In
+character-driven fiction, the interesting fact is never "Emma is guarded"; it is
+"Emma was guarded in chapter 3 and open by chapter 14, and here is the scene
+where it turned." A field holds the former. Only a stream holds the latter.
+
+Book 1's 97 state events against 13 profiles is what that looks like in
+practice: roughly four register annotations per chapter, each one a dated point
+on some character's line.
+
+### A scene is not a chapter
+
+`scene` records are *projected from* chapters, not equal to them. The record
+carries `chapterRefs` as an array and `storyDate`/`storyDateEnd` as a span,
+because the intended grain is the dated beat.
+
+Today the compiler emits exactly one scene per chapter, so `chapterRefs` always
+has one element — but a reader-facing surface should not assume that. Supper
+Club Secrets' site already works around the mismatch by bucketing scenes by
+story date at build time, since chapters 1 through 5 all happen on
+2026-10-04 and share one dated beat.
+
+## What each record carries
+
+### `character.profile`
+
+The public-facing identity of a character. One is emitted for every registry
+entry with `type: character` **and** `status: active` — a character with
+`status: referenced` or `status: future` is resolvable in the registry but
+never published.
+
+```json
+{
+  "$type": "com.supperclubsecrets.character.profile",
+  "id": "profile.emma",
+  "subject": "char.emma",
+  "displayName": "Emma Hartley",
+  "handle": "emmacooks",
+  "did": "did:plc:b4xqf5g2j52z3y7mcnk6jtms",
+  "oneLine": "A grounded and creative chef with a bubbly, optimistic energy, who is learning to trust her intuition.",
+  "status": "active",
+  "sourceFile": "codex/characters/emma.md"
+}
+```
+
+`id` is the record's own identity; `subject` is the registry id it describes.
+They are separate because other record types point at `subject` — a state event
+names `char.emma`, not `profile.emma` — which keeps the character's identity
+independent of any one record about them.
+
+`description` and `oneLine` are both one-liners and both optional.
+`description` is authored deliberately in the codex file's frontmatter;
+`oneLine` is scraped from the first line under the file's `## Overview` heading.
+A surface should read `description` and fall back to `oneLine`.
+
+That fallback matters more than it looks. Overview prose is written for the
+*author*, and in Supper Club Secrets the supporting cast's Overview lines give
+away the ending. Its site deliberately does not render `oneLine` publicly, and
+sources reader-facing copy from the codex instead. If you publish character
+profiles, decide which of those two fields is the public one before you ship,
+not after.
+
+### `character.stateEvent`
+
+One register annotation, at one point in story time.
+
+```json
+{
+  "$type": "com.supperclubsecrets.character.stateEvent",
+  "id": "stateEvent.brenda-marquez.book1.ch10",
+  "subject": "char.brenda-marquez",
+  "storyDate": "2026-10-09",
+  "register": "public",
+  "registerExpr": "public → private",
+  "state": "public → private (recognizes the LLC; warns Jasper)",
+  "chapterRef": "book1#ch10",
+  "sceneRef": "scene.book1.ch10",
+  "createdAt": "2026-10-09T00:00:00.000Z",
+  "sourceFile": "stories/01. The Case of the Missing Hot Sauce/chapters/m2_10_loose_lips.md"
+}
+```
+
+Three fields hold the same annotation at three levels of fidelity, on purpose:
+
+- **`state`** is the author's line, verbatim. Never lossy, never machine-friendly.
+- **`registerExpr`** is the annotation with every parenthetical note stripped —
+  present only when it encodes a transition (`public → private`). A note on
+  the first step does not hide the transition:
+  `under-pressure (hyperdrive) → private (the confide)` gives
+  `under-pressure → private`. A chapter
+  where the character simply *is* somewhere omits it.
+- **`register`** is the first term alone (`public`). This is the queryable one:
+  group by it, colour a timeline by it, filter a feed on it.
+
+Records are sorted by subject, then story date, then chapter — so the file reads
+as one character's line at a time.
+
+### `scene`
+
+A dated beat, with its cast and its places resolved to ids.
+
+```json
+{
+  "$type": "com.supperclubsecrets.scene",
+  "id": "scene.book1.ch1",
+  "storyDate": "2026-10-04",
+  "chapterRefs": ["book1#ch1"],
+  "title": "The Missing Hot Sauce",
+  "sequence": 1,
+  "beat": "Opening Image / Theme Stated",
+  "placeRefs": ["place.mcgolrick-market", "place.emmas-apartment"],
+  "pov": "char.emma",
+  "participants": ["char.emma", "char.dorothy"],
+  "referenced": ["char.hank"],
+  "primaryEvent": "Open on the empty stall and Dorothy's 'just in case' bottle — the loss that makes the mystery personal, and the theme that a community protects its own.",
+  "createdAt": "2026-10-04T00:00:00.000Z",
+  "sourceFile": "stories/01. The Case of the Missing Hot Sauce/chapters/m1_01_the_missing_hot_sauce.md"
+}
+```
+
+`participants` and `referenced` are kept apart because the distinction is load
+bearing for continuity. Present-in-the-room is what the co-presence check reasons
+over; mentioned-by-someone is not. Collapsing them would make every character
+discussed at a dinner party physically present at it.
+
+`placeRefs` holds resolved registry ids. `placeText` holds location names that
+resolved to nothing but are listed in `non_entities.yaml` — a road-stop diner, a
+montage descriptor — kept as prose so the information survives without inventing
+a place record for a one-off.
+
+`sequence` is the configurable middle tier between book and chapter. Supper Club
+Secrets sets `sequenceField: "meal"` in `pinakes.yaml`, so its chapters carry
+`meal: 2` and the record carries `sequence: 2`. Another universe names it an
+arc, a case, or a session. The record field is always `sequence`, which is what
+lets a consumer read any Pinakes universe without knowing its vocabulary.
+
+### `place`
+
+```json
+{
+  "$type": "com.supperclubsecrets.place",
+  "id": "place.elijahs-apartment",
+  "name": "Elijah's Apartment",
+  "description": "Elijah's quiet, orderly one-bedroom in Bed-Stuy; appears in Ch8, but the group has never been inside — a deliberate seed for the Book 6 hosting payoff.",
+  "tags": ["location", "brooklyn", "book1", "elijah"],
+  "status": "story-specific",
+  "firstAppearance": "Book 1, Chapter 8",
+  "sourceFile": "codex/locations/elijahs-apartment.md"
+}
+```
+
+`kind` — what sort of place this is — comes from a `**Type:** Weekly farmers market`
+line in the file's *body*, not from frontmatter, because frontmatter `type:` is
+already taken by the knowledge-graph document type and is always `Location`.
+
+`schedule` is a nested object (`days`, `hours`, `note`). It is the one piece of
+the place model that exists for continuity rather than for display: a location
+with a hard operating rule is a constraint on where characters can be. Supper
+Club Secrets' McGolrick market is Sunday-only, year-round, and that rule is what
+makes a midweek scene there read as an empty green rather than a market. Nothing
+in the linter enforces schedules today — it is carried for the surfaces and for
+the author.
+
+### `character.post`
+
+The one type that is authored rather than projected. Every other record is
+extracted from finished prose and therefore cannot contradict it. A post is new
+in-world content written *as* the character, which makes it canon-bearing and
+puts it under the same review the prose gets.
+
+Posts live in `posts/` beside a story's `chapters/`, one file per post:
+frontmatter carries the anchors, the body is the text.
+
+```markdown
+---
+author: "Emma"
+date: "2026-10-04"
+time: "evening"
+chapter: 4
+location: "Emma's Apartment"
+mentions: ["Olivia", "Jasper"]
+---
+six people, one pot of squash soup, zero agreement on what's missing from it.
+```
+
+compiles to:
+
+```json
+{
+  "$type": "com.supperclubsecrets.character.post",
+  "id": "post.book1.ch4.emma.1",
+  "author": "char.emma",
+  "text": "six people, one pot of squash soup, zero agreement on what's missing from it.",
+  "storyDate": "2026-10-04",
+  "storyTime": "evening",
+  "chapterRef": "book1#ch4",
+  "mentions": ["char.olivia", "char.jasper"],
+  "placeRef": "place.emmas-apartment",
+  "createdAt": "2026-10-04T00:00:00.000Z",
+  "sourceFile": "stories/01. .../posts/2026-10-04-emma-01.md"
+}
+```
+
+One file per post rather than one per character. Each post is dated, gated and
+reviewed on its own, and a file holding twenty of them hides which one a diff
+touched — the same reason chapters are not one file per book. Files are read in
+filename order and sequence numbers are assigned per `(chapter, author)`, so
+`emma.2` is Emma's second post in chapter 4 and adding a post for one character
+never renumbers another's.
+
+`author` must resolve through the registry, like any other character reference.
+An unresolvable author is an error and the post is not emitted, rather than a
+record being written with a dangling name.
+
+**Two fields are gates, and they answer different questions.**
+
+- `publishDate` is the **release** gate: whether the post exists yet. Absent
+  means released.
+- `chapterRef` is the **reveal** gate: whether a given reader has earned it,
+  resolved against whatever reading position the consuming surface keeps.
+
+During a live serialized run the two coincide, because everyone is reading
+along. They diverge the moment the run ends and a new reader starts at chapter
+one. That is why `chapterRef` is required: a post with no reveal gate cannot be
+shown safely to a reader who arrived late.
+
+Nothing in Pinakes decides *what* a character may say. That is a judgment pass,
+and a universe whose plot turns on information discipline will want a rule about
+which posts are safe to write at all — see
+[Continuity and drift](continuity-and-drift.md) for where such a check belongs.
+
+### `character.stretch`
+
+The mid tier of character state. A `stateEvent` says how a character is in one
+scene; a `profile` says who they are across the series. A stretch sits between
+them: how the character would describe the last few weeks, written from one
+story date (`asOf`) and looking only backward from it.
+
+**Every tier looks backward.** A character knows what has happened to them and
+not what the author has planned, so a stretch may cite only sources that have
+*ended* by its `asOf`. That is the rule `lint` enforces hardest.
+
+Stretches live in `stretches/<character-slug>/<asOf>.md` beside a story's
+`chapters/`, nested one level so a character's stretches read together:
+
+```markdown
+---
+character: Jasper
+asOf: "2026-10-02"
+since: "2026-08-11"
+register: public
+status: approved
+carrying:
+  - "Patrice's patience, spent once already"
+sources:
+  - profile.jasper
+  - post.book1.ch0.jasper.1
+note: >-
+  Authoring direction. Never compiled.
+---
+
+August was the scaffolding. Five days, three calls, …
+```
+
+compiles to:
+
+```json
+{
+  "$type": "com.supperclubsecrets.character.stretch",
+  "id": "stretch.jasper.book1.2026-10-02",
+  "subject": "char.jasper",
+  "asOf": "2026-10-02",
+  "since": "2026-08-11",
+  "register": "public",
+  "state": "August was the scaffolding. Five days, three calls, …",
+  "carrying": ["Patrice's patience, spent once already"],
+  "sources": ["profile.jasper", "post.book1.ch0.jasper.1"],
+  "status": "approved",
+  "createdAt": "2026-10-02T00:00:00.000Z",
+  "sourceFile": "stories/01. .../stretches/jasper/2026-10-02.md"
+}
+```
+
+- **`supersedes` is derived, never authored.** The compiler links each stretch
+  to the one before it for the same character, across books, so the chain
+  cannot be written wrong. A character's first stretch has none.
+- **`status` is `draft` or `approved`.** Consumers should read only `approved`.
+- **`sources` is required** and each entry must be a compiled record id: a post,
+  state event, scene, custody event, profile, place, or item. Profiles, places
+  and items are undated long-tier material, citable at any date.
+- **The body is the record's `state`.** `note` is authoring direction and is
+  never read, as with posts.
+
+A story gets `character_stretches.json` only if it has a `stretches/`
+directory, so a universe that never writes one is unaffected.
+
+## The Lexicon documents
+
+Every compile writes the universe's own Lexicon documents alongside its records:
+
+```
+records/lexicons/
+├── com.supperclubsecrets.scene.json
+├── com.supperclubsecrets.character.stateEvent.json
+├── com.supperclubsecrets.character.profile.json
+├── com.supperclubsecrets.place.json
+├── com.supperclubsecrets.item.json
+├── com.supperclubsecrets.custodyEvent.json
+├── com.supperclubsecrets.character.post.json
+└── com.supperclubsecrets.character.stretch.json
+```
+
+These are ordinary AT Protocol Lexicon JSON documents. They are generated rather
+than checked in as fixtures because the NSID authority comes from your
+`pinakes.yaml` — one universe publishes `com.supperclubsecrets.scene`, another
+publishes `com.example.scene`, and the schema is otherwise identical.
+
+**Commit this directory.** It is the portable contract for your universe:
+anything that consumes your records can read the schemas without depending on
+Pinakes, and `@atproto/lex` can install them directly.
+
+Two properties of the AT Protocol data model are worth internalising before you
+write a consumer, because Pinakes enforces both:
+
+- **There is no null.** An optional field with no value is *omitted*. Read
+  `record.pov ?? fallback`, never `record.pov !== null`.
+- **`createdAt` is story time**, not compile time — midnight UTC on the record's
+  `storyDate`. If it were the wall clock, every recompile would reorder the
+  stream. Wall-clock authoring time is not a property of the narrative and is
+  not recorded anywhere.
+
+Record keys are `any` rather than `tid` for every type, because a record's
+identity is its stable story coordinate (`scene.book1.ch1`) rather than its
+creation order. Recompiling a book does not renumber anything.
+
+## Identity: today, and identity later
+
+The identity model shipped today is **local ids in a committed registry**.
+`codex/entities.yaml` maps every surface form a name appears as onto a permanent
+id:
+
+```yaml
+- id: char.emma
+  type: character
+  displayName: Emma Hartley
+  aliases: ["Emma", "Emma Hartley"]
+  sourceFile: codex/characters/emma.md
+  status: active
+  did: did:plc:b4xqf5g2j52z3y7mcnk6jtms
+  handle: emmacooks
+```
+
+Ids are permanent — `char.emma` survives a rename of the character or the file —
+and `aliases` is what makes resolution work, so it has to list every form used
+in prose *and* in frontmatter. Supper Club Secrets registers "the mogul" and
+"the developer" as aliases of `char.garrett-pike` because both appear as
+pre-naming epithets.
+
+On top of those ids, a character's registry entry can name its **account**,
+which its profile carries:
+
+- `did`, the account's DID: `did:plc:…` or `did:web:emma.supperclub.site`, and
+- `handle`, the account's handle without its domain: `emmacooks` for
+  `emmacooks.supperclubsecrets.com`, with any leading `@` stripped.
+
+On atproto the two are one identity (the DID document names the handle, and the
+handle resolves back to the DID), so they live together on the registry entry,
+beside the id they belong to, and nowhere else. A `did` or `handle` in codex
+frontmatter is an error (`did-in-codex`, `handle-in-codex`) rather than a
+fallback, so a universe never has two accounts for one character that could
+disagree.
+
+Pinakes **carries and checks** an account; it never mints, registers or
+resolves one. `lint` and `compile` both fail on a DID atproto would reject
+(`invalid-did`), on a handle that is not one DNS label (`invalid-handle`), and
+on a DID or handle two characters claim (`duplicate-did`, `duplicate-handle`),
+but neither goes to the network, so both stay offline and deterministic.
+Whether the handle actually resolves to that DID can only be checked over the
+network, so it belongs to publishing, not to `lint`. Records still reference
+each other by local id (`char.emma`), never by DID, so a character can be given
+an account, or change it, without any other record's id moving.
+
+The `handle` field is deliberately unqualified. The domain a universe's
+accounts live under is a publishing decision, so qualifying `emmacooks` as
+`emmacooks.supperclubsecrets.com` is the consumer's job, which keeps it out of
+every compiled record. A qualified handle in the registry is an
+`invalid-handle` error rather than something to guess about.
+
+Minting and resolving stay out of pinakes deliberately. Local ids are free,
+reversible and testable; a DID requires real accounts and, for `did:web`, a
+domain and DNS. Supper Club Secrets is working through exactly that sequence in its own
+`protocol/SERIALIZED_PUBLISHING.md`.
+
+## `item` and `custodyEvent`
+
+Tracked objects work the same way characters do: a standing record from the
+registry, and a dated stream of what happened to it.
+
+### `item`
+
+One record per registry entry with `type: item` and `status: active` — the same
+registry-driven loop that produces character profiles.
+
+```json
+{
+  "$type": "com.supperclubsecrets.item",
+  "id": "item.heritage-bottle",
+  "displayName": "Heritage Hot Sauce Bottle",
+  "status": "active",
+  "firstAppearance": "book1#ch1"
+}
+```
+
+An item usually has no codex file of its own — a registry entry is the whole of
+it — so `description`, `tags`, and `sourceFile` are all optional and simply
+absent for an item without one. `firstAppearance` is **derived**: it is the
+chapter of the earliest custody event recorded for the item, across every book,
+so it is absent for an item whose custody nothing has recorded yet.
+
+### `custodyEvent`
+
+One record per hand-off, projected from a chapter's `custody:` block. The id is
+`custodyEvent.<item-slug>.<book>.ch<N>`; when one chapter passes the same item
+more than once, the second and later hand-offs get `.2`, `.3`, and so on, so the
+first keeps the bare id.
+
+```json
+{
+  "$type": "com.supperclubsecrets.custodyEvent",
+  "id": "custodyEvent.heritage-bottle.book1.ch17",
+  "item": "item.heritage-bottle",
+  "storyDate": "2026-10-14",
+  "storyDateEnd": "2026-10-16",
+  "holder": "char.jasper",
+  "fromHolder": "char.emma",
+  "event": "Jasper palms the bottle from Emma's counter on his way out, and packs it for the PA journey.",
+  "chapterRef": "book1#ch17",
+  "sceneRef": "scene.book1.ch17",
+  "createdAt": "2026-10-14T00:00:00.000Z",
+  "sourceFile": "stories/01. The Case of the Missing Hot Sauce/chapters/m3_17_sharpening_the_knives.md"
+}
+```
+
+`holder` is who has it *after* the event; `fromHolder` is who had it before, and
+is **omitted** — never null — when the item enters the story here or when the
+prior holder is deliberately unnamed. Records are sorted by item, then story
+date, then chapter, so the file reads as one object's journey at a time.
+
+`sceneRef` ties each hand-off to the scene it happened in, which is what lets a
+reader-facing surface put a clue's movement on the same timeline as everything
+else.
+
+### Why custody is worth modelling separately
+
+For a mystery, custody *is* the plot. Book 1's single tracked object — the
+bottle Dorothy presses on Emma in chapter 1 — moves three times, and each move
+is a beat: it is given, it is taken without asking, it is returned with an
+apology. Three records carry an arc that no amount of prose parsing would
+reliably recover.
+
+It is also the clearest case for deriving records rather than writing them. The
+same three hand-offs were once maintained by hand in this file, and the
+hand-written version had chapter 17 on 2026-10-15; the chapter itself spans
+2026-10-14 to 2026-10-16. The compiler takes the dates from the chapter, so the
+record cannot disagree with the prose it describes.
+
+## Where to go next
+
+- [Prose to records](prose-to-records.md) — the frontmatter that produces all of this
+- [Continuity and drift](continuity-and-drift.md) — what stops it from rotting

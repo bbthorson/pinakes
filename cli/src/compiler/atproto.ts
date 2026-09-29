@@ -8,6 +8,14 @@ import { buildLexiconDocs, compileLexiconDocs, validateRecords, writeLexiconDocs
 import { pruneStale } from './prune.js';
 import { parseRegister } from '../linter/registers.js';
 import { readAccountField, type AccountFieldName } from '../linter/identity.js';
+import {
+  calculateRegisterDelta,
+  classifyAttractorBasin,
+  getBehavioralDirectives,
+  parseAffectTransition,
+  resolveRegisterVad,
+  scaleVad,
+} from './affect.js';
 
 function getBookKey(storyDir: string): string {
   const base = path.basename(storyDir);
@@ -279,6 +287,7 @@ export function compileProject(
 
     const scenes: any[] = [];
     const events: any[] = [];
+    const affectEvents: any[] = [];
     const custodyEvents: any[] = [];
     /** Hand-offs per (item, chapter). The first keeps the bare id; repeats get `.2`, `.3`. */
     const custodySeq = new Map<string, number>();
@@ -406,11 +415,40 @@ export function compileProject(
             sourceFile: ch.relativeFilePath,
           })
         );
+
+        const slug = resolved.id.split('.', 2)[1];
+        const transition = parseAffectTransition(val);
+        const vadDelta = scaleVad(calculateRegisterDelta(transition.fromRegister, transition.toRegister));
+        const stimulus = transition.note || ch.beatPurpose || ch.frontmatter.beat || ch.title || 'Scene stimulus';
+
+        affectEvents.push(
+          compact({
+            $type: `${NS}.character.affect.event`,
+            id: `affect.event.${slug}.${book}.ch${ch.chapterNum}`,
+            subject: resolved.id,
+            characterDid: accountValue(registry.getEntity(resolved.id) ?? {}, 'did'),
+            storyDate,
+            chapterRef: chRef,
+            sceneRef: sceneId,
+            stimulus: text(stimulus),
+            register,
+            delta: vadDelta,
+            rpe: asInteger(ch.frontmatter.rpe) ?? 0,
+            createdAt,
+            sourceFile: ch.relativeFilePath,
+          })
+        );
       }
     }
 
     // Sort events
     events.sort((a, b) => {
+      if (a.subject !== b.subject) return a.subject.localeCompare(b.subject);
+      if (a.storyDate !== b.storyDate) return a.storyDate.localeCompare(b.storyDate);
+      return a.chapterRef.localeCompare(b.chapterRef);
+    });
+
+    affectEvents.sort((a, b) => {
       if (a.subject !== b.subject) return a.subject.localeCompare(b.subject);
       if (a.storyDate !== b.storyDate) return a.storyDate.localeCompare(b.storyDate);
       return a.chapterRef.localeCompare(b.chapterRef);
@@ -510,12 +548,16 @@ export function compileProject(
 
     indexDated(scenes);
     indexDated(events);
+    indexDated(affectEvents);
     indexDated(custodyEvents);
     for (const e of events) registersSeen.add(e.register);
 
     const bookDir = path.join(outputDir, book);
     writeRecords(path.join(bookDir, 'scenes.json'), scenes);
     writeRecords(path.join(bookDir, 'character_state_events.json'), events);
+    if (affectEvents.length > 0) {
+      writeRecords(path.join(bookDir, 'character_affect_events.json'), affectEvents);
+    }
     if (custodyEvents.length > 0) {
       writeRecords(path.join(bookDir, 'custody_events.json'), custodyEvents);
     }
@@ -638,6 +680,13 @@ export function compileProject(
       ? fm.sources.map((c: unknown) => text(c)).filter((c: string | undefined): c is string => Boolean(c))
       : [];
 
+    const regVad = resolveRegisterVad(text(fm.register) ?? 'private');
+    const scaledReg = scaleVad(regVad);
+    const basin = classifyAttractorBasin(regVad);
+    const directives = getBehavioralDirectives(basin);
+    const ent = registry.getEntity(resolved.id);
+    const characterDid = ent ? accountValue(ent, 'did') : undefined;
+
     stretchEntries.push({
       book,
       folder: src.folder,
@@ -647,9 +696,18 @@ export function compileProject(
         $type: `${NS}.character.stretch`,
         id: `stretch.${slug}.${book}.${asOf}`,
         subject: resolved.id,
+        characterDid,
         asOf,
         since: dateText(fm.since) ?? '',
         register: text(fm.register) ?? '',
+        coordinates: {
+          valence: scaledReg.valence,
+          arousal: scaledReg.arousal,
+          dominance: scaledReg.dominance,
+          baselineValence: scaledReg.valence,
+        },
+        attractorBasin: basin,
+        behavioralDirectives: directives,
         state: src.body,
         carrying: present(carrying),
         // Required and never compacted away: an empty list is a Lexicon failure
@@ -687,9 +745,13 @@ export function compileProject(
           $type: r.$type,
           id: r.id,
           subject: r.subject,
+          characterDid: r.characterDid,
           asOf: r.asOf,
           since: r.since,
           register: r.register,
+          coordinates: r.coordinates,
+          attractorBasin: r.attractorBasin,
+          behavioralDirectives: r.behavioralDirectives,
           state: r.state,
           carrying: r.carrying,
           sources: r.sources,

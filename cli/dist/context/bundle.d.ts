@@ -12,6 +12,10 @@ export interface ContextBundle {
         displayName: string;
     };
     asOf: string;
+    affect?: {
+        snapshot?: Record<string, any>;
+        promptBlock?: string;
+    };
     long: {
         frontmatter: Record<string, string>;
         sections: CodexSection[];

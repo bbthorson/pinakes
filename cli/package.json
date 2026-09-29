@@ -9,6 +9,10 @@
       "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
     },
+    "./keystatic": {
+      "types": "./dist/keystatic/index.d.ts",
+      "default": "./dist/keystatic/index.js"
+    },
     "./package.json": "./package.json"
   },
   "bin": {
@@ -22,7 +26,7 @@
     "build": "tsc && node -e \"import('fs').then(fs => { fs.cpSync('../template', './dist/template', { recursive: true }); fs.rmSync('./dist/template/.git', { recursive: true, force: true }); })\" && node scripts/sync-readme.mjs",
     "watch": "tsc -w",
     "start": "node dist/cli.js",
-    "test": "npm run build && tsc -p test && node --test 'test/**/*.test.ts'"
+    "test": "npm run build && tsc -p test && node --experimental-strip-types --test 'test/**/*.test.ts'"
   },
   "dependencies": {
     "@atproto/did": "^0.5.4",
