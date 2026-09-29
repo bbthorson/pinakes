@@ -1,0 +1,63 @@
+---
+import Base from '../../layouts/Base.astro';
+import fs from 'node:fs';
+import path from 'node:path';
+
+// Load compiled places if available
+let places: any[] = [];
+try {
+  const placesPath = path.resolve('../records/series/places.json');
+  if (fs.existsSync(placesPath)) {
+    places = JSON.parse(fs.readFileSync(placesPath, 'utf8'));
+  }
+} catch {}
+---
+
+<Base title="Locations">
+  <h1>Locations</h1>
+  
+  <div class="places-grid">
+    {places.map((place) => (
+      <article class="card place-card">
+        <h2>{place.name}</h2>
+        {place.region && <p class="place-region">{place.region}</p>}
+        {place.description && <p class="place-desc">{place.description}</p>}
+      </article>
+    ))}
+  </div>
+
+  {places.length === 0 && (
+    <p class="empty-notice">No compiled place records found yet. Run <code>pinakes compile</code> to generate records.</p>
+  )}
+</Base>
+
+<style>
+  .places-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(18rem, 1fr));
+    gap: 1.5rem;
+    margin-top: 1.5rem;
+  }
+  .place-card h2 {
+    margin: 0;
+    font-size: 1.35rem;
+  }
+  .place-region {
+    font-family: var(--font-sans);
+    color: var(--color-accent);
+    font-size: 0.85rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin: 0.25rem 0 0.5rem;
+  }
+  .place-desc {
+    font-size: 0.95rem;
+    color: var(--color-text-muted);
+    margin: 0;
+  }
+  .empty-notice {
+    color: var(--color-text-muted);
+    font-style: italic;
+    padding: 2rem 0;
+  }
+</style>

@@ -43,6 +43,7 @@ export declare function postFields(fields: any): {
     character: any;
     date: any;
     time: any;
+    chapter: any;
     replyTo: any;
     tags: any;
     content: any;
@@ -130,6 +131,7 @@ export declare function createPinakesCollections(fields: any, options: PinakesKe
             character: any;
             date: any;
             time: any;
+            chapter: any;
             replyTo: any;
             tags: any;
             content: any;

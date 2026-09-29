@@ -127,6 +127,7 @@ describe('keystatic collections', () => {
       date: (cfg: any) => ({ type: 'date', ...cfg }),
       select: (cfg: any) => ({ type: 'select', ...cfg }),
       array: (item: any, cfg: any) => ({ type: 'array', item, ...cfg }),
+      relationship: (cfg: any) => ({ type: 'relationship', ...cfg }),
       markdoc: (cfg: any) => ({ type: 'markdoc', ...cfg }),
     };
 

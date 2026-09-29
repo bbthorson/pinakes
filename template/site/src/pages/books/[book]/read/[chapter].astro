@@ -1,0 +1,45 @@
+---
+import { getCollection, render } from 'astro:content';
+import ReadingRoom from '../../../../layouts/ReadingRoom.astro';
+import { documentUri } from '../../../../lib/standard-site';
+
+export async function getStaticPaths() {
+  const allChapters = await getCollection('chapters');
+  const chapters = allChapters.sort((a, b) => a.data.chapter - b.data.chapter);
+
+  return chapters.flatMap((entry, i) => {
+    const chNum = entry.data.chapter;
+    const props = {
+      entry,
+      prev: chapters[i - 1]?.data.chapter ?? null,
+      next: chapters[i + 1]?.data.chapter ?? null,
+    };
+    const unpadded = String(chNum);
+    const padded = unpadded.padStart(2, '0');
+    const paths = [{ params: { book: 'book1', chapter: unpadded }, props }];
+    if (padded !== unpadded) {
+      paths.push({ params: { book: 'book1', chapter: padded }, props });
+    }
+    return paths;
+  });
+}
+
+const { entry, prev, next } = Astro.props;
+const { Content } = await render(entry);
+const { chapter, title, date, day, pov } = entry.data;
+const docUri = documentUri('book1', chapter);
+---
+
+<ReadingRoom
+  bookSlug="book1"
+  chapter={chapter}
+  title={title}
+  date={date}
+  day={day}
+  pov={pov}
+  prev={prev}
+  next={next}
+  documentUri={docUri}
+>
+  <Content />
+</ReadingRoom>

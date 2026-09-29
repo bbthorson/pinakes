@@ -1,0 +1,53 @@
+---
+import '../styles/base.css';
+import ThemeToggle from '../components/ThemeToggle.astro';
+
+interface Props {
+  title: string;
+  description?: string;
+  documentUri?: string | null;
+}
+
+const {
+  title,
+  description = 'A Pinakes fiction universe published via standard.site',
+  documentUri,
+} = Astro.props;
+---
+
+<!doctype html>
+<html lang="en" data-theme="day">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{title}</title>
+    <meta name="description" content={description} />
+    
+    <!-- standard.site verification link tag -->
+    {documentUri && <link rel="site.standard.document" href={documentUri} />}
+
+    <!-- Open Graph -->
+    <meta property="og:type" content="article" />
+    <meta property="og:title" content={title} />
+    <meta property="og:description" content={description} />
+  </head>
+  <body>
+    <div class="site-container">
+      <header class="site-header">
+        <a href="/" class="site-title">
+          <span>Universe Reader</span>
+        </a>
+        <nav class="site-nav">
+          <a href="/">Menu</a>
+          <a href="/characters">Cast</a>
+          <a href="/places">Places</a>
+          <ThemeToggle />
+        </nav>
+      </header>
+
+      <main>
+        <slot />
+      </main>
+    </div>
+  </body>
+</html>

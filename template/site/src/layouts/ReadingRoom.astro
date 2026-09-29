@@ -1,0 +1,72 @@
+---
+import Base from './Base.astro';
+
+interface Props {
+  bookSlug?: string;
+  chapter: number;
+  title: string;
+  date?: string;
+  day?: string;
+  pov?: string;
+  prev?: number | null;
+  next?: number | null;
+  documentUri?: string | null;
+}
+
+const {
+  bookSlug = 'book1',
+  chapter,
+  title,
+  date,
+  day,
+  pov,
+  prev,
+  next,
+  documentUri,
+} = Astro.props;
+---
+
+<Base title={`Chapter ${chapter}: ${title}`} documentUri={documentUri}>
+  <article class="reading-room">
+    <div class="chapter-meta">
+      <span>Chapter {chapter}</span>
+      {day && <span> · {day}</span>}
+      {date && <span> · {date}</span>}
+      {pov && <span> · POV {pov}</span>}
+    </div>
+
+    <h1 class="chapter-title">{title}</h1>
+
+    <div class="reading-prose">
+      <slot />
+    </div>
+
+    <nav class="chapter-nav">
+      {prev ? (
+        <a href={`/books/${bookSlug}/read/${prev}`} class="nav-prev">
+          &larr; Chapter {prev}
+        </a>
+      ) : (
+        <span />
+      )}
+
+      {next ? (
+        <a href={`/books/${bookSlug}/read/${next}`} class="nav-next">
+          Chapter {next} &rarr;
+        </a>
+      ) : (
+        <span class="nav-end">The End</span>
+      )}
+    </nav>
+  </article>
+</Base>
+
+<style>
+  .reading-room {
+    margin-top: 1rem;
+  }
+  .nav-end {
+    color: var(--color-text-muted);
+    font-style: italic;
+  }
+</style>

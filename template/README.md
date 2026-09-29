@@ -10,6 +10,7 @@ This is the canonical folder structure and configuration boilerplate for a **Pin
 *   `codex/` — Canonical data sheets for characters, locations, and items, resolved against `entities.yaml`.
 *   `stories/` — Creative drafts and tracking matrices (timeline ledger, subplot threads).
 *   `records/` — Compiled, AT Protocol-compliant JSON records (generated automatically on compile).
+*   `site/` — Astro reader site with `standard.site` publishing and Keystatic CMS pre-configured.
 
 ---
 

@@ -102,6 +102,10 @@ export function postFields(fields: any) {
     time: fields.text({
       label: 'Post Time (e.g. 19:42)',
     }),
+    chapter: fields.relationship({
+      collection: 'chapters',
+      label: 'Story Chapter (Reveal Horizon)',
+    }),
     replyTo: fields.text({
       label: 'Reply To (Post ID or Filename)',
     }),

@@ -1,0 +1,84 @@
+---
+interface Props {
+  author: string;
+  handle?: string;
+  date: string;
+  time?: string;
+  chapter?: number | string;
+  text: string;
+}
+
+const { author, handle, date, time, chapter, text } = Astro.props;
+---
+
+<article class="bsky-post card">
+  <header class="post-header">
+    <div class="avatar">{author.charAt(0)}</div>
+    <div class="author-meta">
+      <span class="author-name">{author}</span>
+      {handle && <span class="author-handle">@{handle}</span>}
+    </div>
+    <div class="post-time">
+      <span>{date} {time || ''}</span>
+      {chapter && <span class="ch-badge">Ch. {chapter}</span>}
+    </div>
+  </header>
+
+  <div class="post-body">
+    <p>{text}</p>
+  </div>
+</article>
+
+<style>
+  .bsky-post {
+    margin: 1.25rem 0;
+    font-family: var(--font-sans);
+    border-left: 3px solid var(--color-accent);
+  }
+  .post-header {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    margin-bottom: 0.75rem;
+  }
+  .avatar {
+    width: 2.25rem;
+    height: 2.25rem;
+    border-radius: 999px;
+    background: var(--color-chip-bg);
+    color: var(--color-text);
+    display: grid;
+    place-items: center;
+    font-weight: 700;
+    font-size: 0.9rem;
+  }
+  .author-meta {
+    display: flex;
+    flex-direction: column;
+    flex-grow: 1;
+  }
+  .author-name {
+    font-weight: 600;
+    font-size: 0.95rem;
+    color: var(--color-text);
+  }
+  .author-handle {
+    font-size: 0.8rem;
+    color: var(--color-text-muted);
+  }
+  .post-time {
+    font-size: 0.8rem;
+    color: var(--color-text-muted);
+    text-align: right;
+  }
+  .ch-badge {
+    display: block;
+    font-size: 0.75rem;
+    color: var(--color-accent);
+  }
+  .post-body p {
+    margin: 0;
+    font-size: 1rem;
+    line-height: 1.5;
+  }
+</style>
