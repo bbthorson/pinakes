@@ -17,6 +17,7 @@ import { buildLexiconDocs } from '../lexicons/index.js';
 export const RECORD_FILES = new Set([
   'scenes.json',
   'character_state_events.json',
+  'character_affect_events.json',
   'custody_events.json',
   'character_posts.json',
   'character_stretches.json',

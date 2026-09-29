@@ -181,6 +181,10 @@ export class Registry {
     return this.nonEntityPrefixes.some(prefix => low.startsWith(prefix));
   }
 
+  public getEntity(id: string): Entity | undefined {
+    return this.allEntities.find((e) => e.id === id);
+  }
+
   public resolve(name: string, expectedType: string): ResolvedEntity | null {
     const norm = this.normalize(name);
     if (!norm) return null;

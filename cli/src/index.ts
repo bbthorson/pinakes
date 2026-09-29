@@ -30,6 +30,7 @@ export type {
 };
 
 export * from './keystatic/index.js';
+export * from './compiler/affect.js';
 
 /**
  * A loaded universe. Open one when making several calls against the same

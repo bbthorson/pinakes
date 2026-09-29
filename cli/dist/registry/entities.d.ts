@@ -85,6 +85,7 @@ export declare class Registry {
     private loadNonEntities;
     normalize(raw: string): string;
     isNonEntity(name: string): boolean;
+    getEntity(id: string): Entity | undefined;
     resolve(name: string, expectedType: string): ResolvedEntity | null;
     /** The ids an alias is ambiguous between for `type`, or `undefined` if it is not. */
     ambiguity(name: string, type: string): string[] | undefined;

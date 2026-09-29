@@ -9,22 +9,22 @@ identity fits.
 Examples are from [Supper Club Secrets](https://github.com/bbthorson/supper_club_secrets),
 whose `project.nsid` is `com.supperclubsecrets`.
 
-## The eight types
+## The nine types
 
 | Record type | Grain | Emitted to | Book 1 count |
 | --- | --- | --- | --- |
 | `<nsid>.character.profile` | One per active character | `records/series/character_profiles.json` | 13 |
 | `<nsid>.character.stateEvent` | One per character per chapter they appear in | `records/<book>/character_state_events.json` | 97 |
+| `<nsid>.character.affect.event` | One per character per chapter register shift | `records/<book>/character_affect_events.json` | 97 |
 | `<nsid>.scene` | One per chapter | `records/<book>/scenes.json` | 25 |
 | `<nsid>.place` | One per location | `records/series/places.json` | 14 |
 | `<nsid>.item` | One per tracked object | `records/series/items.json` | 1 |
 | `<nsid>.custodyEvent` | One per hand-off | `records/<book>/custody_events.json` | 3 |
 | `<nsid>.character.post` | One per authored post | `records/<book>/character_posts.json` | 0 |
-| `<nsid>.character.stretch` | One per character per stretch | `records/<book>/character_stretches.json` | 6 |
+| `<nsid>.character.stretch` | One per character per stretch (decorated with affect coordinates & attractor basin) | `records/<book>/character_stretches.json` | 6 |
 
-Six of the eight are projected out of finished prose. `character.post` and
-`character.stretch` are the exceptions, authored rather than extracted, and each
-is covered on its own below.
+Seven of the nine are projected out of finished prose and codex files. `character.post` and
+`character.stretch` are authored, and each compiles into corresponding AT Protocol streams. `character.stretch` acts as the mid-tier consolidated affect snapshot, decorated with continuous VAD coordinates, dynamic attractor basin, and prompt constraints.
 
 Three are series-wide and five are per-book. That split is not cosmetic: a
 character's identity and a location's description are properties of the

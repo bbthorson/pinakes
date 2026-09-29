@@ -9,6 +9,10 @@
       "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
     },
+    "./keystatic": {
+      "types": "./dist/keystatic/index.d.ts",
+      "default": "./dist/keystatic/index.js"
+    },
     "./package.json": "./package.json"
   },
   "bin": {
