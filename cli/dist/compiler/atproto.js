@@ -3,6 +3,7 @@ import path from 'path';
 import { lintStretches } from '../linter/stretches.js';
 import { buildLexiconDocs, compileLexiconDocs, validateRecords, writeLexiconDocs } from '../lexicons/index.js';
 import { pruneStale } from './prune.js';
+import { discontinuityFindings, readAffectTraits } from './affect-dynamics.js';
 import { parseRegister } from '../linter/registers.js';
 import { readAccountField } from '../linter/identity.js';
 import { affectDelta, buildAffectVocabulary, classifyAttractorBasin, getBehavioralDirectives, parseAffectDeclaration, resolveAffectLabel, scaleVad, } from './affect.js';
@@ -366,6 +367,8 @@ export function compileProject(projectRoot, config, registry, engine, options = 
                     continue;
                 }
                 let delta;
+                let from;
+                let to;
                 let via = [];
                 if ('numeric' in decl) {
                     delta = decl.numeric;
@@ -386,7 +389,12 @@ export function compileProject(projectRoot, config, registry, engine, options = 
                         }
                         continue;
                     }
-                    delta = affectDelta(resolveAffectLabel(first, affectVocab), resolveAffectLabel(last, affectVocab));
+                    // A label transition is an endpoint: the character ends the chapter
+                    // at `to`. `from` is the author's claim about how they entered it,
+                    // which `affect-discontinuity` checks against the replay.
+                    from = resolveAffectLabel(first, affectVocab);
+                    to = resolveAffectLabel(last, affectVocab);
+                    delta = affectDelta(from, to);
                     via = decl.steps.slice(1, -1);
                 }
                 const slug = resolved.id.split('.', 2)[1];
@@ -398,11 +406,14 @@ export function compileProject(projectRoot, config, registry, engine, options = 
                     subject: resolved.id,
                     characterDid: accountValue(registry.getEntity(resolved.id) ?? {}, 'did'),
                     storyDate,
+                    storyDateEnd,
                     chapterRef: chRef,
                     sceneRef: sceneId,
                     stimulus: text(stimulus),
                     register: registerEntry ? parseRegister(registerEntry[1]).register : undefined,
                     delta: scaleVad(delta),
+                    from: from && scaleVad(from),
+                    to: to && scaleVad(to),
                     createdAt,
                     sourceFile: ch.relativeFilePath,
                 }));
@@ -732,6 +743,19 @@ export function compileProject(projectRoot, config, registry, engine, options = 
     }
     const vocabulary = config.stretches.registers ?? [...registersSeen].sort();
     const stretchFindings = lintStretches(stretchEntries, sourceIndex, vocabulary, config);
+    // A character's codex affect fields are checked whether or not dynamics are
+    // on: a bad value should fail when it is written, not when dynamics are
+    // later switched on. A character with one is never replayed.
+    for (const ent of registry.allEntities) {
+        if (ent.type !== 'character')
+            continue;
+        for (const p of readAffectTraits(projectRoot, ent.sourceFile, engine, affectVocab).problems) {
+            affectReport('affect-malformed', p.file, p.message);
+        }
+    }
+    for (const f of discontinuityFindings(projectRoot, config, registry, engine, allRecords)) {
+        affectReport('affect-discontinuity', f.file, f.message);
+    }
     const seriesDir = path.join(outputDir, 'series');
     if (allPlaces.length > 0) {
         writeRecords(path.join(seriesDir, 'places.json'), allPlaces);

@@ -199,6 +199,23 @@ export declare const ConfigSchema: z.ZodObject<{
             } | undefined;
             directives?: string[] | undefined;
         }>>>;
+        /**
+         * Replay between declarations. Absent means off: the context block shows
+         * the latest stretch's affect as declared. There is no default half-life,
+         * because a rate nobody chose would be a number that looks like data.
+         * `discontinuity` is the distance (scaled units) past which a declaration
+         * that disagrees with the replay is reported; unset, it is not checked.
+         */
+        dynamics: z.ZodOptional<z.ZodObject<{
+            halfLifeDays: z.ZodNumber;
+            discontinuity: z.ZodOptional<z.ZodNumber>;
+        }, "strip", z.ZodTypeAny, {
+            halfLifeDays: number;
+            discontinuity?: number | undefined;
+        }, {
+            halfLifeDays: number;
+            discontinuity?: number | undefined;
+        }>>;
     }, "strip", z.ZodTypeAny, {
         labels: Record<string, {
             v: number;
@@ -214,6 +231,10 @@ export declare const ConfigSchema: z.ZodObject<{
             } | undefined;
             directives?: string[] | undefined;
         }>;
+        dynamics?: {
+            halfLifeDays: number;
+            discontinuity?: number | undefined;
+        } | undefined;
     }, {
         labels?: Record<string, {
             v: number;
@@ -229,6 +250,10 @@ export declare const ConfigSchema: z.ZodObject<{
             } | undefined;
             directives?: string[] | undefined;
         }> | undefined;
+        dynamics?: {
+            halfLifeDays: number;
+            discontinuity?: number | undefined;
+        } | undefined;
     }>>, {
         labels: Record<string, {
             v: number;
@@ -244,6 +269,10 @@ export declare const ConfigSchema: z.ZodObject<{
             } | undefined;
             directives?: string[] | undefined;
         }>;
+        dynamics?: {
+            halfLifeDays: number;
+            discontinuity?: number | undefined;
+        } | undefined;
     }, {
         labels?: Record<string, {
             v: number;
@@ -259,6 +288,10 @@ export declare const ConfigSchema: z.ZodObject<{
             } | undefined;
             directives?: string[] | undefined;
         }> | undefined;
+        dynamics?: {
+            halfLifeDays: number;
+            discontinuity?: number | undefined;
+        } | undefined;
     } | undefined>;
     /**
      * `prose-check` configuration. Every field is optional: the defaults are the
@@ -375,6 +408,10 @@ export declare const ConfigSchema: z.ZodObject<{
             } | undefined;
             directives?: string[] | undefined;
         }>;
+        dynamics?: {
+            halfLifeDays: number;
+            discontinuity?: number | undefined;
+        } | undefined;
     };
     context: {
         affect: "off" | "auto";
@@ -437,6 +474,10 @@ export declare const ConfigSchema: z.ZodObject<{
             } | undefined;
             directives?: string[] | undefined;
         }> | undefined;
+        dynamics?: {
+            halfLifeDays: number;
+            discontinuity?: number | undefined;
+        } | undefined;
     } | undefined;
     context?: {
         affect?: "off" | "auto" | undefined;

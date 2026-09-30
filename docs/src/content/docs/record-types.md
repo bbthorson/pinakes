@@ -359,8 +359,8 @@ declares none produces none:
 registers:
   Noah: "under-pressure (asks the right questions, then lashes out)"
 affect:
-  Noah: "curious → angry"              # labels: the delta runs first to last
-  Jasper: { v: -40, a: -30, d: -50 }   # or the delta itself, integers in [-100, 100]
+  Noah: "curious → angry"              # labels: enters curious, ends angry
+  Jasper: { v: -40, a: -30, d: -50 }   # or a shift, integers in [-100, 100]
 ```
 
 compiles Noah's entry to:
@@ -376,6 +376,8 @@ compiles Noah's entry to:
   "stimulus": "Noah finds the leak",
   "register": "under-pressure",
   "delta": { "valence": -100, "arousal": 30, "dominance": 20 },
+  "from": { "valence": 40, "arousal": 30, "dominance": 20 },
+  "to": { "valence": -60, "arousal": 60, "dominance": 40 },
   "createdAt": "2026-10-11T00:00:00.000Z",
   "sourceFile": "stories/01. .../chapters/15_the_leak.md"
 }
@@ -383,6 +385,13 @@ compiles Noah's entry to:
 
 - **`stimulus`** is the chapter's `beat_purpose` (else `beat`, else its title).
   Middle steps of a longer transition (`a → b → c`) are appended as `(via b)`.
+- **`from` and `to`** are the first and last steps' coordinates, for a label
+  transition only. The character ends the chapter at `to`; `from` is how the
+  author says they entered it. A numeric entry has only `delta`, a shift.
+  Together they let a consumer replay the stream without the universe's
+  vocabulary, as [dynamics](/pinakes/affect-simulation/#between-declarations-dynamics) do.
+- **`storyDateEnd`** is set when the chapter spans several days. The event
+  takes effect once the chapter has ended.
 - **`register`** is the first step of the character's `registers:` entry, for
   context only. It is absent when the chapter has none.
 - A label that is not in the vocabulary emits no event and an

@@ -1,6 +1,7 @@
 import { Config } from '../config.js';
 import { Registry } from '../registry/entities.js';
 import { LinterEngine } from '../linter/engine.js';
+import { type AffectState, type AffectTraitProblem } from '../compiler/affect-dynamics.js';
 export interface CodexSection {
     heading: string;
     level: number;
@@ -13,8 +14,12 @@ export interface ContextBundle {
     };
     asOf: string;
     affect?: {
+        /** The stretch record the state starts from. */
         snapshot?: Record<string, any>;
         promptBlock?: string;
+        state?: AffectState;
+        /** The character's codex affect fields are invalid, so no state was computed. */
+        problems?: AffectTraitProblem[];
     };
     long: {
         frontmatter: Record<string, string>;

@@ -94,4 +94,53 @@ export declare function formatAffectPromptInjection(snapshot: {
     coordinates: ScaledVad;
     attractorBasin: string;
     behavioralDirectives?: string[];
+    /** How the state was reached (anchor, events, decay), printed so the author can audit it. */
+    trace?: string[];
 }): string;
+/** Euclidean distance between two states, in the scaled units records use. */
+export declare function affectDistance(a: VadVector, b: VadVector): number;
+/** Whole days from `from` to `to`, both YYYY-MM-DD. */
+export declare function daysBetween(from: string, to: string): number;
+/**
+ * How a character's state moves between events. Without a baseline nothing
+ * decays: the state holds until the next event, and says so, rather than
+ * relaxing toward a resting point nobody declared.
+ */
+export interface ReplayRates {
+    baseline?: VadVector;
+    halfLifeDays?: number;
+}
+/** Exponential relaxation toward the baseline over `days`. */
+export declare function decayAffect(x: VadVector, days: number, rates: ReplayRates): VadVector;
+/**
+ * One chapter's affect for one character. `to` is set for a label transition,
+ * which is an endpoint: the character ends the chapter there, whatever they
+ * entered with. A numeric declaration has only `delta`, a shift.
+ */
+export interface ReplayEvent {
+    id: string;
+    /** The chapter's last date: a character's state after it is known only once it has ended. */
+    end: string;
+    from?: VadVector;
+    to?: VadVector;
+    delta: VadVector;
+}
+export interface ReplayStep {
+    event: ReplayEvent;
+    /** The state just before the event, decayed to its end date. */
+    entering: VadVector;
+    after: VadVector;
+}
+/**
+ * Replays events forward from a declared state on `startDate` to `until`.
+ *
+ * Only events ending after `startDate` count: a stretch is written looking
+ * back over its own date, so an event ending that day is already in it. Only
+ * events ending on or before `until` count: one still running has not
+ * happened yet. Events are applied in the order given (end date, then book,
+ * then chapter), and floats are rounded only by whoever serializes the result.
+ */
+export declare function replayAffect(start: VadVector, startDate: string, events: ReplayEvent[], until: string, rates: ReplayRates): {
+    vad: VadVector;
+    steps: ReplayStep[];
+};

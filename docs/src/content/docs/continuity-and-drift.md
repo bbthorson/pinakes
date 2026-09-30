@@ -49,9 +49,10 @@ block is merged over the defaults, so it only needs the rules you change:
 | `stretch-length` | `warning` | A stretch longer than `stretches.softMaxChars` (default 600) |
 | `stretch-affect-unresolved` | `error` | A stretch `affect:` label that is not in the affect vocabulary. A stretch is authored deliberately, so an unknown state is an error; the stretch compiles with no coordinates |
 | `affect-label-unresolved` | `warning` | A chapter `affect:` label that is not in the affect vocabulary. That character-chapter emits no affect event |
-| `affect-malformed` | `error` | An `affect:` value that is not a label, a transition or `{ v, a, d }`; a single label in a chapter (a chapter records a shift); a transition in a stretch (a stretch is a state) |
+| `affect-malformed` | `error` | An `affect:` value that is not a label, a transition or `{ v, a, d }`; a single label in a chapter (a chapter records a shift); a transition in a stretch (a stretch is a state); a codex `affectBaseline` that is not one resolvable label or triple, or an `affectHalfLifeScale` that is not a positive number |
 | `affect-out-of-range` | `error` | A numeric `affect:` value that is not an integer in [−100, 100] |
 | `affect-declared-no-register` | `warning` | A chapter that declares `affect:` for a character with no `registers:` entry in that chapter |
+| `affect-discontinuity` | `warning` | With `affect.dynamics.discontinuity` set, a chapter's first affect step, or a stretch's affect, further from the replayed state than that distance |
 
 The stretch rules run against *compiled* records, because
 `stretch-source-future` needs every other record's end date. `lint` builds the

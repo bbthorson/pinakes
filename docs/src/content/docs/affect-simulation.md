@@ -36,15 +36,22 @@ and affect is written where it can be checked.
 registers:
   Noah: "under-pressure (asks the right questions, then lashes out)"
 affect:
-  Noah: "curious → angry"              # labels; the delta runs first step to last
-  Jasper: { v: -40, a: -30, d: -50 }   # or the delta itself
+  Noah: "curious → angry"              # labels: he enters curious and ends angry
+  Jasper: { v: -40, a: -30, d: -50 }   # or a shift from wherever he was
 ```
 
 Keys resolve like `registers:` keys. Each entry compiles to one
-[`character.affect.event`](/pinakes/record-types/#characteraffectevent) whose `delta`
-is the last state minus the first, or the numbers given. A longer transition
-(`a → b → c`) keeps the first and last for the delta and records the middle in
-`stimulus`. A chapter records a shift, so a single label is `affect-malformed`.
+[`character.affect.event`](/pinakes/record-types/#characteraffectevent).
+
+- **A label transition is an endpoint.** The character ends the chapter in its
+  last step, whatever they entered with. The first step is your claim about
+  how they entered, which the [continuity check](#the-continuity-check) tests.
+  The event records both (`from`, `to`) and `delta`, the last minus the first.
+- **Numbers are a shift**, added to whatever state the character was in.
+
+A longer transition (`a → b → c`) keeps the first and last and records the
+middle in `stimulus`. A chapter records a change, so a single label is
+`affect-malformed`.
 
 ### In a stretch: a state
 
@@ -132,17 +139,94 @@ SUGGESTED_TENDENCIES:
 [/INTERNAL_AFFECT_STATE]
 ```
 
-It comes from the same stretch as the mid tier, so it looks only backward. For
-every other stretch the block is absent. To keep it out of drafting altogether:
+Without [dynamics](#between-declarations-dynamics) it is the mid-tier
+stretch's declared affect, so it looks only backward. For every other stretch
+the block is absent. To keep it out of drafting altogether:
 
 ```yaml
 context:
   affect: off     # default: auto
 ```
 
-## What is not modelled
+## Between declarations: dynamics
 
-Coordinates are what the author declared, no more. Pinakes does not yet decay
-affect between events, drift a character's baseline under sustained stress, or
-replay events into a state at `--as-of`. Those dynamics need their own design,
-and until then no record or bundle claims them.
+Declarations are sparse: a stretch every few weeks, and a chapter only where
+something moves. Dynamics carry a character's state between them, so the
+bundle can answer "how is he a week after the shock?"
+
+They are off until a universe chooses a rate. There is no default, because a
+rate nobody chose would be a number that looks like data:
+
+```yaml
+affect:
+  dynamics:
+    halfLifeDays: 4        # required: turns dynamics on
+    discontinuity: 60      # optional: turns on the continuity check
+```
+
+Each character's temperament goes in their codex frontmatter:
+
+```yaml
+# codex/characters/noah.md
+affectBaseline: { v: 0, a: 10, d: 20 }   # or a label; the state they relax toward
+affectHalfLifeScale: 2                   # optional: holds a grudge twice as long
+```
+
+`affectHalfLifeScale` multiplies the universe's half-life, so retuning the
+universe moves everyone and keeps their differences. A value that is not a
+positive number, or a baseline that is not one resolvable label or triple, is
+`affect-malformed`, and that character is not replayed at all. These fields
+are checked even with dynamics off, so a bad value fails when it is written.
+
+### How the state is computed
+
+For a character on a date:
+
+1. **Start** from their latest *approved* stretch on or before the date that
+   declares `affect:`. If there is none, there is **no state**. Pinakes never
+   gives a character a state nobody declared.
+2. **Replay** their affect events that ended after that stretch's `asOf` and
+   on or before the date, in order. An event ending on the stretch's own date
+   is already in it, since a stretch looks back over its day. A chapter still
+   running on the date has not happened yet.
+3. **Between events**, the state relaxes toward the baseline:
+   `x = b + (x₀ − b) · 0.5^(days / halfLife)`, counting whole days from each
+   chapter's last date. With no `affectBaseline`, nothing decays: the state
+   holds, and the block says `not decaying: no baseline`.
+4. **Classify** the result into a basin, as for a stretch.
+
+A new stretch re-anchors the replay: the author wins. The baseline itself
+never drifts; to say a character's temperament has changed, change
+`affectBaseline`.
+
+With dynamics on, the `context` block shows its working:
+
+```
+[INTERNAL_AFFECT_STATE]
+DIMENSIONS: Valence=-0.36 | Arousal=0.36 | Dominance=0.28
+ATTRACTOR: hyper-vigilant
+ANCHOR: stretch.jasper.book1.2026-10-02
+EVENT: affect.event.jasper.book1.ch14 (ended 2026-10-05, 3 days before)
+DECAY: half-life 4 days toward baseline
+SUGGESTED_TENDENCIES:
+  - ...
+[/INTERNAL_AFFECT_STATE]
+```
+
+The state is computed when asked for, never compiled into records: it changes
+whenever a chapter or the rate is edited, and record ids are permanent. The
+library returns it from `affectStateAt(universe, character, asOf)`.
+
+### The continuity check
+
+With `discontinuity` set, `lint` checks your declarations against each other:
+
+- **Entering a chapter.** A transition's first step is compared with the
+  state the replay has the character in going into it.
+- **At a stretch.** A stretch's declared affect is compared with the state
+  replayed from the stretch before it.
+
+Where the two are further apart than `discontinuity` (straight-line distance
+in the −100 to 100 units), `affect-discontinuity` warns. It is never an error:
+the jump may be meant, and off-page events happen. The stretch still
+re-anchors either way; the warning only asks the question.

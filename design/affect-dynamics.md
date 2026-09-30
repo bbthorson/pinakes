@@ -1,6 +1,7 @@
 ---
 title: Affect dynamics — a character's state between declarations
-status: accepted
+status: implemented
+implemented_in: bbthorson/pinakes#34
 date: 2026-09-30
 driver: Supper Club Secrets, drafting stretches and posts after Oct 2
 depends_on: bbthorson/pinakes#34 (declared affect)
@@ -33,6 +34,25 @@ ship in any 1.x release.
 - **2026-09-30. No baseline drift** (§6; §13 q4).
 - **2026-09-30. `affect-discontinuity` checks stretches as well as chapter
   entries** (§10; §13 q5).
+
+Implemented in #34, before 1.0.0, in `compiler/affect.ts` (the replay math)
+and `compiler/affect-dynamics.ts` (over compiled records, shared by `context`
+and `lint`). Where the build settled something the text left open:
+
+- **The event gained `storyDateEnd`** as well as `from` and `to`, since §8
+  replays by end date and the event carried only its start.
+- **`from`, `to` and `storyDateEnd` are emitted whether or not dynamics are
+  on.** They are facts about the chapter, and the stream should be replayable
+  by any consumer. `context` and `lint` output is unchanged without
+  `affect.dynamics`, which is what §12's first acceptance item protects.
+- **`affectStateAt` also answers with dynamics off**, in mode `declared` (the
+  latest stretch's affect as written, as `context` shows it), so one function
+  backs the bundle in both modes.
+- **An invalid `affectBaseline`** (unresolvable, or a transition) is
+  `affect-malformed`, like an invalid scale. Both are checked with dynamics
+  off, and `context` prints "Not computed" rather than going silent.
+- **The block lists one `EVENT:` line per event**, with its end date and how
+  many days before `--as-of`.
 
 ## 1. The gap
 

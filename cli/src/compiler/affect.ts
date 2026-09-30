@@ -280,6 +280,8 @@ export function formatAffectPromptInjection(snapshot: {
   coordinates: ScaledVad;
   attractorBasin: string;
   behavioralDirectives?: string[];
+  /** How the state was reached (anchor, events, decay), printed so the author can audit it. */
+  trace?: string[];
 }): string {
   const c = snapshot.coordinates;
   const f = (n: number) => (n / 100).toFixed(2);
@@ -287,6 +289,7 @@ export function formatAffectPromptInjection(snapshot: {
     '[INTERNAL_AFFECT_STATE]',
     `DIMENSIONS: Valence=${f(c.valence)} | Arousal=${f(c.arousal)} | Dominance=${f(c.dominance)}`,
     `ATTRACTOR: ${snapshot.attractorBasin}`,
+    ...(snapshot.trace ?? []),
   ];
   if (snapshot.behavioralDirectives?.length) {
     lines.push('SUGGESTED_TENDENCIES:');
@@ -294,4 +297,91 @@ export function formatAffectPromptInjection(snapshot: {
   }
   lines.push('[/INTERNAL_AFFECT_STATE]');
   return lines.join('\n');
+}
+
+/** Euclidean distance between two states, in the scaled units records use. */
+export function affectDistance(a: VadVector, b: VadVector): number {
+  return Math.hypot(a.valence - b.valence, a.arousal - b.arousal, a.dominance - b.dominance) * 100;
+}
+
+/** Whole days from `from` to `to`, both YYYY-MM-DD. */
+export function daysBetween(from: string, to: string): number {
+  return Math.round((Date.parse(`${to}T00:00:00Z`) - Date.parse(`${from}T00:00:00Z`)) / 86_400_000);
+}
+
+/**
+ * How a character's state moves between events. Without a baseline nothing
+ * decays: the state holds until the next event, and says so, rather than
+ * relaxing toward a resting point nobody declared.
+ */
+export interface ReplayRates {
+  baseline?: VadVector;
+  halfLifeDays?: number;
+}
+
+/** Exponential relaxation toward the baseline over `days`. */
+export function decayAffect(x: VadVector, days: number, rates: ReplayRates): VadVector {
+  const { baseline: b, halfLifeDays } = rates;
+  if (!b || !halfLifeDays || days <= 0) return x;
+  const f = 0.5 ** (days / halfLifeDays);
+  return {
+    valence: b.valence + (x.valence - b.valence) * f,
+    arousal: b.arousal + (x.arousal - b.arousal) * f,
+    dominance: b.dominance + (x.dominance - b.dominance) * f,
+  };
+}
+
+/**
+ * One chapter's affect for one character. `to` is set for a label transition,
+ * which is an endpoint: the character ends the chapter there, whatever they
+ * entered with. A numeric declaration has only `delta`, a shift.
+ */
+export interface ReplayEvent {
+  id: string;
+  /** The chapter's last date: a character's state after it is known only once it has ended. */
+  end: string;
+  from?: VadVector;
+  to?: VadVector;
+  delta: VadVector;
+}
+
+export interface ReplayStep {
+  event: ReplayEvent;
+  /** The state just before the event, decayed to its end date. */
+  entering: VadVector;
+  after: VadVector;
+}
+
+/**
+ * Replays events forward from a declared state on `startDate` to `until`.
+ *
+ * Only events ending after `startDate` count: a stretch is written looking
+ * back over its own date, so an event ending that day is already in it. Only
+ * events ending on or before `until` count: one still running has not
+ * happened yet. Events are applied in the order given (end date, then book,
+ * then chapter), and floats are rounded only by whoever serializes the result.
+ */
+export function replayAffect(
+  start: VadVector,
+  startDate: string,
+  events: ReplayEvent[],
+  until: string,
+  rates: ReplayRates
+): { vad: VadVector; steps: ReplayStep[] } {
+  let vad = start;
+  let at = startDate;
+  const steps: ReplayStep[] = [];
+  for (const event of events) {
+    if (event.end <= startDate || event.end > until) continue;
+    const entering = decayAffect(vad, daysBetween(at, event.end), rates);
+    const after = event.to ?? {
+      valence: clip(entering.valence + event.delta.valence),
+      arousal: clip(entering.arousal + event.delta.arousal),
+      dominance: clip(entering.dominance + event.delta.dominance),
+    };
+    steps.push({ event, entering, after });
+    vad = after;
+    at = event.end;
+  }
+  return { vad: decayAffect(vad, daysBetween(at, until), rates), steps };
 }

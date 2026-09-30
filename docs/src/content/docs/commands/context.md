@@ -20,7 +20,7 @@ to keep it.
 | Long | The character's codex file, cut to the headings `context.codex` allows |
 | Mid | The latest **approved** `character.stretch` on or before the date |
 | Short | State events whose span covers the date: the register expression only, unless `--full-state` |
-| Affect | Only when the mid-tier stretch declares `affect:` and it falls in a basin: its coordinates and advisory tendencies |
+| Affect | Only from a stretch that declares `affect:`, and only when the state falls in a basin: its coordinates and advisory tendencies. With `affect.dynamics` set, the state is replayed forward through chapter events, and the block shows the anchor, events and decay |
 | History | Their posts, posts they replied to, posts that mention them, and scenes they were in that have ended (titles only) |
 
 Two defaults are deliberately conservative:

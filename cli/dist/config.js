@@ -22,6 +22,7 @@ const DEFAULT_RULES = {
     'affect-malformed': 'error',
     'affect-out-of-range': 'error',
     'affect-declared-no-register': 'warning',
+    'affect-discontinuity': 'warning',
 };
 const vadInt = z.number().int().min(-100).max(100);
 const bound = z
@@ -40,6 +41,19 @@ const AffectSchema = z
     basins: z
         .record(z.object({ when: z.object({ v: bound, a: bound, d: bound }).partial().optional(), directives: z.array(z.string()).optional() }))
         .default({}),
+    /**
+     * Replay between declarations. Absent means off: the context block shows
+     * the latest stretch's affect as declared. There is no default half-life,
+     * because a rate nobody chose would be a number that looks like data.
+     * `discontinuity` is the distance (scaled units) past which a declaration
+     * that disagrees with the replay is reported; unset, it is not checked.
+     */
+    dynamics: z
+        .object({
+        halfLifeDays: z.number().positive(),
+        discontinuity: z.number().positive().optional(),
+    })
+        .optional(),
 })
     .default({ labels: {}, basins: {} })
     .superRefine((affect, ctx) => {

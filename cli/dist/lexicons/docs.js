@@ -572,6 +572,11 @@ function affectEvent(ns) {
                         subject: localId('Registry id of the character this event describes.'),
                         characterDid: { type: 'string', description: 'AT Protocol DID of the character account.' },
                         storyDate: { type: 'string', description: 'In-story date, `YYYY-MM-DD`.', maxLength: 10 },
+                        storyDateEnd: {
+                            type: 'string',
+                            description: "The chapter's last date, `YYYY-MM-DD`, when it spans several. The event takes effect once it has ended.",
+                            maxLength: 10,
+                        },
                         chapterRef: { type: 'string', description: 'Source chapter, e.g. `book1#ch11`.', maxLength: 256 },
                         sceneRef: localId('Scene record this event belongs to.'),
                         stimulus: {
@@ -589,9 +594,29 @@ function affectEvent(ns) {
                             ref: '#vadDelta',
                             description: 'Shift in valence, arousal and dominance, [-100, 100]: the last declared state minus the first, or the declared numbers.',
                         },
+                        from: {
+                            type: 'ref',
+                            ref: '#vadState',
+                            description: 'For a label transition, the first declared state: how the author says the character entered the chapter.',
+                        },
+                        to: {
+                            type: 'ref',
+                            ref: '#vadState',
+                            description: 'For a label transition, the last declared state: where the character ends the chapter. Absent for a numeric shift.',
+                        },
                         createdAt: { type: 'string', description: 'Story time as an RFC3339 datetime.', format: 'datetime' },
                         sourceFile: { type: 'string', description: 'Repository-relative chapter path.', maxLength: 1024 },
                     },
+                },
+            },
+            vadState: {
+                type: 'object',
+                description: 'A state in valence, arousal and dominance, scaled to [-100, 100].',
+                required: ['valence', 'arousal', 'dominance'],
+                properties: {
+                    valence: { type: 'integer', minimum: -100, maximum: 100 },
+                    arousal: { type: 'integer', minimum: -100, maximum: 100 },
+                    dominance: { type: 'integer', minimum: -100, maximum: 100 },
                 },
             },
             vadDelta: {

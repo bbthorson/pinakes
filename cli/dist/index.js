@@ -15,6 +15,8 @@ import { YamlRulesLoader } from './linter/yaml-loader.js';
 import { compileProject } from './compiler/atproto.js';
 import { buildContext, renderMarkdown } from './context/bundle.js';
 import { buildProseReports } from './prose/check.js';
+import { computeAffectState } from './compiler/affect-dynamics.js';
+import { isCalendarDate } from './linter/stretches.js';
 export * from './keystatic/index.js';
 // Named, not `export *`: everything listed is a compatibility promise, and the
 // affect module's internals should stay free to change.
@@ -91,4 +93,24 @@ export function proseCheck(input, options = {}) {
     if (chapters.length === 0)
         throw new Error('No chapters found.');
     return buildProseReports(chapters, u.config, report);
+}
+/**
+ * A character's affect on `asOf` (YYYY-MM-DD): the state `pinakes context`
+ * prints, with how it was reached. With `affect.dynamics` unset it is the
+ * latest approved stretch's declared affect; with it set, that affect
+ * replayed through the chapter events since. Never writes anything.
+ */
+export function affectStateAt(input, character, asOf) {
+    const u = open(input);
+    const resolved = u.registry.resolve(character, 'character');
+    const errors = [];
+    if (!resolved)
+        errors.push(`'${character}' does not resolve to a registry character.`);
+    if (!isCalendarDate(asOf))
+        errors.push(`asOf must be a YYYY-MM-DD calendar date; got '${asOf}'.`);
+    if (!resolved || errors.length)
+        return { errors };
+    const { records } = compileProject(u.root, u.config, u.registry, u.engine, { write: false });
+    const { state, problems } = computeAffectState(u.root, u.config, u.registry, u.engine, records, resolved.id, asOf);
+    return { state, errors: problems.map((p) => `${p.file}: ${p.message}`) };
 }
