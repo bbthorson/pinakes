@@ -278,7 +278,7 @@ shown safely to a reader who arrived late.
 Nothing in Pinakes decides *what* a character may say. That is a judgment pass,
 and a universe whose plot turns on information discipline will want a rule about
 which posts are safe to write at all — see
-[Continuity and drift](continuity-and-drift.md) for where such a check belongs.
+[Continuity and drift](/pinakes/continuity-and-drift/) for where such a check belongs.
 
 ### `character.stretch`
 
@@ -561,5 +561,5 @@ record cannot disagree with the prose it describes.
 
 ## Where to go next
 
-- [Prose to records](prose-to-records.md) — the frontmatter that produces all of this
-- [Continuity and drift](continuity-and-drift.md) — what stops it from rotting
+- [Prose to records](/pinakes/prose-to-records/) — the frontmatter that produces all of this
+- [Continuity and drift](/pinakes/continuity-and-drift/) — what stops it from rotting

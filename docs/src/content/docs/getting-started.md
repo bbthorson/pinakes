@@ -70,6 +70,6 @@ my-universe/
 
 ## Next steps
 
-* [`pinakes lint`](commands/lint.md) for the checks and how to configure them.
-* [`pinakes compile`](commands/compile.md) for the records it writes.
-* [Prose to records](prose-to-records.md) for the frontmatter a chapter needs.
+* [`pinakes lint`](/pinakes/commands/lint/) for the checks and how to configure them.
+* [`pinakes compile`](/pinakes/commands/compile/) for the records it writes.
+* [Prose to records](/pinakes/prose-to-records/) for the frontmatter a chapter needs.

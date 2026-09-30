@@ -163,7 +163,7 @@ extraction design. Today the same information is authored twice: as a
 chapter × character grid for the author to read, and as a `registers:` block in
 each chapter for the compiler. The grid is richer, and keeping the two in step
 is a manual editorial job (see
-[continuity-and-drift.md](continuity-and-drift.md#the-passes-that-stay-out-of-ci)).
+[Continuity and drift](/pinakes/continuity-and-drift/#the-passes-that-stay-out-of-ci)).
 
 And `stories/*/tracking/interiority/` — per-character interior monologue, the
 private brain of the book — is never published, by any path, ever. There is no
@@ -239,7 +239,7 @@ A grounded and creative chef with a bubbly, optimistic energy, who is learning t
 
 The account, `did` and `handle`, is the one part of a profile that comes from
 the registry entry rather than the file; see
-[Record types](record-types.md#identity-today-and-identity-later). `oneLine` is the first non-empty line within five
+[Record types](/pinakes/record-types/#identity-today-and-identity-later). `oneLine` is the first non-empty line within five
 lines of the `## Overview` heading, with leading `-` and wrapping `*` stripped.
 `status` from the file wins over `status` from the registry, since the file is
 the finer-grained statement; a character with no file falls back to the registry
@@ -303,5 +303,5 @@ an error message. The command exits non-zero.
 
 ## Where to go next
 
-- [Record types](record-types.md) — what comes out the other end
-- [Continuity and drift](continuity-and-drift.md) — keeping it honest over six books
+- [Record types](/pinakes/record-types/) — what comes out the other end
+- [Continuity and drift](/pinakes/continuity-and-drift/) — keeping it honest over six books
