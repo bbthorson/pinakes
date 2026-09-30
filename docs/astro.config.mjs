@@ -57,7 +57,9 @@ export default defineConfig({
         },
       ],
       editLink: {
-        baseUrl: `${REPO}/edit/main/docs/src/content/docs`,
+        // Starlight appends the path from the project root (src/content/docs/…),
+        // so the base stops at docs/.
+        baseUrl: `${REPO}/edit/main/docs/`,
       },
     }),
   ],

@@ -5,17 +5,17 @@ title: "Pinakes Guides"
 How to model a character-driven fictional universe with AT Protocol Lexicons,
 using a real universe as the worked example.
 
-[Getting started](getting-started.md) and the command pages are the tour:
+[Getting started](/pinakes/getting-started/) and the command pages are the tour:
 how to install Pinakes and what each command does. These guides are the
 working detail — what the compiler actually reads, what it actually emits, and
 what it deliberately leaves alone.
 
 | Guide | What it covers |
 | --- | --- |
-| [Record types](record-types.md) | The eight record types `compile` emits, the Lexicon documents it generates for them, and how identity works |
-| [Prose to records](prose-to-records.md) | The frontmatter contract, the resolution rules, and what never leaves the repo |
-| [Continuity and drift](continuity-and-drift.md) | The lint rules, Lexicon validation, the CI drift gate, and the judgment passes that stay outside CI |
-| [Prose triage](prose-triage.md) | `prose-check`: the countable half of the AI-tells pass, why its counts are inputs rather than verdicts, and why it is deliberately not a gate |
+| [Record types](/pinakes/record-types/) | The eight record types `compile` emits, the Lexicon documents it generates for them, and how identity works |
+| [Prose to records](/pinakes/prose-to-records/) | The frontmatter contract, the resolution rules, and what never leaves the repo |
+| [Continuity and drift](/pinakes/continuity-and-drift/) | The lint rules, Lexicon validation, the CI drift gate, and the judgment passes that stay outside CI |
+| [Prose triage](/pinakes/prose-triage/) | `prose-check`: the countable half of the AI-tells pass, why its counts are inputs rather than verdicts, and why it is deliberately not a gate |
 
 ## The worked example
 
@@ -64,7 +64,7 @@ stable identity, is exactly what a PDS repository holds.
 
 ## The Golden Rule
 
-Read [record-types.md](record-types.md) and it is easy to start thinking of the
+Read [Record types](/pinakes/record-types/) and it is easy to start thinking of the
 records as the model and the prose as input to it. It is the other way round.
 
 **Prose is the source of truth.** If a finished chapter contradicts the codex,
@@ -74,7 +74,7 @@ anything in `stories/`. `records/` is build output and can be deleted at any
 time.
 
 Practically, this means the frontmatter contract in
-[prose-to-records.md](prose-to-records.md) is a *description* the author keeps
+[Prose to records](/pinakes/prose-to-records/) is a *description* the author keeps
 accurate, not a schema the author writes to first.
 
 ## Known gaps
@@ -87,7 +87,7 @@ model and the shipped code disagree.
    are checked for syntax and uniqueness and carried onto its profile, but
    nothing in the CLI mints a DID or confirms that the handle resolves to it,
    since that needs the network. See
-   [record-types.md](record-types.md#identity-today-and-identity-later).
+   [Record types](/pinakes/record-types/#identity-today-and-identity-later).
 
 ### Closed since these guides were written
 
@@ -111,19 +111,19 @@ model and the shipped code disagree.
 - **`stateEvent` rules can express a register vocabulary.** They used to test
   each annotation with its parenthetical note included and check only the term
   left of an arrow, so the example rule on the
-  [`pinakes lint`](commands/lint.md#custom-yaml-rules) page reported 86 false
+  [`pinakes lint`](/pinakes/commands/lint/#custom-yaml-rules) page reported 86 false
   positives on Book 1 and missed the three real off-vocabulary values. It now
   reports exactly those three; see
-  [continuity-and-drift.md](continuity-and-drift.md#custom-yaml-rules).
+  [Continuity and drift](/pinakes/continuity-and-drift/#custom-yaml-rules).
 - **`missing-date` is its own configurable rule.** It used to be hardcoded to
   `error` and evaluated inside `non-sequential-dates`, so turning the ordering
   check off silently stopped reporting undated chapters.
 - **A registry entry that fails validation fails `lint`.** It used to be
   skipped with only a console warning. It is now an `invalid-registry-entry`
   error; see
-  [continuity-and-drift.md](continuity-and-drift.md#the-built-in-rules).
+  [Continuity and drift](/pinakes/continuity-and-drift/#the-built-in-rules).
 - **`item` and `custodyEvent` now exist.** Both are compiled and validated; see
-  [record-types.md](record-types.md#item-and-custodyevent). A universe carrying
+  [Record types](/pinakes/record-types/#item-and-custodyevent). A universe carrying
   hand-written `items.json` or `custody_events.json` from before this should
   delete them and let `compile` produce them. Items now land in
   `records/series/`; `compile` removes a leftover `records/<book>/items.json`
@@ -132,7 +132,7 @@ model and the shipped code disagree.
   produces — a deleted or renamed book, a record type a book stopped
   producing, Lexicon documents for an old NSID — is deleted and reported as
   `removed stale`. Only pinakes' own file names are candidates; see
-  [continuity-and-drift.md](continuity-and-drift.md#the-drift-gate-in-ci).
+  [Continuity and drift](/pinakes/continuity-and-drift/#the-drift-gate-in-ci).
 - **`config.ts` path defaults** now match the documented `codex/` and `records/`
   layout.
 - **`pinakes --version`** reads the version from `package.json`, so it cannot

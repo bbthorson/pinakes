@@ -31,13 +31,13 @@ the first of these ships today:
 * **Lexicon schema conformity.** Outward records are formatted to match the
   universe's own Lexicon schema documents and validated against them, making
   them portable across PDS (Personal Data Servers) and readable by custom
-  social client feeds. See [Record types](record-types.md).
+  social client feeds. See [Record types](/pinakes/record-types/).
 * **Stable IDs and DIDs** *(partly shipped)*. Characters have permanent local
   registry IDs (`char.emma`), and a character's registry entry can name its
   **DID (Decentralized Identifier)**, such as `did:plc:…` or
   `did:web:emma.supperclub.site`. The compiler carries the DID onto the
   profile and checks its syntax. Nothing mints or resolves a DID yet. See
-  [Identity: today, and identity later](record-types.md#identity-today-and-identity-later).
+  [Identity: today, and identity later](/pinakes/record-types/#identity-today-and-identity-later).
 * **Cryptographic story stream** *(planned)*. In collaborative or open-world
   settings, chapters and state events are signed by the character's key, and
   the narrative timeline becomes a verifiable ledger of events.
