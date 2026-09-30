@@ -37,5 +37,5 @@ Two design notes worth knowing before reading the output:
   in its own header rather than implying a precision it does not have.
 
 Configure it under `prose:` in `pinakes.yaml` — see
-[Prose triage](../prose-triage.md). Everything is optional; the
+[Prose triage](/pinakes/prose-triage/). Everything is optional; the
 defaults are the catalogue itself.

@@ -35,7 +35,7 @@ FAIL — pinakes found errors.
 * **Character Accounts:** A character's `did` and `handle` live on its `entities.yaml` entry. A DID atproto would reject (any method but `did:plc` and `did:web`, or a malformed one) is an error, and so is a handle that is not one DNS label (`emmacooks`, not `emmacooks.example.com`). So is one DID or handle on two characters, either one on a place or item, or either one left in codex frontmatter. Only syntax is checked; `lint` never resolves anything, so it stays offline. `compile` reports all of these too.
 * **Registry Validity:** An `entities.yaml` entry that is missing `id`, `type` or `displayName`, or has a field of the wrong type, is an error. It is left out of the registry, and `lint` would otherwise pass with the entity silently missing.
 
-Severities are set per rule under `rules:` in `pinakes.yaml`, and a `rules:` block only needs the rules you change: the rest keep their defaults. The full table is in [Continuity and drift](../continuity-and-drift.md#the-built-in-rules).
+Severities are set per rule under `rules:` in `pinakes.yaml`, and a `rules:` block only needs the rules you change: the rest keep their defaults. The full table is in [Continuity and drift](/pinakes/continuity-and-drift/#the-built-in-rules).
 
 ## Custom YAML rules
 Authors can write custom rules in the `rules/` directory to enforce style guidelines or state transitions:

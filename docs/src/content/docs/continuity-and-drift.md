@@ -265,7 +265,7 @@ Pinakes ships something that feeds a judgment pass without being a gate. It
 counts the countable signals and assembles the chapter closers, then exits 0
 whatever it finds — the counting is deterministic, so it belongs in the tool, but
 the verdict is not, so it stays with the author. See
-[prose-triage.md](prose-triage.md). Do not add it to CI; the taxonomy it
+[Prose triage](/pinakes/prose-triage/). Do not add it to CI; the taxonomy it
 implements puts AI tells at the bottom of its severity ladder and frames every
 finding as a suggestion, and a failing build is not a suggestion.
 
@@ -296,5 +296,5 @@ on the half that needs a reader.**
 
 ## Where to go next
 
-- [Record types](record-types.md) — what is being validated
-- [Prose to records](prose-to-records.md) — what feeds it
+- [Record types](/pinakes/record-types/) — what is being validated
+- [Prose to records](/pinakes/prose-to-records/) — what feeds it

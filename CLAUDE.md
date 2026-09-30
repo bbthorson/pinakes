@@ -46,7 +46,10 @@ npm test        # build, type-check the tests, then run cli/test/**/*.test.ts
   change to what `compile` emits, rebuild the CLI and run
   `cd docs && npm run sync-demo -- <path-to-supper_club_secrets>` to regenerate
   `docs/public/demo/records.json`, and commit it.
-- **Keep the docs site building.** `cd docs && npm ci && npm run build`. A new page also needs an entry in the sidebar in
+- **Keep the docs site building.** `cd docs && npm ci && npm run build`; the build
+  ends with `scripts/check-links.mjs`, which fails on any internal link or anchor
+  missing from `dist/`. Link pages by route (`/pinakes/record-types/#anchor`),
+  never by `.md` file: Starlight does not rewrite those. A new page also needs an entry in the sidebar in
   `docs/astro.config.mjs`.
 - Publishing is manual (the `Publish` workflow). Bump the version in
   `cli/package.json` first; the workflow refuses to republish a version.
