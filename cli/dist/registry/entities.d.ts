@@ -17,9 +17,9 @@ export declare const EntitySchema: z.ZodObject<{
 }, "strip", z.ZodTypeAny, {
     type: string;
     status: string | null;
+    aliases: string[];
     id: string;
     displayName: string;
-    aliases: string[];
     sourceFile?: string | null | undefined;
     did?: unknown;
     handle?: unknown;

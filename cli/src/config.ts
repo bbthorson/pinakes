@@ -2,6 +2,7 @@ import fs from 'fs';
 import path from 'path';
 import YAML from 'yaml';
 import { z } from 'zod';
+import { BUILTIN_BASINS, CORE_AFFECT_LABELS, normalizeAffectLabel } from './compiler/affect.js';
 
 type Severity = 'error' | 'warning' | 'off';
 
@@ -19,7 +20,75 @@ const DEFAULT_RULES: Record<string, Severity> = {
   'stretch-source-unresolved': 'error',
   'stretch-source-future': 'error',
   'stretch-length': 'warning',
+  'stretch-affect-unresolved': 'error',
+  'affect-label-unresolved': 'warning',
+  'affect-malformed': 'error',
+  'affect-out-of-range': 'error',
+  'affect-declared-no-register': 'warning',
 };
+
+const vadInt = z.number().int().min(-100).max(100);
+const bound = z
+  .tuple([vadInt, vadInt])
+  .refine(([lo, hi]) => lo <= hi, { message: 'a bound is [min, max] with min <= max' });
+
+/**
+ * The affect vocabulary and basins, both the universe's to extend. Checked
+ * when the config loads, because a collision here would make a label resolve
+ * to whichever entry happened to be read last.
+ */
+const AffectSchema = z
+  .object({
+    labels: z
+      .record(z.object({ v: vadInt, a: vadInt, d: vadInt, aliases: z.array(z.string()).default([]) }))
+      .default({}),
+    basins: z
+      .record(z.object({ when: z.object({ v: bound, a: bound, d: bound }).partial().optional(), directives: z.array(z.string()).optional() }))
+      .default({}),
+  })
+  .default({ labels: {}, basins: {} })
+  .superRefine((affect, ctx) => {
+    const owner = new Map<string, string>();
+    for (const name of Object.keys(affect.labels)) {
+      const key = normalizeAffectLabel(name);
+      const first = owner.get(key);
+      if (first) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['labels', name], message: `Label '${name}' is the same label as '${first}'.` });
+      }
+      owner.set(key, first ?? name);
+    }
+    for (const [name, l] of Object.entries(affect.labels)) {
+      for (const alias of l.aliases) {
+        const key = normalizeAffectLabel(alias);
+        const taken = owner.has(key) ? `used by '${owner.get(key)}'` : key in CORE_AFFECT_LABELS ? 'a core label' : undefined;
+        if (taken) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            path: ['labels', name, 'aliases'],
+            message: `Alias '${alias}' of '${name}' is already ${taken}.`,
+          });
+        } else {
+          owner.set(key, name);
+        }
+      }
+    }
+    for (const [name, b] of Object.entries(affect.basins)) {
+      const builtin = (BUILTIN_BASINS as readonly string[]).includes(name);
+      if (builtin && b.when) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ['basins', name, 'when'],
+          message: `'${name}' is a built-in basin; its region is fixed. Give it directives, or add a basin under a new name.`,
+        });
+      }
+      if (!builtin && !b.when) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['basins', name], message: `Basin '${name}' is not built in, so it needs \`when\` bounds.` });
+      }
+      if (!builtin && !b.directives?.length) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['basins', name], message: `Basin '${name}' needs \`directives\`.` });
+      }
+    }
+  });
 
 export const ConfigSchema = z.object({
   spec: z.number().default(0.1),
@@ -100,6 +169,12 @@ export const ConfigSchema = z.object({
    */
   context: z
     .object({
+      /**
+       * Whether `pinakes context` prints the affect block. `auto` prints it
+       * only for a stretch that declared its affect and landed in a basin;
+       * `off` never does, for a universe that wants it out of drafting.
+       */
+      affect: z.enum(['auto', 'off']).default('auto'),
       codex: z
         .object({
           include: z.array(z.string()).default([]),
@@ -109,7 +184,13 @@ export const ConfigSchema = z.object({
         })
         .default({ include: [], exclude: {}, excludeParagraphs: [], frontmatter: [] }),
     })
-    .default({ codex: { include: [], exclude: {}, excludeParagraphs: [], frontmatter: [] } }),
+    .default({ affect: 'auto', codex: { include: [], exclude: {}, excludeParagraphs: [], frontmatter: [] } }),
+  /**
+   * Affect labels (`labels`, integers in [-100, 100], with optional `aliases`)
+   * and attractor basins (`basins`: directives for a built-in basin, or `when`
+   * bounds plus directives for a new one). See `compiler/affect.ts`.
+   */
+  affect: AffectSchema,
   /**
    * `prose-check` configuration. Every field is optional: the defaults are the
    * AI-tells catalogue itself, so the command is useful before a universe

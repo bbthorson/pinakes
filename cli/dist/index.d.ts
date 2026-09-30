@@ -6,7 +6,7 @@ import { type ContextBundle, type CodexSection } from './context/bundle.js';
 import { type ProseReport } from './prose/check.js';
 export type { Config, Diagnostic, ChapterData, CompilationReport, CompilationResult, ContextBundle, CodexSection, ProseReport, RegistryConflict, RegistryInvalidEntry, };
 export * from './keystatic/index.js';
-export * from './compiler/affect.js';
+export { BUILTIN_BASINS, CORE_AFFECT_LABELS, buildAffectVocabulary, classifyAttractorBasin, formatAffectPromptInjection, getBehavioralDirectives, normalizeAffectLabel, parseAffectDeclaration, resolveAffectLabel, type AffectDeclaration, type AffectLabelConfig, type BasinBounds, type BasinConfig, type BuiltinBasin, type ScaledVad, type VadVector, } from './compiler/affect.js';
 /**
  * A loaded universe. Open one when making several calls against the same
  * root, so the config and registry are read once; every function also
@@ -43,8 +43,8 @@ export interface CompileResult extends CompilationReport {
 }
 /**
  * Builds and validates every record. `records` holds them all in memory;
- * `stretchFindings` are continuity findings, reported by `lint` rather than
- * counted against `ok`.
+ * `stretchFindings` and `affectFindings` are continuity findings, reported by
+ * `lint` rather than counted against `ok`.
  */
 export declare function compile(input: UniverseInput, options?: CompileOptions): CompileResult;
 export interface ContextOptions {

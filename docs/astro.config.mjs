@@ -46,7 +46,7 @@ export default defineConfig({
             { label: 'Continuity and drift', slug: 'continuity-and-drift' },
             { label: 'Prose triage', slug: 'prose-triage' },
             { label: 'Keystatic CMS', slug: 'keystatic' },
-            { label: 'Affect simulation', slug: 'affect-simulation' },
+            { label: 'Affect', slug: 'affect-simulation' },
           ],
         },
         {

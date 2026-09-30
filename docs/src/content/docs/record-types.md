@@ -15,16 +15,16 @@ whose `project.nsid` is `com.supperclubsecrets`.
 | --- | --- | --- | --- |
 | `<nsid>.character.profile` | One per active character | `records/series/character_profiles.json` | 13 |
 | `<nsid>.character.stateEvent` | One per character per chapter they appear in | `records/<book>/character_state_events.json` | 97 |
-| `<nsid>.character.affect.event` | One per character per chapter register shift | `records/<book>/character_affect_events.json` | 97 |
+| `<nsid>.character.affect.event` | One per character per chapter that declares `affect:` for them | `records/<book>/character_affect_events.json` | 0 |
 | `<nsid>.scene` | One per chapter | `records/<book>/scenes.json` | 25 |
 | `<nsid>.place` | One per location | `records/series/places.json` | 14 |
 | `<nsid>.item` | One per tracked object | `records/series/items.json` | 1 |
 | `<nsid>.custodyEvent` | One per hand-off | `records/<book>/custody_events.json` | 3 |
 | `<nsid>.character.post` | One per authored post | `records/<book>/character_posts.json` | 0 |
-| `<nsid>.character.stretch` | One per character per stretch (decorated with affect coordinates & attractor basin) | `records/<book>/character_stretches.json` | 6 |
+| `<nsid>.character.stretch` | One per character per stretch | `records/<book>/character_stretches.json` | 6 |
 
 Seven of the nine are projected out of finished prose and codex files. `character.post` and
-`character.stretch` are authored, and each compiles into corresponding AT Protocol streams. `character.stretch` acts as the mid-tier consolidated affect snapshot, decorated with continuous VAD coordinates, dynamic attractor basin, and prompt constraints.
+`character.stretch` are authored, and each compiles into corresponding AT Protocol streams. A stretch that declares `affect:` also carries VAD coordinates and, when they fall in one, an attractor basin with advisory tendencies.
 
 Three are series-wide and five are per-book. That split is not cosmetic: a
 character's identity and a location's description are properties of the
@@ -341,9 +341,53 @@ compiles to:
   and items are undated long-tier material, citable at any date.
 - **The body is the record's `state`.** `note` is authoring direction and is
   never read, as with posts.
+- **`affect:` is optional** and is the only source of `coordinates`,
+  `attractorBasin` and `behavioralDirectives`: one label or `{ v, a, d }`. The
+  `register` is a voice mode and never stands in for it, so a stretch without
+  `affect:` has none of the three. See [Affect](affect-simulation.md).
 
 A story gets `character_stretches.json` only if it has a `stretches/`
 directory, so a universe that never writes one is unaffected.
+
+### `character.affect.event`
+
+A shift in a character's affect within one chapter. It is compiled only from
+the chapter's `affect:` map, never from `registers:`, so a chapter that
+declares none produces none:
+
+```yaml
+registers:
+  Noah: "under-pressure (asks the right questions, then lashes out)"
+affect:
+  Noah: "curious → angry"              # labels: the delta runs first to last
+  Jasper: { v: -40, a: -30, d: -50 }   # or the delta itself, integers in [-100, 100]
+```
+
+compiles Noah's entry to:
+
+```json
+{
+  "$type": "com.supperclubsecrets.character.affect.event",
+  "id": "affect.event.noah.book1.ch15",
+  "subject": "char.noah",
+  "storyDate": "2026-10-11",
+  "chapterRef": "book1#ch15",
+  "sceneRef": "scene.book1.ch15",
+  "stimulus": "Noah finds the leak",
+  "register": "under-pressure",
+  "delta": { "valence": -100, "arousal": 30, "dominance": 20 },
+  "createdAt": "2026-10-11T00:00:00.000Z",
+  "sourceFile": "stories/01. .../chapters/15_the_leak.md"
+}
+```
+
+- **`stimulus`** is the chapter's `beat_purpose` (else `beat`, else its title).
+  Middle steps of a longer transition (`a → b → c`) are appended as `(via b)`.
+- **`register`** is the first step of the character's `registers:` entry, for
+  context only. It is absent when the chapter has none.
+- **`rpe`** comes from the chapter's `rpe:` and is absent when undeclared.
+- A label that is not in the vocabulary emits no event and an
+  `affect-label-unresolved` warning; it is never scored as neutral.
 
 ## The Lexicon documents
 
@@ -353,6 +397,7 @@ Every compile writes the universe's own Lexicon documents alongside its records:
 records/lexicons/
 ├── com.supperclubsecrets.scene.json
 ├── com.supperclubsecrets.character.stateEvent.json
+├── com.supperclubsecrets.character.affect.event.json
 ├── com.supperclubsecrets.character.profile.json
 ├── com.supperclubsecrets.place.json
 ├── com.supperclubsecrets.item.json

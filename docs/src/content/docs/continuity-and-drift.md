@@ -47,6 +47,11 @@ block is merged over the defaults, so it only needs the rules you change:
 | `stretch-status` | `error` | `status` other than `draft` or `approved` |
 | `stretch-register` | `error` | A register outside `stretches.registers`, or, when that is unset, outside the register first-terms the chapters use |
 | `stretch-length` | `warning` | A stretch longer than `stretches.softMaxChars` (default 600) |
+| `stretch-affect-unresolved` | `error` | A stretch `affect:` label that is not in the affect vocabulary. A stretch is authored deliberately, so an unknown state is an error; the stretch compiles with no coordinates |
+| `affect-label-unresolved` | `warning` | A chapter `affect:` label that is not in the affect vocabulary. That character-chapter emits no affect event |
+| `affect-malformed` | `error` | An `affect:` value that is not a label, a transition or `{ v, a, d }`; a single label in a chapter (a chapter records a shift); a transition in a stretch (a stretch is a state) |
+| `affect-out-of-range` | `error` | A numeric `affect:` value that is not an integer in [−100, 100] |
+| `affect-declared-no-register` | `warning` | A chapter that declares `affect:` for a character with no `registers:` entry in that chapter |
 
 The stretch rules run against *compiled* records, because
 `stretch-source-future` needs every other record's end date. `lint` builds the
@@ -54,6 +59,11 @@ record set in memory to get them and writes nothing. "Ends" means
 `storyDateEnd` where a record has one: a chapter dated `2026-10-12 to
 2026-10-14` has two days still to run on Oct 12, and a stretch written that day
 cannot cite it.
+
+The affect rules are computed the same way, by the compiler, which emits
+nothing for a declaration it could not resolve. An `affect:` key that names no
+registry character is reported under `unresolved-entities`, as a `registers:`
+key is. See [Affect](affect-simulation.md).
 
 Supper Club Secrets sets no `rules:` block at all, so Book 1 runs on these
 defaults and passes clean.

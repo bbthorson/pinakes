@@ -30,7 +30,26 @@ export type {
 };
 
 export * from './keystatic/index.js';
-export * from './compiler/affect.js';
+// Named, not `export *`: everything listed is a compatibility promise, and the
+// affect module's internals should stay free to change.
+export {
+  BUILTIN_BASINS,
+  CORE_AFFECT_LABELS,
+  buildAffectVocabulary,
+  classifyAttractorBasin,
+  formatAffectPromptInjection,
+  getBehavioralDirectives,
+  normalizeAffectLabel,
+  parseAffectDeclaration,
+  resolveAffectLabel,
+  type AffectDeclaration,
+  type AffectLabelConfig,
+  type BasinBounds,
+  type BasinConfig,
+  type BuiltinBasin,
+  type ScaledVad,
+  type VadVector,
+} from './compiler/affect.js';
 
 /**
  * A loaded universe. Open one when making several calls against the same
@@ -71,9 +90,9 @@ export function lint(input: UniverseInput): LintResult {
   const diagnostics = u.engine.lint();
 
   // Stretch rules need every compiled record's dates, so build the record
-  // set in memory (nothing is written) and take its stretch findings.
-  const { stretchFindings } = compileProject(u.root, u.config, u.registry, u.engine, { write: false });
-  diagnostics.push(...stretchFindings);
+  // set in memory (nothing is written) and take its stretch and affect findings.
+  const { stretchFindings, affectFindings } = compileProject(u.root, u.config, u.registry, u.engine, { write: false });
+  diagnostics.push(...stretchFindings, ...affectFindings);
 
   if (u.config.paths.rules) {
     const customRules = new YamlRulesLoader(u.root, u.config.paths.rules);
@@ -101,8 +120,8 @@ export interface CompileResult extends CompilationReport {
 
 /**
  * Builds and validates every record. `records` holds them all in memory;
- * `stretchFindings` are continuity findings, reported by `lint` rather than
- * counted against `ok`.
+ * `stretchFindings` and `affectFindings` are continuity findings, reported by
+ * `lint` rather than counted against `ok`.
  */
 export function compile(input: UniverseInput, options: CompileOptions = {}): CompileResult {
   const u = open(input);

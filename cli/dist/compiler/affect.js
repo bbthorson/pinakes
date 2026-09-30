@@ -1,199 +1,48 @@
 /**
- * Mathematical dynamical system for character affective state.
+ * Character affect: VAD (valence, arousal, dominance) coordinates, and the
+ * attractor basins that turn a coordinate into drafting tendencies.
  *
- * Implements a two-timescale leaky-integrator with homeostatic relaxation,
- * allostatic baseline adaptation, reward prediction error (RPE) modulation,
- * and phase-space attractor basin classification.
+ * Affect is declared, never inferred. A chapter or stretch carries it in its
+ * own `affect:` field, as vocabulary labels or explicit numbers, and a record
+ * gets coordinates only from a declaration that resolved.
  *
- * Mathematical Foundations:
- * -------------------------
- * 1. Bounded Continuous PAD/VAD State Space:
- *    At any story time \tau_t, a character's state consists of:
- *      - Fast immediate affect vector: x_t = [v_t, a_t, d_t]^T \in [-1.0, 1.0]^3
- *      - Slow homeostatic attractor:   \mu_t = [\mu_{v,t}, \mu_{a,t}, \mu_{d,t}]^T \in [-1.0, 1.0]^3
- *    Where:
- *      - v (Valence):   Pleasure / positive valence vs. pain / dysphoria
- *      - a (Arousal):   Autonomic activation / adrenaline vs. lethargy / hypo-arousal
- *      - d (Dominance): Agency / perceived control vs. helplessness / submissiveness
+ * Voice registers (`public`, `private`, `under-pressure`) are not affect. A
+ * register says who the character is talking to and how guarded they are; it
+ * has no coordinates. The first version of this module mapped registers to
+ * fixed VAD values and read affect out of the register annotation's
+ * parenthetical. On Supper Club Secrets Book 1 that gave every stretch its
+ * register's numbers rather than the character's (six characters, two distinct
+ * coordinates, all `grounded-stoic`), and scored 77 of 89 chapter events from
+ * labels it could not resolve as if they were neutral, some with the wrong
+ * sign. `pinakes context` then told the drafter to write a character in
+ * performative chaos as "measured, steady, and deliberative".
  *
- *    Note on AT Protocol Lexicon serialization:
- *    AT Protocol Lexicons enforce determinism using 32-bit signed integers.
- *    Coordinates and deltas are stored as basis-point percentages scaled to [-100, 100],
- *    and RPE is scaled to [-200, 200].
- *
- * 2. Continuous Homeostatic Relaxation (Fast Timescale):
- *    Between narrative shocks, immediate affect exponentially relaxes toward baseline:
- *      x_{t + \Delta\tau} = \mu_t + (x_t - \mu_t) \cdot e^{-\lambda \Delta\tau}
- *    Where \Delta\tau is elapsed narrative time in days, and \lambda is the decay rate.
- *
- * 3. Allostatic Adaptation (Slow Timescale):
- *    Chronic exposure to high-stress or depressed states shifts the baseline:
- *      \mu_{t+1} = \operatorname{clip}(\mu_t + \alpha (x_t - \mu_t) \Delta\tau, -1.0, 1.0)
- *    Where \alpha \ll \lambda is the allostatic drag coefficient.
- *
- * 4. Episodic Shocks & Reward Prediction Error (RPE):
- *    A narrative stimulus induces an instantaneous impulse \Delta x and an RPE \delta_{rpe} \in [-2.0, 2.0]:
- *      \delta_{rpe} = R_{actual} - R_{expected}
- *    Modulation:
- *      \Delta x_{modulated} = \Delta x + [ \beta_v \cdot \delta_{rpe}, \beta_a \cdot |\delta_{rpe}|, \beta_d \cdot \delta_{rpe} ]^T
- *      x_{t}^{post} = \operatorname{clip}(x_t + \Delta x_{modulated}, -1.0, 1.0)
- *
- * 5. Attractor Basins:
- *    Non-linear qualitative behavioral modes partitioned over VAD phase space:
- *      - hyper-vigilant:        a > 0.35 \land v < -0.15
- *      - depressive-exhaustion: a < -0.25 \land v < -0.25 \land d < -0.15
- *      - manic-fixation:        a > 0.45 \land d > 0.25 \land |v| > 0.20
- *      - dissociative-numb:     a < -0.45 \land |v| \le 0.25 \land d < -0.20
- *      - grounded-stoic:        default resting / deliberate agency
+ * Serialized values are integers in [-100, 100]: Lexicon has no floats.
+ * Internally a VadVector is in [-1, 1].
  */
-export const DEFAULT_AFFECT_PARAMS = {
-    relaxationRate: 0.15,
-    allostaticRate: 0.03,
-    rpeSensitivity: {
-        valence: 0.3,
-        arousal: 0.2,
-        dominance: 0.25,
-    },
-};
+import { parseRegister } from '../linter/registers.js';
+export const BUILTIN_BASINS = [
+    'hyper-vigilant',
+    'depressive-exhaustion',
+    'manic-fixation',
+    'dissociative-numb',
+    'grounded-stoic',
+];
 /** Clamps a number to [min, max]. */
-export function clip(val, min = -1.0, max = 1.0) {
+function clip(val, min = -1.0, max = 1.0) {
     return Math.max(min, Math.min(max, val));
 }
-/** Scales continuous [-1.0, 1.0] float to [-100, 100] integer. */
-export function toScaledInt(val, min = -100, max = 100) {
-    return Math.round(clip(val * 100, min, max));
-}
-/** Converts integer scaled value [-100, 100] back to continuous [-1.0, 1.0] float. */
-export function fromScaledInt(val) {
-    return clip(val / 100, -1.0, 1.0);
-}
-/** Scales a continuous VadVector to integer ScaledVad. */
+/** Scales a continuous VadVector to the integer form records carry. */
 export function scaleVad(v) {
-    return {
-        valence: toScaledInt(v.valence),
-        arousal: toScaledInt(v.arousal),
-        dominance: toScaledInt(v.dominance),
-    };
-}
-/** Unscales an integer ScaledVad to continuous VadVector. */
-export function unscaleVad(s) {
-    return {
-        valence: fromScaledInt(s.valence),
-        arousal: fromScaledInt(s.arousal),
-        dominance: fromScaledInt(s.dominance),
-    };
-}
-/** Computes the continuous exponential relaxation of affect toward baseline across \Delta\tau days. */
-export function relaxAffect(current, baseline, deltaDays, lambda = DEFAULT_AFFECT_PARAMS.relaxationRate) {
-    if (deltaDays <= 0)
-        return { ...current };
-    const decay = Math.exp(-lambda * deltaDays);
-    return {
-        valence: clip(baseline.valence + (current.valence - baseline.valence) * decay),
-        arousal: clip(baseline.arousal + (current.arousal - baseline.arousal) * decay),
-        dominance: clip(baseline.dominance + (current.dominance - baseline.dominance) * decay),
-    };
-}
-/** Computes slow allostatic baseline adaptation under sustained affect. */
-export function adaptBaseline(current, baseline, deltaDays, alpha = DEFAULT_AFFECT_PARAMS.allostaticRate) {
-    if (deltaDays <= 0)
-        return { ...baseline };
-    // Saturated linear drag with bounds
-    const dragFactor = Math.min(1.0, alpha * deltaDays);
-    return {
-        valence: clip(baseline.valence + (current.valence - baseline.valence) * dragFactor),
-        arousal: clip(baseline.arousal + (current.arousal - baseline.arousal) * dragFactor),
-        dominance: clip(baseline.dominance + (current.dominance - baseline.dominance) * dragFactor),
-    };
+    const s = (x) => Math.round(clip(x * 100, -100, 100));
+    return { valence: s(v.valence), arousal: s(v.arousal), dominance: s(v.dominance) };
 }
 /**
- * Applies an episodic stimulus impulse and RPE shock to an immediate affect vector.
+ * The labels every universe starts with. A universe adds to or overrides these
+ * under `affect.labels` in `pinakes.yaml`; the numbers for its own words are
+ * the author's, not Pinakes'.
  */
-export function applyEpisodicShock(current, impulse, rpe = 0.0, params = DEFAULT_AFFECT_PARAMS) {
-    const boundedRpe = clip(rpe, -2.0, 2.0);
-    const vShift = impulse.valence + params.rpeSensitivity.valence * boundedRpe;
-    const aShift = impulse.arousal + params.rpeSensitivity.arousal * Math.abs(boundedRpe);
-    const dShift = impulse.dominance + params.rpeSensitivity.dominance * boundedRpe;
-    return {
-        valence: clip(current.valence + vShift),
-        arousal: clip(current.arousal + aShift),
-        dominance: clip(current.dominance + dShift),
-    };
-}
-/**
- * Classifies an affect vector into one of 5 canonical attractor basins.
- */
-export function classifyAttractorBasin(vad) {
-    const { valence: v, arousal: a, dominance: d } = vad;
-    // 1. Hyper-vigilant: elevated autonomic arousal with dysphoric/fear valence
-    if (a > 0.35 && v < -0.15) {
-        return 'hyper-vigilant';
-    }
-    // 2. Depressive-exhaustion: collapsed arousal, dysphoria, and low agency
-    if (a < -0.25 && v < -0.25 && d < -0.15) {
-        return 'depressive-exhaustion';
-    }
-    // 3. Manic-fixation: surging arousal, elevated agency, obsessive charge
-    if (a > 0.45 && d > 0.25 && Math.abs(v) > 0.2) {
-        return 'manic-fixation';
-    }
-    // 4. Dissociative-numb: severe hypo-arousal with flat affect and suppressed dominance
-    if (a < -0.45 && Math.abs(v) <= 0.25 && d < -0.2) {
-        return 'dissociative-numb';
-    }
-    // 5. Grounded-stoic: homeostatic equilibrium, high/moderate agency, deliberate
-    return 'grounded-stoic';
-}
-/**
- * Generates prompt-injection behavioral constraints tailored to an attractor basin.
- */
-export function getBehavioralDirectives(basin) {
-    switch (basin) {
-        case 'hyper-vigilant':
-            return [
-                'Dialogue cadence must be rapid, guarded, or interrogative.',
-                'Subtext prioritizes scanning environment and tracking signs of deception.',
-                'Hesitates to disclose personal commitments or vulnerable details.',
-            ];
-        case 'depressive-exhaustion':
-            return [
-                'Dialogue cadence must be sparse, flat, or delayed.',
-                'Subtext reflects psychomotor exhaustion, fatalism, and reluctance to invest effort.',
-                'Responds primarily in monosyllables or low-effort acquiescence.',
-            ];
-        case 'manic-fixation':
-            return [
-                'Dialogue cadence is intense, rapid-fire, and prone to monologue bursts.',
-                'Subtext tunnels aggressively on the active objective to the exclusion of other cues.',
-                'Dismisses risks and overestimates personal control.',
-            ];
-        case 'dissociative-numb':
-            return [
-                'Dialogue cadence is mechanical, compliant, or flatly detached.',
-                'Subtext exhibits blunted affect and physical disconnection from surroundings.',
-                'Observes high-stakes developments with eerie neutrality.',
-            ];
-        case 'grounded-stoic':
-        default:
-            return [
-                'Dialogue cadence is measured, steady, and deliberative.',
-                'Subtext exhibits high agency, emotional containment, and active situational awareness.',
-                'Evaluates conflicts pragmatically without panic or despair.',
-            ];
-    }
-}
-/**
- * Standard register vocabulary mappings to canonical VAD coordinates.
- * Allows authors to write qualitative register tags while Pinakes compiles
- * deterministic mathematical coordinates.
- */
-export const STANDARD_REGISTER_VAD = {
-    // Baseline social modes
-    private: { valence: 0.1, arousal: -0.1, dominance: 0.1 },
-    public: { valence: 0.2, arousal: 0.2, dominance: 0.2 },
-    under_pressure: { valence: -0.3, arousal: 0.6, dominance: 0.1 },
-    'under-pressure': { valence: -0.3, arousal: 0.6, dominance: 0.1 },
-    // Acute affective states
+export const CORE_AFFECT_LABELS = {
     alarmed: { valence: -0.6, arousal: 0.7, dominance: -0.3 },
     'quietly alarmed': { valence: -0.4, arousal: 0.4, dominance: -0.1 },
     panic: { valence: -0.8, arousal: 0.9, dominance: -0.6 },
@@ -211,104 +60,181 @@ export const STANDARD_REGISTER_VAD = {
     conflicted: { valence: -0.3, arousal: 0.4, dominance: -0.1 },
     softening: { valence: 0.3, arousal: -0.2, dominance: 0.1 },
 };
-/**
- * Resolves a register string or qualitative label to a base VadVector.
- * Falls back to neutral resting state if unknown.
- */
-export function resolveRegisterVad(registerName) {
-    const norm = registerName.trim().toLowerCase().replace(/\s+/g, ' ');
-    if (STANDARD_REGISTER_VAD[norm])
-        return STANDARD_REGISTER_VAD[norm];
-    // Try substring matching
-    for (const [key, vad] of Object.entries(STANDARD_REGISTER_VAD)) {
-        if (norm.includes(key))
-            return vad;
-    }
-    // Default neutral
-    return { valence: 0.0, arousal: 0.0, dominance: 0.0 };
+/** Case- and whitespace-insensitive; nothing looser. */
+export function normalizeAffectLabel(label) {
+    return label.trim().toLowerCase().replace(/\s+/g, ' ');
 }
 /**
- * Calculates the delta between two register names or steps.
+ * The resolved vocabulary: the core labels, overlaid with the universe's, each
+ * reachable by its name and its aliases. Collisions are rejected when the
+ * config is loaded, so a lookup here has exactly one answer.
  */
-export function calculateRegisterDelta(fromRegister, toRegister) {
-    const fromVad = resolveRegisterVad(fromRegister);
-    const toVad = resolveRegisterVad(toRegister);
+export function buildAffectVocabulary(labels = {}) {
+    const vocab = new Map();
+    for (const [name, vad] of Object.entries(CORE_AFFECT_LABELS))
+        vocab.set(name, vad);
+    for (const [name, l] of Object.entries(labels)) {
+        const vad = { valence: l.v / 100, arousal: l.a / 100, dominance: l.d / 100 };
+        vocab.set(normalizeAffectLabel(name), vad);
+        for (const alias of l.aliases ?? [])
+            vocab.set(normalizeAffectLabel(alias), vad);
+    }
+    return vocab;
+}
+/**
+ * Exact match on the normalized label, or undefined. There is no substring
+ * fallback: the old one resolved `not warm` to `warm`, and an unknown label to
+ * a neutral 0/0/0 that looked like data.
+ */
+export function resolveAffectLabel(label, vocab) {
+    return vocab.get(normalizeAffectLabel(label));
+}
+/**
+ * Reads one `affect:` value: a label, a transition (`curious → angry`), or a
+ * numeric triple `{ v, a, d }` of integers in [-100, 100].
+ *
+ * A label string is split by `parseRegister`, the same code that reads
+ * `registers:`. The two used to have separate parsers, and one annotation
+ * compiled to one register for the state event and to a transition into an
+ * unknown state for the affect event.
+ */
+export function parseAffectDeclaration(raw) {
+    if (typeof raw === 'string') {
+        const { steps } = parseRegister(raw);
+        if (steps.length === 0)
+            return { problem: { rule: 'affect-malformed', message: `\`affect\` value '${raw}' names no label.` } };
+        return { steps };
+    }
+    if (raw && typeof raw === 'object' && !Array.isArray(raw)) {
+        const keys = Object.keys(raw).sort();
+        if (keys.join(',') !== 'a,d,v') {
+            return {
+                problem: {
+                    rule: 'affect-malformed',
+                    message: `A numeric \`affect\` value has exactly the keys v, a and d; got ${keys.length ? keys.join(', ') : 'none'}.`,
+                },
+            };
+        }
+        const r = raw;
+        for (const k of ['v', 'a', 'd']) {
+            const n = r[k];
+            if (typeof n !== 'number' || !Number.isInteger(n) || n < -100 || n > 100) {
+                return {
+                    problem: {
+                        rule: 'affect-out-of-range',
+                        message: `\`affect.${k}\` must be an integer in [-100, 100]; got ${JSON.stringify(n)}.`,
+                    },
+                };
+            }
+        }
+        return { numeric: { valence: r.v / 100, arousal: r.a / 100, dominance: r.d / 100 } };
+    }
     return {
-        valence: clip(toVad.valence - fromVad.valence),
-        arousal: clip(toVad.arousal - fromVad.arousal),
-        dominance: clip(toVad.dominance - fromVad.dominance),
+        problem: {
+            rule: 'affect-malformed',
+            message: `\`affect\` must be a label, a transition (\`a → b\`) or { v, a, d }; got ${JSON.stringify(raw)}.`,
+        },
     };
 }
+/** `to - from`, clipped: the shift an event records. */
+export function affectDelta(from, to) {
+    return {
+        valence: clip(to.valence - from.valence),
+        arousal: clip(to.arousal - from.arousal),
+        dominance: clip(to.dominance - from.dominance),
+    };
+}
+function builtinBasin(vad) {
+    const { valence: v, arousal: a, dominance: d } = vad;
+    if (a > 0.35 && v < -0.15)
+        return 'hyper-vigilant';
+    if (a < -0.25 && v < -0.25 && d < -0.15)
+        return 'depressive-exhaustion';
+    if (a > 0.45 && d > 0.25 && Math.abs(v) > 0.2)
+        return 'manic-fixation';
+    if (a < -0.45 && Math.abs(v) <= 0.25 && d < -0.2)
+        return 'dissociative-numb';
+    // A band, not the leftover. It used to be the fall-through, so `elated` and
+    // `animated` (high arousal, positive valence) were labelled measured and steady.
+    if (Math.abs(a) <= 0.35 && v >= -0.15)
+        return 'grounded-stoic';
+    return undefined;
+}
+function within(x, range) {
+    if (!range)
+        return true;
+    const n = Math.round(x * 100);
+    return n >= range[0] && n <= range[1];
+}
 /**
- * Formats an LLM system prompt injection block from an affect snapshot.
+ * The basin a coordinate falls in, or undefined when none claims it. The
+ * built-in basins are tried first; a universe's own basins (those with `when`)
+ * cover what they leave, in the order `pinakes.yaml` lists them.
+ */
+export function classifyAttractorBasin(vad, basins = {}) {
+    const hit = builtinBasin(vad);
+    if (hit)
+        return hit;
+    for (const [name, b] of Object.entries(basins)) {
+        if (!b.when)
+            continue;
+        if (within(vad.valence, b.when.v) && within(vad.arousal, b.when.a) && within(vad.dominance, b.when.d))
+            return name;
+    }
+    return undefined;
+}
+const BUILTIN_DIRECTIVES = {
+    'hyper-vigilant': [
+        'Dialogue tends to be rapid, guarded, or interrogative.',
+        'Subtext prioritizes scanning the environment and tracking signs of deception.',
+        'Hesitates to disclose personal commitments or vulnerable details.',
+    ],
+    'depressive-exhaustion': [
+        'Dialogue tends to be sparse, flat, or delayed.',
+        'Subtext reflects exhaustion, fatalism, and reluctance to invest effort.',
+        'Responds mostly in short, low-effort acquiescence.',
+    ],
+    'manic-fixation': [
+        'Dialogue tends to be intense, rapid-fire, and prone to monologue bursts.',
+        'Subtext tunnels on the active objective to the exclusion of other cues.',
+        'Dismisses risks and overestimates personal control.',
+    ],
+    'dissociative-numb': [
+        'Dialogue tends to be mechanical, compliant, or flatly detached.',
+        'Subtext shows blunted affect and disconnection from surroundings.',
+        'Observes high-stakes developments with eerie neutrality.',
+    ],
+    'grounded-stoic': [
+        'Dialogue tends to be measured, steady, and deliberative.',
+        'Subtext shows agency, emotional containment, and situational awareness.',
+        'Evaluates conflicts pragmatically without panic or despair.',
+    ],
+};
+/**
+ * A basin's tendencies: the universe's own when `pinakes.yaml` gives them, so
+ * they can be phrased in its voice guide's terms, else the built-in set.
+ */
+export function getBehavioralDirectives(basin, basins = {}) {
+    return basins[basin]?.directives ?? BUILTIN_DIRECTIVES[basin] ?? [];
+}
+/**
+ * The block `pinakes context` prints. Advisory by construction: the voice
+ * guide and the register decide how a character speaks, and these are
+ * tendencies the declared affect suggests, not constraints.
  */
 export function formatAffectPromptInjection(snapshot) {
-    const coords = snapshot.coordinates;
-    const v = (coords.valence / 100).toFixed(2);
-    const a = (coords.arousal / 100).toFixed(2);
-    const d = (coords.dominance / 100).toFixed(2);
-    const b = (coords.baselineValence / 100).toFixed(2);
+    const c = snapshot.coordinates;
+    const f = (n) => (n / 100).toFixed(2);
     const lines = [
         '[INTERNAL_AFFECT_STATE]',
-        `DIMENSIONS: Valence=${v} | Arousal=${a} | Dominance=${d} | Baseline=${b}`,
+        `DIMENSIONS: Valence=${f(c.valence)} | Arousal=${f(c.arousal)} | Dominance=${f(c.dominance)}`,
         `ATTRACTOR: ${snapshot.attractorBasin}`,
     ];
-    if (snapshot.openTensions && snapshot.openTensions.length > 0) {
-        lines.push('ACTIVE_TENSIONS:');
-        for (const tension of snapshot.openTensions) {
-            lines.push(`  - "${tension.replace(/"/g, '\\"')}"`);
-        }
-    }
-    if (snapshot.behavioralDirectives && snapshot.behavioralDirectives.length > 0) {
-        lines.push('BEHAVIORAL_CONSTRAINTS:');
-        for (const directive of snapshot.behavioralDirectives) {
+    if (snapshot.behavioralDirectives?.length) {
+        lines.push('SUGGESTED_TENDENCIES:');
+        for (const directive of snapshot.behavioralDirectives)
             lines.push(`  - ${directive}`);
-        }
     }
     lines.push('[/INTERNAL_AFFECT_STATE]');
     return lines.join('\n');
-}
-/**
- * Extracts the starting and ending qualitative registers from an author's register string,
- * handling transitions inside or outside parentheticals (e.g. "private (curious -> quietly alarmed)"
- * or "public -> private (hostess softening)").
- */
-export function parseAffectTransition(val) {
-    const raw = val.trim();
-    const arrowMatch = raw.match(/(?:->|→)/);
-    if (arrowMatch) {
-        // Check if transition is inside parentheses: e.g. "private (curious → quietly alarmed)"
-        const parenMatch = raw.match(/\(([^()]+)\)/);
-        if (parenMatch && /(?:->|→)/.test(parenMatch[1])) {
-            const innerSteps = parenMatch[1].split(/\s*(?:->|→)\s*/).map((s) => s.trim()).filter(Boolean);
-            return {
-                fromRegister: innerSteps[0],
-                toRegister: innerSteps[innerSteps.length - 1],
-                note: parenMatch[1],
-            };
-        }
-        // Arrow outside parentheses: e.g. "public → private (hostess persona softening)"
-        const cleaned = raw.replace(/\s*\([^()]*\)/g, '').trim();
-        const outerSteps = cleaned.split(/\s*(?:->|→)\s*/).map((s) => s.trim()).filter(Boolean);
-        const parenNote = parenMatch ? parenMatch[1] : undefined;
-        return {
-            fromRegister: outerSteps[0] ?? 'private',
-            toRegister: outerSteps[outerSteps.length - 1] ?? outerSteps[0] ?? 'private',
-            note: parenNote,
-        };
-    }
-    // No arrow: e.g. "private (curious)" or "public"
-    const parenMatch = raw.match(/\(([^()]+)\)/);
-    const base = raw.replace(/\s*\([^()]*\)/g, '').trim();
-    if (parenMatch) {
-        return {
-            fromRegister: base || 'private',
-            toRegister: parenMatch[1].trim(),
-            note: parenMatch[1].trim(),
-        };
-    }
-    return {
-        fromRegister: base,
-        toRegister: base,
-    };
 }

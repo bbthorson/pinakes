@@ -279,13 +279,15 @@ export function buildContext(
     .sort((a, b) => a.storyDate.localeCompare(b.storyDate) || a.id.localeCompare(b.id, undefined, { numeric: true }))
     .map((s) => ({ id: s.id, storyDate: s.storyDate, storyDateEnd: s.storyDateEnd, title: s.title }));
 
-  const affect = latest?.coordinates && latest?.attractorBasin
+  // Only a stretch that declared its affect has coordinates (the compiler
+  // never infers them), so this needs no special case to stay silent for one
+  // that did not. `context.affect: off` silences it regardless.
+  const affect = config.context.affect !== 'off' && latest?.coordinates && latest?.attractorBasin
     ? {
         snapshot: latest,
         promptBlock: formatAffectPromptInjection({
           coordinates: latest.coordinates,
           attractorBasin: latest.attractorBasin,
-          openTensions: latest.carrying,
           behavioralDirectives: latest.behavioralDirectives,
         }),
       }
@@ -352,7 +354,7 @@ export function renderMarkdown(b: ContextBundle): string {
   if (b.mid.draftsIgnored > 0) out.push(`_${b.mid.draftsIgnored} draft stretch(es) ignored; only approved ones are shown._`, '');
 
   if (b.affect?.promptBlock) {
-    out.push('## Affect state (generation prompt injection)', '');
+    out.push('## Affect state (advisory — the voice guide and register win on any conflict)', '');
     out.push('```', b.affect.promptBlock, '```', '');
   }
 

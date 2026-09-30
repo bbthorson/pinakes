@@ -16,7 +16,9 @@ import { compileProject } from './compiler/atproto.js';
 import { buildContext, renderMarkdown } from './context/bundle.js';
 import { buildProseReports } from './prose/check.js';
 export * from './keystatic/index.js';
-export * from './compiler/affect.js';
+// Named, not `export *`: everything listed is a compatibility promise, and the
+// affect module's internals should stay free to change.
+export { BUILTIN_BASINS, CORE_AFFECT_LABELS, buildAffectVocabulary, classifyAttractorBasin, formatAffectPromptInjection, getBehavioralDirectives, normalizeAffectLabel, parseAffectDeclaration, resolveAffectLabel, } from './compiler/affect.js';
 /** Reads `pinakes.yaml` and the registry. Throws if the config is missing or invalid. */
 export function openUniverse(root) {
     const abs = path.resolve(root);
@@ -32,9 +34,9 @@ export function lint(input) {
     const u = open(input);
     const diagnostics = u.engine.lint();
     // Stretch rules need every compiled record's dates, so build the record
-    // set in memory (nothing is written) and take its stretch findings.
-    const { stretchFindings } = compileProject(u.root, u.config, u.registry, u.engine, { write: false });
-    diagnostics.push(...stretchFindings);
+    // set in memory (nothing is written) and take its stretch and affect findings.
+    const { stretchFindings, affectFindings } = compileProject(u.root, u.config, u.registry, u.engine, { write: false });
+    diagnostics.push(...stretchFindings, ...affectFindings);
     if (u.config.paths.rules) {
         const customRules = new YamlRulesLoader(u.root, u.config.paths.rules);
         for (const storyDir of u.engine.getStories()) {
@@ -45,8 +47,8 @@ export function lint(input) {
 }
 /**
  * Builds and validates every record. `records` holds them all in memory;
- * `stretchFindings` are continuity findings, reported by `lint` rather than
- * counted against `ok`.
+ * `stretchFindings` and `affectFindings` are continuity findings, reported by
+ * `lint` rather than counted against `ok`.
  */
 export function compile(input, options = {}) {
     const u = open(input);
