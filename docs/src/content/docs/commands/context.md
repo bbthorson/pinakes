@@ -20,6 +20,7 @@ to keep it.
 | Long | The character's codex file, cut to the headings `context.codex` allows |
 | Mid | The latest **approved** `character.stretch` on or before the date |
 | Short | State events whose span covers the date: the register expression only, unless `--full-state` |
+| Affect | Only from a stretch that declares `affect:`, and only when the state falls in a basin: its coordinates and advisory tendencies. With `affect.dynamics` set, the state is replayed forward through chapter events, and the block shows the anchor, events and decay |
 | History | Their posts, posts they replied to, posts that mention them, and scenes they were in that have ended (titles only) |
 
 Two defaults are deliberately conservative:
@@ -55,6 +56,12 @@ context:
     exclude:
       Oliver: [The Online Life]                                    # per character, by registry name
 ```
+
+**The affect block is advisory and opt-in by declaration.** It appears only for
+a stretch that declared its own `affect:`; a register is never turned into one.
+It prints under a header saying the voice guide and register win on any
+conflict, and lists `SUGGESTED_TENDENCIES`, not constraints. `context: { affect:
+off }` turns it off for the whole universe. See [Affect](/pinakes/affect-simulation/).
 
 The bundle is horizon-safe, not knowledge-safe. It guarantees nothing from the
 future; it cannot guarantee the included past contains only what the character

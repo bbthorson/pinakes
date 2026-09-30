@@ -1,199 +1,232 @@
 ---
-title: "Affect simulation & mathematical model"
-description: "The mathematical dynamical system, two-timescale leaky-integrator, and AT Protocol Lexicon records for character psychological states."
+title: "Affect"
+description: "Declaring a character's affective state as VAD coordinates, the attractor basins they fall in, and the advisory block pinakes context prints."
 ---
 
-To represent and query a character's internal psychological state on the AT Protocol, Pinakes treats the character's Personal Data Server (PDS) as an **append-only affective ledger**.
+Pinakes can carry a character's affect, meaning what state they are in, as
+coordinates in **VAD space**: valence (pleasant to unpleasant), arousal
+(activated to lethargic) and dominance (in control to helpless). Each runs from
+−100 to 100 in records, since Lexicon has integers and no floats.
 
-Rather than storing mutable emotional state in a single profile record (which erases character history and suffers from catastrophic LLM drift), Pinakes structures character interiority across **two complementary timescales**:
-1. **High-Frequency Transitions (`character.affect.event`)**: Discrete episodic shocks, conflicts, and register transitions with continuous VAD deltas and Reward Prediction Errors.
-2. **Low-Frequency Baselines (`character.stretch`)**: Consolidated psychological checkpoints containing qualitative interiority, continuous VAD coordinates, dynamic attractor basins, unresolved tensions (`carrying`), and prompt-injection behavioral constraints.
+**Affect is declared, never inferred.** It lives in its own `affect:` field. A
+chapter or stretch without one gets no coordinates, and a label Pinakes cannot
+resolve is reported, never scored as neutral.
 
-This mirrors biological memory consolidation and allows writing pipelines or LLM agents to fetch either the latest snapshot or replay the event stream to understand *why* a character is spiraling, guarded, or resolute.
+## Affect is not a register
 
----
+A voice register (`public`, `private`, `under-pressure`) says who the character
+is talking to and how guarded they are. It describes their speech. Affect says
+what state they are in. A character can be in a `public` register and
+furious.
 
-## 1. Mathematical Formulation
+The two used to share a field: the first version of this engine gave registers
+fixed coordinates and read affect out of the register annotation's
+parenthetical. On Supper Club Secrets Book 1, every stretch got its register's
+numbers rather than the character's, most chapter events were scored from
+labels nothing recognised, and `pinakes context` told the drafter to write a
+character in performative chaos as "measured, steady, and deliberative". So
+registers have no coordinates, the parenthetical in `registers:` stays a note,
+and affect is written where it can be checked.
 
-### State Variables & Coordinate Space
+## Declaring affect
 
-At any point in story time $\tau_t$, a character's psychological state is represented in 3-dimensional **PAD/VAD space** (Valence, Arousal, Dominance):
-
-* **Immediate Affect Vector** $x_t \in [-1.0, 1.0]^3$:
-  $$x_t = \begin{bmatrix} v_t \\ a_t \\ d_t \end{bmatrix}$$
-  * $v$ (**Valence**): Hedonic pleasure / positive affect vs. pain / dysphoria $[-1.0, 1.0]$.
-  * $a$ (**Arousal**): Autonomic activation / sympathetic nervous arousal vs. hypo-arousal / lethargy $[-1.0, 1.0]$.
-  * $d$ (**Dominance**): Subjective agency / perceived control vs. helplessness / submissiveness $[-1.0, 1.0]$.
-
-* **Homeostatic Attractor Baseline** $\mu_t \in [-1.0, 1.0]^3$:
-  The character's slow-moving resting equilibrium (temperament, baseline resilience, and accumulated allostatic load).
-
-> [!NOTE]
-> **AT Protocol Lexicon Serialization**:
-> AT Protocol Lexicon 1 uses deterministic 32-bit signed integers rather than floating-point numbers to ensure consistent hashing across Merkle DAGs. Pinakes normalizes all continuous float coordinates and deltas to integer basis points scaled to $[-100, 100]$, and Reward Prediction Error to $[-200, 200]$.
-
----
-
-### Fast-Timescale: Continuous Homeostatic Relaxation
-
-Between narrative shocks and across elapsed story time $\Delta\tau$ (measured in days), immediate affect exponentially relaxes toward the character's baseline attractor $\mu_t$:
-
-$$x_{t + \Delta\tau} = \mu_t + (x_t - \mu_t) \cdot e^{-\lambda \Delta\tau}$$
-
-* $\lambda$: Fast relaxation decay rate (default $\lambda = 0.15$, corresponding to a half-life of $\approx 4.6$ narrative days).
-* When $\Delta\tau \to \infty$, $x_t \to \mu_t$.
-* Immediate agitation or adrenaline dissolves over days unless sustained by fresh narrative stimuli.
-
----
-
-### Slow-Timescale: Allostatic Baseline Adaptation
-
-When a character remains trapped in an extreme affective state for an extended duration (chronic grief, prolonged siege, unrelenting pressure), their baseline attractor $\mu$ is gradually dragged toward that state:
-
-$$\mu_{t+1} = \operatorname{clip}\left(\mu_t + \alpha (x_t - \mu_t) \Delta\tau, -1.0, 1.0\right)$$
-
-* $\alpha \ll \lambda$: Allostatic drag coefficient (default $\alpha = 0.03$).
-* Prolonged stress shifts the character's baseline valence downward and baseline arousal upward, modeling chronic trauma, burnout, or deepened security.
-
----
-
-### Episodic Shocks & Reward Prediction Error (RPE)
-
-When an episodic narrative event occurs (a revelation, conflict beat, or betrayal), it induces an instantaneous impulse $\Delta x$ modulated by **Reward Prediction Error** $\delta_{\text{rpe}} \in [-2.0, 2.0]$:
-
-$$\delta_{\text{rpe}} = R_{\text{actual}} - R_{\text{expected}}$$
-
-* **$\delta_{\text{rpe}} > 0$**: Unexpected relief, breakthrough, windfall.
-* **$\delta_{\text{rpe}} < 0$**: Ambush, betrayal, sudden failure.
-
-The modulated impulse shifts the immediate affect vector:
-
-$$\Delta x_{\text{modulated}} = \Delta x + \begin{bmatrix} \beta_v \cdot \delta_{\text{rpe}} \\ \beta_a \cdot |\delta_{\text{rpe}}| \\ \beta_d \cdot \delta_{\text{rpe}} \end{bmatrix}$$
-
-$$x_t^{\text{post}} = \operatorname{clip}\left( x_t + \Delta x_{\text{modulated}}, -1.0, 1.0 \right)$$
-
-* $\beta = [\beta_v = 0.3, \beta_a = 0.2, \beta_d = 0.25]$.
-* Negative RPE crashes valence, elevates autonomic arousal (panic/shock), and suppresses agency/dominance.
-
----
-
-## 2. Phase-Space Attractor Basins
-
-Non-linear qualitative behavioral modes emerge when the continuous vector $(v, a, d)$ enters specific geometric partitions of phase space:
-
-| Attractor Basin | Geometric Partition | Narrative Characteristics |
-|---|---|---|
-| **`hyper-vigilant`** | $a > 0.35 \;\land\; v < -0.15$ | Threat scanning, paranoia, curt speech, assuming deception. |
-| **`depressive-exhaustion`** | $a < -0.25 \;\land\; v < -0.25 \;\land\; d < -0.15$ | Psychomotor slowing, fatalism, emotional blunting, low agency. |
-| **`manic-fixation`** | $a > 0.45 \;\land\; d > 0.25 \;\land\; |v| > 0.20$ | Obsessive pacing, rapid monologue, tunneling on a single goal. |
-| **`grounded-stoic`** | default equilibrium ($\|a\| \le 0.35 \;\land\; v \ge -0.15$) | Measured cadence, high agency, active situational awareness. |
-| **`dissociative-numb`** | $a < -0.45 \;\land\; |v| \le 0.25 \;\land\; d < -0.20$ | Flat affect, robotic compliance, detachment from surroundings. |
-
-### Behavioral Constraints
-
-Each attractor basin automatically generates concrete prompt-injection behavioral constraints:
-
-* **`hyper-vigilant`**:
-  * *Dialogue cadence must be rapid, guarded, or interrogative.*
-  * *Subtext prioritizes scanning environment and tracking signs of deception.*
-  * *Hesitates to disclose personal commitments or vulnerable details.*
-* **`depressive-exhaustion`**:
-  * *Dialogue cadence must be sparse, flat, or delayed.*
-  * *Subtext reflects psychomotor exhaustion, fatalism, and reluctance to invest effort.*
-  * *Responds primarily in monosyllables or low-effort acquiescence.*
-* **`grounded-stoic`**:
-  * *Dialogue cadence is measured, steady, and deliberative.*
-  * *Subtext exhibits high agency, emotional containment, and active situational awareness.*
-  * *Evaluates conflicts pragmatically without panic or despair.*
-
----
-
-## 3. Authoring Workflow: Text $\to$ Deterministic Math
-
-Authors and writing agents do **not** manually calculate floating-point vectors. Instead, Pinakes deterministically compiles math from intuitive frontmatter annotations:
-
-### Chapter Register Transitions (`chapters/*.md`)
-
-In chapter frontmatter, authors annotate qualitative registers and shifts:
+### In a chapter: a shift
 
 ```yaml
 registers:
-  Emma: "private (curious → quietly alarmed)"
-  Dorothy: "public (warm)"
+  Noah: "under-pressure (asks the right questions, then lashes out)"
+affect:
+  Noah: "curious → angry"              # labels: he enters curious and ends angry
+  Jasper: { v: -40, a: -30, d: -50 }   # or a shift from wherever he was
 ```
 
-When `pinakes compile` runs:
-1. `parseAffectTransition` extracts the transition steps: `curious` ($[0.4, 0.3, 0.2]$) to `quietly alarmed` ($[-0.4, 0.4, -0.1]$).
-2. `calculateRegisterDelta` computes $\Delta x = [-0.8, 0.1, -0.3]$.
-3. Coordinates are scaled to integer basis points: `valence: -80, arousal: 10, dominance: -30`.
-4. An `affect.event` record is written to `records/<book>/character_affect_events.json`.
+Keys resolve like `registers:` keys. Each entry compiles to one
+[`character.affect.event`](/pinakes/record-types/#characteraffectevent).
 
-### Checkpoint Stretches (`stretches/*.md`)
+- **A label transition is an endpoint.** The character ends the chapter in its
+  last step, whatever they entered with. The first step is your claim about
+  how they entered, which the [continuity check](#the-continuity-check) tests.
+  The event records both (`from`, `to`) and `delta`, the last minus the first.
+- **Numbers are a shift**, added to whatever state the character was in.
 
-Stretches represent periodic observation checkpoints where a character reflects on recent events:
+A longer transition (`a → b → c`) keeps the first and last and records the
+middle in `stimulus`. A chapter records a change, so a single label is
+`affect-malformed`.
+
+### In a stretch: a state
 
 ```yaml
 ---
 character: Emma
 asOf: "2026-10-02"
-since: "2026-08-06"
 register: private
-status: approved
-carrying:
-  - "savings that go down and not up"
-  - "whether walking out was worth it"
-  - "Sunday's menu, revised four times on receipts"
+affect: subdued            # or { v: -20, a: -30, d: -30 }
 ---
-Two months ago she was still on the line...
 ```
 
-When compiled:
-1. `resolveRegisterVad` evaluates the baseline register (`private` $\to [0.1, -0.1, 0.1]$).
-2. `classifyAttractorBasin` derives `grounded-stoic`.
-3. `getBehavioralDirectives` computes actionable prompt constraints.
-4. `supersedes` chains to the previous stretch across books.
-5. The `character.stretch` record is decorated with `coordinates`, `attractorBasin`, and `behavioralDirectives` and written to `records/<book>/character_stretches.json`.
+A stretch that declares `affect:` compiles with `coordinates` and, when they
+fall in a basin, an `attractorBasin` and `behavioralDirectives`. Without
+`affect:` it has none of them. A stretch is authored deliberately, so an
+unresolved label there is an error (`stretch-affect-unresolved`).
 
----
+Affect in a stretch follows the stretch rules: character knowledge only, and
+never a state that names something the character cannot know yet.
 
-## 4. Prompt Injection with `pinakes context`
+## The vocabulary belongs to the universe
 
-Running `pinakes context <Character> --as-of <Date>` automatically resolves the character's active affect snapshot and formats an LLM-ready prompt injection block:
+Pinakes ships a small core of labels: `alarmed`, `quietly alarmed`, `panic`,
+`paralyzed`, `guarded`, `curious`, `warm`, `elated`, `defiant`, `deflating`,
+`exhausted`, `stoic`, `skeptical`, `animated`, `conflicted`, `softening`.
+`pinakes.yaml` adds to it or overrides it, with integers in [−100, 100]:
 
-```bash
-pinakes context Emma --as-of 2026-10-04
+```yaml
+affect:
+  labels:
+    angry:    { v: -60, a: 60, d: 40 }
+    relieved: { v: 40, a: -50, d: 10, aliases: [relief] }
 ```
 
-Yields:
+Matching is exact after lower-casing and collapsing whitespace, and nothing
+looser: `not warm` does not resolve to `warm`. An alias that collides with
+another label or alias is a config error, because the label would otherwise
+resolve to whichever entry was read last.
+
+## Attractor basins
+
+A coordinate may fall in a basin, a named region with drafting tendencies.
+The built-in five are tried in this order (values on the −1 to 1 scale):
+
+| Basin | Region |
+|---|---|
+| `hyper-vigilant` | `a > 0.35` and `v < -0.15` |
+| `depressive-exhaustion` | `a < -0.25`, `v < -0.25` and `d < -0.15` |
+| `manic-fixation` | `a > 0.45`, `d > 0.25` and `\|v\| > 0.20` |
+| `dissociative-numb` | `a < -0.45`, `\|v\| <= 0.25` and `d < -0.20` |
+| `grounded-stoic` | `\|a\| <= 0.35` and `v >= -0.15` |
+
+A coordinate none of them claims has **no basin**, and the record carries no
+basin and no directives. `grounded-stoic` is a band, not a leftover: high
+arousal with positive valence is not measured and steady.
+
+A universe can phrase the built-in basins' tendencies in its own voice-guide
+terms, and add basins for regions the built-ins leave. An added basin needs
+inclusive integer bounds (`when`, any of `v`, `a`, `d`) and directives, and is
+tried after the built-ins, in the order listed:
+
+```yaml
+affect:
+  basins:
+    grounded-stoic:
+      directives: ["Says less than they know."]
+    buoyant:
+      when: { v: [20, 100], a: [36, 100] }
+      directives: ["Talks fast and laughs at their own jokes."]
+```
+
+## In `pinakes context`
+
+When the latest approved stretch on or before `--as-of` declared its affect and
+landed in a basin, the bundle includes:
 
 ```markdown
-## Affect state (generation prompt injection)
+## Affect state (advisory — the voice guide and register win on any conflict)
 
 [INTERNAL_AFFECT_STATE]
-DIMENSIONS: Valence=0.10 | Arousal=-0.10 | Dominance=0.10 | Baseline=0.10
-ATTRACTOR: grounded-stoic
-ACTIVE_TENSIONS:
-  - "savings that go down and not up"
-  - "whether walking out was worth it"
-  - "Sunday's menu, revised four times on receipts"
-  - "three years of asking about the man at McGolrick's hot sauce"
-BEHAVIORAL_CONSTRAINTS:
-  - Dialogue cadence is measured, steady, and deliberative.
-  - Subtext exhibits high agency, emotional containment, and active situational awareness.
-  - Evaluates conflicts pragmatically without panic or despair.
+DIMENSIONS: Valence=-0.20 | Arousal=-0.30 | Dominance=-0.30
+ATTRACTOR: ...
+SUGGESTED_TENDENCIES:
+  - ...
 [/INTERNAL_AFFECT_STATE]
 ```
 
-This block is injected directly into generative agents' system prompts prior to drafting subsequent scenes.
+Without [dynamics](#between-declarations-dynamics) it is the mid-tier
+stretch's declared affect, so it looks only backward. For every other stretch
+the block is absent. To keep it out of drafting altogether:
 
----
+```yaml
+context:
+  affect: off     # default: auto
+```
 
-## 5. Decentralized Multi-Author Affective Collisions
+## Between declarations: dynamics
 
-Because Pinakes records conform to AT Protocol Lexicon standards, multiple authors or autonomous agents can interact across different repositories:
+Declarations are sparse: a stretch every few weeks, and a chapter only where
+something moves. Dynamics carry a character's state between them, so the
+bundle can answer "how is he a week after the shock?"
 
-1. **Character A** writes an `affect.event` to its own repo with an AT-URI pointer referencing **Character B**.
-2. **Character B**'s agent subscribes to the Firehose (`com.atproto.sync.subscribeRepos`), detects the citation, and evaluates its own psychological filter.
-3. Character B updates its own `affect.snapshot` and publishes it to its own Personal Data Server (PDS).
+They are off until a universe chooses a rate. There is no default, because a
+rate nobody chose would be a number that looks like data:
 
-This provides a decentralized, multi-agent affective simulation without requiring a centralized game server.
+```yaml
+affect:
+  dynamics:
+    halfLifeDays: 4        # required: turns dynamics on
+    discontinuity: 60      # optional: turns on the continuity check
+```
+
+Each character's temperament goes in their codex frontmatter:
+
+```yaml
+# codex/characters/noah.md
+affectBaseline: { v: 0, a: 10, d: 20 }   # or a label; the state they relax toward
+affectHalfLifeScale: 2                   # optional: holds a grudge twice as long
+```
+
+`affectHalfLifeScale` multiplies the universe's half-life, so retuning the
+universe moves everyone and keeps their differences. A value that is not a
+positive number, or a baseline that is not one resolvable label or triple, is
+`affect-malformed`, and that character is not replayed at all. These fields
+are checked even with dynamics off, so a bad value fails when it is written.
+
+### How the state is computed
+
+For a character on a date:
+
+1. **Start** from their latest *approved* stretch on or before the date that
+   declares `affect:`. If there is none, there is **no state**. Pinakes never
+   gives a character a state nobody declared.
+2. **Replay** their affect events that ended after that stretch's `asOf` and
+   on or before the date, in order. An event ending on the stretch's own date
+   is already in it, since a stretch looks back over its day. A chapter still
+   running on the date has not happened yet.
+3. **Between events**, the state relaxes toward the baseline:
+   `x = b + (x₀ − b) · 0.5^(days / halfLife)`, counting whole days from each
+   chapter's last date. With no `affectBaseline`, nothing decays: the state
+   holds, and the block says `not decaying: no baseline`.
+4. **Classify** the result into a basin, as for a stretch.
+
+A new stretch re-anchors the replay: the author wins. The baseline itself
+never drifts; to say a character's temperament has changed, change
+`affectBaseline`.
+
+With dynamics on, the `context` block shows its working:
+
+```
+[INTERNAL_AFFECT_STATE]
+DIMENSIONS: Valence=-0.36 | Arousal=0.36 | Dominance=0.28
+ATTRACTOR: hyper-vigilant
+ANCHOR: stretch.jasper.book1.2026-10-02
+EVENT: affect.event.jasper.book1.ch14 (ended 2026-10-05, 3 days before)
+DECAY: half-life 4 days toward baseline
+SUGGESTED_TENDENCIES:
+  - ...
+[/INTERNAL_AFFECT_STATE]
+```
+
+The state is computed when asked for, never compiled into records: it changes
+whenever a chapter or the rate is edited, and record ids are permanent. The
+library returns it from `affectStateAt(universe, character, asOf)`.
+
+### The continuity check
+
+With `discontinuity` set, `lint` checks your declarations against each other:
+
+- **Entering a chapter.** A transition's first step is compared with the
+  state the replay has the character in going into it.
+- **At a stretch.** A stretch's declared affect is compared with the state
+  replayed from the stretch before it.
+
+Where the two are further apart than `discontinuity` (straight-line distance
+in the −100 to 100 units), `affect-discontinuity` warns. It is never an error:
+the jump may be meant, and off-page events happen. The stretch still
+re-anchors either way; the warning only asks the question.

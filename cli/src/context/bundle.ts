@@ -29,7 +29,8 @@ import { Registry } from '../registry/entities.js';
 import { LinterEngine } from '../linter/engine.js';
 import { isCalendarDate } from '../linter/stretches.js';
 import { namesUnendedChapter } from './chapter-refs.js';
-import { formatAffectPromptInjection } from '../compiler/affect.js';
+import { daysBetween, formatAffectPromptInjection, getBehavioralDirectives } from '../compiler/affect.js';
+import { computeAffectState, type AffectState, type AffectTraitProblem } from '../compiler/affect-dynamics.js';
 
 export interface CodexSection {
   heading: string;
@@ -41,8 +42,12 @@ export interface ContextBundle {
   character: { id: string; displayName: string };
   asOf: string;
   affect?: {
+    /** The stretch record the state starts from. */
     snapshot?: Record<string, any>;
     promptBlock?: string;
+    state?: AffectState;
+    /** The character's codex affect fields are invalid, so no state was computed. */
+    problems?: AffectTraitProblem[];
   };
   long: {
     frontmatter: Record<string, string>;
@@ -279,17 +284,40 @@ export function buildContext(
     .sort((a, b) => a.storyDate.localeCompare(b.storyDate) || a.id.localeCompare(b.id, undefined, { numeric: true }))
     .map((s) => ({ id: s.id, storyDate: s.storyDate, storyDateEnd: s.storyDateEnd, title: s.title }));
 
-  const affect = latest?.coordinates && latest?.attractorBasin
-    ? {
-        snapshot: latest,
-        promptBlock: formatAffectPromptInjection({
-          coordinates: latest.coordinates,
-          attractorBasin: latest.attractorBasin,
-          openTensions: latest.carrying,
-          behavioralDirectives: latest.behavioralDirectives,
-        }),
+  // Only a stretch that declared its affect has coordinates (the compiler
+  // never infers them), so this needs no special case to stay silent for one
+  // that did not. `context.affect: off` silences it regardless, and skips the
+  // replay entirely.
+  let affect: ContextBundle['affect'];
+  if (config.context.affect !== 'off') {
+    const { state, problems } = computeAffectState(root, config, registry, engine, records, id, asOf);
+    if (problems.length) {
+      affect = { problems };
+    } else if (state?.attractorBasin) {
+      const trace: string[] = [];
+      if (state.mode !== 'declared') {
+        trace.push(`ANCHOR: ${state.anchor.id}`);
+        for (const e of state.events) trace.push(`EVENT: ${e.id} (ended ${e.end}, ${daysBetween(e.end, asOf)} days before)`);
+        trace.push(
+          state.mode === 'replayed'
+            ? `DECAY: half-life ${state.halfLifeDays} days toward baseline`
+            : 'DECAY: not decaying: no baseline'
+        );
       }
-    : undefined;
+      affect = {
+        snapshot: records.find((r) => r.id === state.anchor.id),
+        state,
+        promptBlock: formatAffectPromptInjection({
+          coordinates: state.coordinates,
+          attractorBasin: state.attractorBasin,
+          behavioralDirectives: getBehavioralDirectives(state.attractorBasin, config.affect.basins),
+          trace,
+        }),
+      };
+    } else if (state) {
+      affect = { snapshot: records.find((r) => r.id === state.anchor.id), state };
+    }
+  }
 
   return {
     errors: [],
@@ -352,8 +380,12 @@ export function renderMarkdown(b: ContextBundle): string {
   if (b.mid.draftsIgnored > 0) out.push(`_${b.mid.draftsIgnored} draft stretch(es) ignored; only approved ones are shown._`, '');
 
   if (b.affect?.promptBlock) {
-    out.push('## Affect state (generation prompt injection)', '');
+    out.push('## Affect state (advisory — the voice guide and register win on any conflict)', '');
     out.push('```', b.affect.promptBlock, '```', '');
+  } else if (b.affect?.problems?.length) {
+    out.push('## Affect state', '');
+    for (const p of b.affect.problems) out.push(`_Not computed: ${p.file}: ${p.message} Run \`pinakes lint\`._`);
+    out.push('');
   }
 
   out.push('## Short tier: right now', '');

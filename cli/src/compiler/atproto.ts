@@ -6,15 +6,19 @@ import { ChapterData, Diagnostic, LinterEngine, StretchSource } from '../linter/
 import { lintStretches, SourceIndex, StretchEntry } from '../linter/stretches.js';
 import { buildLexiconDocs, compileLexiconDocs, validateRecords, writeLexiconDocs } from '../lexicons/index.js';
 import { pruneStale } from './prune.js';
+import { discontinuityFindings, readAffectTraits } from './affect-dynamics.js';
 import { parseRegister } from '../linter/registers.js';
 import { readAccountField, type AccountFieldName } from '../linter/identity.js';
 import {
-  calculateRegisterDelta,
+  affectDelta,
+  buildAffectVocabulary,
   classifyAttractorBasin,
   getBehavioralDirectives,
-  parseAffectTransition,
-  resolveRegisterVad,
+  parseAffectDeclaration,
+  resolveAffectLabel,
   scaleVad,
+  type ScaledVad,
+  type VadVector,
 } from './affect.js';
 
 function getBookKey(storyDir: string): string {
@@ -188,6 +192,13 @@ export interface CompilationReport {
    * `linter/stretches.ts`).
    */
   stretchFindings: Diagnostic[];
+  /**
+   * Findings about `affect:` declarations in chapters and stretches: an
+   * unresolved label, a malformed or out-of-range value. Like
+   * `stretchFindings`, reported by `lint`. The compiler has already acted on
+   * them by emitting nothing for that declaration.
+   */
+  affectFindings: Diagnostic[];
   /** Every compiled record, across types, for consumers such as `context`. */
   records: any[];
   /**
@@ -220,6 +231,12 @@ export function compileProject(
   // An ambiguous alias drops a reference from every record that uses it, and
   // a bad DID publishes a profile under the wrong identity.
   const diagnostics: Diagnostic[] = [...engine.registryDiagnostics(), ...engine.identityDiagnostics()];
+  const affectFindings: Diagnostic[] = [];
+  const affectVocab = buildAffectVocabulary(config.affect.labels);
+  const affectReport = (rule: string, file: string, message: string) => {
+    const severity = config.rules[rule];
+    if (severity && severity !== 'off') affectFindings.push({ file, rule, severity, message });
+  };
   const allRecords: any[] = [];
   /** Absolute paths written this run; everything else pinakes-named is stale. */
   const written = new Set<string>();
@@ -415,11 +432,74 @@ export function compileProject(
             sourceFile: ch.relativeFilePath,
           })
         );
+      }
+
+      // Affect, only where declared. A chapter with no `affect:` entry for a
+      // character emits no affect event: the register annotation is a voice
+      // mode, and reading a state out of it is what produced events with the
+      // wrong sign.
+      const rawAffect = ch.frontmatter.affect;
+      if (rawAffect !== undefined && rawAffect !== null && (typeof rawAffect !== 'object' || Array.isArray(rawAffect))) {
+        affectReport('affect-malformed', ch.relativeFilePath, '`affect` must be a map of character name to affect.');
+      }
+      for (const [name, raw] of Object.entries(ch.affect)) {
+        const resolved = registry.resolve(name, 'character');
+        if (!resolved) continue; // `lint` reports it under unresolved-entities
+
+        const where = `Affect for ${name}`;
+        const registerEntry = Object.entries(ch.registers).find(([n]) => registry.resolve(n, 'character')?.id === resolved.id);
+        if (!registerEntry) {
+          affectReport(
+            'affect-declared-no-register',
+            ch.relativeFilePath,
+            `Chapter ${ch.chapterNum} declares affect for ${name} but has no \`registers:\` entry for them.`
+          );
+        }
+
+        const decl = parseAffectDeclaration(raw);
+        if ('problem' in decl) {
+          affectReport(decl.problem.rule, ch.relativeFilePath, `${where}: ${decl.problem.message}`);
+          continue;
+        }
+
+        let delta: VadVector;
+        let from: VadVector | undefined;
+        let to: VadVector | undefined;
+        let via: string[] = [];
+        if ('numeric' in decl) {
+          delta = decl.numeric;
+        } else {
+          if (decl.steps.length < 2) {
+            affectReport(
+              'affect-malformed',
+              ch.relativeFilePath,
+              `${where}: a chapter records a shift, so give a transition ('a → b') or a numeric { v, a, d } delta; got '${decl.steps[0]}'.`
+            );
+            continue;
+          }
+          const first = decl.steps[0];
+          const last = decl.steps[decl.steps.length - 1];
+          // Every step is checked, middle ones included, so a typo is reported
+          // wherever it sits.
+          const unresolved = decl.steps.filter((step) => !resolveAffectLabel(step, affectVocab));
+          if (unresolved.length) {
+            for (const label of unresolved) {
+              affectReport('affect-label-unresolved', ch.relativeFilePath, `${where}: '${label}' is not in the affect vocabulary.`);
+            }
+            continue;
+          }
+          // A label transition is an endpoint: the character ends the chapter
+          // at `to`. `from` is the author's claim about how they entered it,
+          // which `affect-discontinuity` checks against the replay.
+          from = resolveAffectLabel(first, affectVocab)!;
+          to = resolveAffectLabel(last, affectVocab)!;
+          delta = affectDelta(from, to);
+          via = decl.steps.slice(1, -1);
+        }
 
         const slug = resolved.id.split('.', 2)[1];
-        const transition = parseAffectTransition(val);
-        const vadDelta = scaleVad(calculateRegisterDelta(transition.fromRegister, transition.toRegister));
-        const stimulus = transition.note || ch.beatPurpose || ch.frontmatter.beat || ch.title || 'Scene stimulus';
+        const base = ch.beatPurpose || ch.frontmatter.beat || ch.title || 'Scene stimulus';
+        const stimulus = via.length ? `${base} (via ${via.join(' → ')})` : base;
 
         affectEvents.push(
           compact({
@@ -428,12 +508,14 @@ export function compileProject(
             subject: resolved.id,
             characterDid: accountValue(registry.getEntity(resolved.id) ?? {}, 'did'),
             storyDate,
+            storyDateEnd,
             chapterRef: chRef,
             sceneRef: sceneId,
             stimulus: text(stimulus),
-            register,
-            delta: vadDelta,
-            rpe: asInteger(ch.frontmatter.rpe) ?? 0,
+            register: registerEntry ? parseRegister(registerEntry[1]).register : undefined,
+            delta: scaleVad(delta),
+            from: from && scaleVad(from),
+            to: to && scaleVad(to),
             createdAt,
             sourceFile: ch.relativeFilePath,
           })
@@ -680,10 +762,35 @@ export function compileProject(
       ? fm.sources.map((c: unknown) => text(c)).filter((c: string | undefined): c is string => Boolean(c))
       : [];
 
-    const regVad = resolveRegisterVad(text(fm.register) ?? 'private');
-    const scaledReg = scaleVad(regVad);
-    const basin = classifyAttractorBasin(regVad);
-    const directives = getBehavioralDirectives(basin);
+    // A stretch gets coordinates only from its own `affect:`. The register is
+    // a voice mode and never stands in for one; an undeclared stretch compiles
+    // with no coordinates, basin or directives.
+    let coordinates: ScaledVad | undefined;
+    let basin: string | undefined;
+    if (fm.affect !== undefined) {
+      const decl = parseAffectDeclaration(fm.affect);
+      let vad: VadVector | undefined;
+      if ('problem' in decl) {
+        affectReport(decl.problem.rule, src.relativeFilePath, decl.problem.message);
+      } else if ('numeric' in decl) {
+        vad = decl.numeric;
+      } else if (decl.steps.length > 1) {
+        affectReport(
+          'affect-malformed',
+          src.relativeFilePath,
+          `A stretch is a state, so its \`affect\` is one label or { v, a, d }; got the transition '${decl.steps.join(' → ')}'.`
+        );
+      } else {
+        vad = resolveAffectLabel(decl.steps[0], affectVocab);
+        if (!vad) {
+          affectReport('stretch-affect-unresolved', src.relativeFilePath, `Affect '${decl.steps[0]}' is not in the affect vocabulary.`);
+        }
+      }
+      if (vad) {
+        coordinates = scaleVad(vad);
+        basin = classifyAttractorBasin(vad, config.affect.basins);
+      }
+    }
     const ent = registry.getEntity(resolved.id);
     const characterDid = ent ? accountValue(ent, 'did') : undefined;
 
@@ -700,14 +807,9 @@ export function compileProject(
         asOf,
         since: dateText(fm.since) ?? '',
         register: text(fm.register) ?? '',
-        coordinates: {
-          valence: scaledReg.valence,
-          arousal: scaledReg.arousal,
-          dominance: scaledReg.dominance,
-          baselineValence: scaledReg.valence,
-        },
+        coordinates,
         attractorBasin: basin,
-        behavioralDirectives: directives,
+        behavioralDirectives: basin ? present(getBehavioralDirectives(basin, config.affect.basins)) : undefined,
         state: src.body,
         carrying: present(carrying),
         // Required and never compacted away: an empty list is a Lexicon failure
@@ -771,6 +873,19 @@ export function compileProject(
   const vocabulary = config.stretches.registers ?? [...registersSeen].sort();
   const stretchFindings = lintStretches(stretchEntries, sourceIndex, vocabulary, config);
 
+  // A character's codex affect fields are checked whether or not dynamics are
+  // on: a bad value should fail when it is written, not when dynamics are
+  // later switched on. A character with one is never replayed.
+  for (const ent of registry.allEntities) {
+    if (ent.type !== 'character') continue;
+    for (const p of readAffectTraits(projectRoot, ent.sourceFile, engine, affectVocab).problems) {
+      affectReport('affect-malformed', p.file, p.message);
+    }
+  }
+  for (const f of discontinuityFindings(projectRoot, config, registry, engine, allRecords)) {
+    affectReport('affect-discontinuity', f.file, f.message);
+  }
+
   const seriesDir = path.join(outputDir, 'series');
   if (allPlaces.length > 0) {
     writeRecords(path.join(seriesDir, 'places.json'), allPlaces);
@@ -810,5 +925,5 @@ export function compileProject(
   const pruned = write ? pruneStale(projectRoot, outputDir, written) : [];
   const removed = pruned && pruned.map(f => path.relative(projectRoot, f));
 
-  return { results, lexiconFiles, diagnostics, stretchFindings, records: allRecords, removed };
+  return { results, lexiconFiles, diagnostics, stretchFindings, affectFindings, records: allRecords, removed };
 }

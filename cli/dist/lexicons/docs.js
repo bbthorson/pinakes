@@ -367,16 +367,16 @@ function stretch(ns) {
                         coordinates: {
                             type: 'ref',
                             ref: '#affectCoordinates',
-                            description: 'Consolidated VAD coordinates scaled to [-100, 100].',
+                            description: "The stretch's declared affect as VAD coordinates in [-100, 100]. Absent when the stretch declares no `affect`.",
                         },
                         attractorBasin: {
                             type: 'string',
-                            description: 'Dynamic attractor basin (e.g. grounded-stoic, hyper-vigilant, depressive-exhaustion).',
+                            description: 'Attractor basin the coordinates fall in (e.g. grounded-stoic, hyper-vigilant). Absent when no basin claims them.',
                             maxLength: 64,
                         },
                         behavioralDirectives: {
                             type: 'array',
-                            description: 'Prompt-injection behavioral constraints for text generation.',
+                            description: "Advisory drafting tendencies for the basin. Present only with `attractorBasin`; the voice guide wins on any conflict.",
                             items: { type: 'string', maxLength: 200 },
                         },
                         status: {
@@ -393,12 +393,11 @@ function stretch(ns) {
             affectCoordinates: {
                 type: 'object',
                 description: 'VAD coordinates scaled to [-100, 100].',
-                required: ['valence', 'arousal', 'dominance', 'baselineValence'],
+                required: ['valence', 'arousal', 'dominance'],
                 properties: {
-                    valence: { type: 'integer', minimum: -100, maximum: 100, description: 'Current immediate affect x_t.' },
+                    valence: { type: 'integer', minimum: -100, maximum: 100 },
                     arousal: { type: 'integer', minimum: -100, maximum: 100 },
                     dominance: { type: 'integer', minimum: -100, maximum: 100 },
-                    baselineValence: { type: 'integer', minimum: -100, maximum: 100, description: 'Slow-moving homeostatic attractor mu_t.' },
                 },
             },
         },
@@ -549,7 +548,7 @@ function affectEvent(ns) {
     return {
         lexicon: 1,
         id: `${ns}.character.affect.event`,
-        description: "An episodic narrative shock or stimulus that shifts a character's emotional state.",
+        description: "A shift in a character's affect within one chapter, compiled from that chapter's `affect:` declaration.",
         defs: {
             main: {
                 type: 'record',
@@ -562,7 +561,6 @@ function affectEvent(ns) {
                         'subject',
                         'storyDate',
                         'stimulus',
-                        'register',
                         'delta',
                         'chapterRef',
                         'sceneRef',
@@ -574,6 +572,11 @@ function affectEvent(ns) {
                         subject: localId('Registry id of the character this event describes.'),
                         characterDid: { type: 'string', description: 'AT Protocol DID of the character account.' },
                         storyDate: { type: 'string', description: 'In-story date, `YYYY-MM-DD`.', maxLength: 10 },
+                        storyDateEnd: {
+                            type: 'string',
+                            description: "The chapter's last date, `YYYY-MM-DD`, when it spans several. The event takes effect once it has ended.",
+                            maxLength: 10,
+                        },
                         chapterRef: { type: 'string', description: 'Source chapter, e.g. `book1#ch11`.', maxLength: 256 },
                         sceneRef: localId('Scene record this event belongs to.'),
                         stimulus: {
@@ -583,23 +586,37 @@ function affectEvent(ns) {
                         },
                         register: {
                             type: 'string',
-                            description: "Qualitative register label from the universe's register vocabulary.",
+                            description: "The character's voice register in this chapter (first step of their `registers:` entry), when there is one. Context only: it does not feed the delta.",
                             maxLength: 128,
                         },
                         delta: {
                             type: 'ref',
                             ref: '#vadDelta',
-                            description: 'Normalized instantaneous shift in Valence, Arousal, Dominance [-100 to 100].',
+                            description: 'Shift in valence, arousal and dominance, [-100, 100]: the last declared state minus the first, or the declared numbers.',
                         },
-                        rpe: {
-                            type: 'integer',
-                            minimum: -200,
-                            maximum: 200,
-                            description: 'Reward Prediction Error: actual outcome minus expected outcome [-200 to 200].',
+                        from: {
+                            type: 'ref',
+                            ref: '#vadState',
+                            description: 'For a label transition, the first declared state: how the author says the character entered the chapter.',
+                        },
+                        to: {
+                            type: 'ref',
+                            ref: '#vadState',
+                            description: 'For a label transition, the last declared state: where the character ends the chapter. Absent for a numeric shift.',
                         },
                         createdAt: { type: 'string', description: 'Story time as an RFC3339 datetime.', format: 'datetime' },
                         sourceFile: { type: 'string', description: 'Repository-relative chapter path.', maxLength: 1024 },
                     },
+                },
+            },
+            vadState: {
+                type: 'object',
+                description: 'A state in valence, arousal and dominance, scaled to [-100, 100].',
+                required: ['valence', 'arousal', 'dominance'],
+                properties: {
+                    valence: { type: 'integer', minimum: -100, maximum: 100 },
+                    arousal: { type: 'integer', minimum: -100, maximum: 100 },
+                    dominance: { type: 'integer', minimum: -100, maximum: 100 },
                 },
             },
             vadDelta: {

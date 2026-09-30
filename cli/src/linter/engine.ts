@@ -40,6 +40,12 @@ export interface ChapterData {
   charactersReferenced: string[];
   pov: string | null;
   registers: Record<string, string>;
+  /**
+   * `affect:` values by character name, unparsed: a label, a transition, or a
+   * `{ v, a, d }` triple. Kept raw because the compiler reports a malformed
+   * value, and it cannot report what the loader has already coerced.
+   */
+  affect: Record<string, unknown>;
   custody: CustodyEntry[];
   beatPurpose: string | null;
   /**
@@ -160,6 +166,9 @@ export class LinterEngine {
         }
       }
 
+      const affect: Record<string, unknown> =
+        data.affect && typeof data.affect === 'object' && !Array.isArray(data.affect) ? { ...data.affect } : {};
+
       // Custody hand-offs. A list rather than a map (unlike `registers:`)
       // because one chapter can pass the same item twice, and each entry
       // carries a previous holder and a description of its own.
@@ -192,6 +201,7 @@ export class LinterEngine {
         charactersReferenced,
         pov: data.pov ? String(data.pov) : null,
         registers,
+        affect,
         custody,
         beatPurpose: data.beat_purpose || null,
         body,
@@ -482,6 +492,9 @@ export class LinterEngine {
           // Registers check
           for (const char of Object.keys(ch.registers)) {
             this.checkEntity(char, 'character', ch, 'registers keys', severity, diagnostics);
+          }
+          for (const char of Object.keys(ch.affect)) {
+            this.checkEntity(char, 'character', ch, 'affect keys', severity, diagnostics);
           }
 
           // Custody check — an unregistered item or holder would otherwise be

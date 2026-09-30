@@ -14,6 +14,7 @@ records/
 ├── lexicons/                          # The universe's Lexicon schema documents
 │   ├── <nsid>.scene.json
 │   ├── <nsid>.character.stateEvent.json
+│   ├── <nsid>.character.affect.event.json
 │   ├── <nsid>.character.profile.json
 │   ├── <nsid>.place.json
 │   ├── <nsid>.item.json
@@ -23,6 +24,7 @@ records/
 ├── book1/
 │   ├── scenes.json                    # Lexicon: *.scene
 │   ├── character_state_events.json    # Lexicon: *.character.stateEvent
+│   ├── character_affect_events.json   # Lexicon: *.character.affect.event (only with chapter affect:)
 │   ├── custody_events.json            # Lexicon: *.custodyEvent
 │   ├── character_posts.json           # Lexicon: *.character.post (only with posts/)
 │   └── character_stretches.json       # Lexicon: *.character.stretch (only with stretches/)

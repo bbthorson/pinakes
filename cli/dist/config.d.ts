@@ -108,6 +108,12 @@ export declare const ConfigSchema: z.ZodObject<{
      * - `frontmatter`: codex frontmatter keys that may be shown.
      */
     context: z.ZodDefault<z.ZodObject<{
+        /**
+         * Whether `pinakes context` prints the affect block. `auto` prints it
+         * only for a stretch that declared its affect and landed in a basin;
+         * `off` never does, for a universe that wants it out of drafting.
+         */
+        affect: z.ZodDefault<z.ZodEnum<["auto", "off"]>>;
         codex: z.ZodDefault<z.ZodObject<{
             include: z.ZodDefault<z.ZodArray<z.ZodString, "many">>;
             exclude: z.ZodDefault<z.ZodRecord<z.ZodString, z.ZodArray<z.ZodString, "many">>>;
@@ -125,6 +131,7 @@ export declare const ConfigSchema: z.ZodObject<{
             frontmatter?: string[] | undefined;
         }>>;
     }, "strip", z.ZodTypeAny, {
+        affect: "off" | "auto";
         codex: {
             include: string[];
             exclude: Record<string, string[]>;
@@ -132,6 +139,7 @@ export declare const ConfigSchema: z.ZodObject<{
             frontmatter: string[];
         };
     }, {
+        affect?: "off" | "auto" | undefined;
         codex?: {
             include?: string[] | undefined;
             exclude?: Record<string, string[]> | undefined;
@@ -139,6 +147,152 @@ export declare const ConfigSchema: z.ZodObject<{
             frontmatter?: string[] | undefined;
         } | undefined;
     }>>;
+    /**
+     * Affect labels (`labels`, integers in [-100, 100], with optional `aliases`)
+     * and attractor basins (`basins`: directives for a built-in basin, or `when`
+     * bounds plus directives for a new one). See `compiler/affect.ts`.
+     */
+    affect: z.ZodEffects<z.ZodDefault<z.ZodObject<{
+        labels: z.ZodDefault<z.ZodRecord<z.ZodString, z.ZodObject<{
+            v: z.ZodNumber;
+            a: z.ZodNumber;
+            d: z.ZodNumber;
+            aliases: z.ZodDefault<z.ZodArray<z.ZodString, "many">>;
+        }, "strip", z.ZodTypeAny, {
+            v: number;
+            a: number;
+            d: number;
+            aliases: string[];
+        }, {
+            v: number;
+            a: number;
+            d: number;
+            aliases?: string[] | undefined;
+        }>>>;
+        basins: z.ZodDefault<z.ZodRecord<z.ZodString, z.ZodObject<{
+            when: z.ZodOptional<z.ZodObject<{
+                v: z.ZodOptional<z.ZodEffects<z.ZodTuple<[z.ZodNumber, z.ZodNumber], null>, [number, number], [number, number]>>;
+                a: z.ZodOptional<z.ZodEffects<z.ZodTuple<[z.ZodNumber, z.ZodNumber], null>, [number, number], [number, number]>>;
+                d: z.ZodOptional<z.ZodEffects<z.ZodTuple<[z.ZodNumber, z.ZodNumber], null>, [number, number], [number, number]>>;
+            }, "strip", z.ZodTypeAny, {
+                v?: [number, number] | undefined;
+                a?: [number, number] | undefined;
+                d?: [number, number] | undefined;
+            }, {
+                v?: [number, number] | undefined;
+                a?: [number, number] | undefined;
+                d?: [number, number] | undefined;
+            }>>;
+            directives: z.ZodOptional<z.ZodArray<z.ZodString, "many">>;
+        }, "strip", z.ZodTypeAny, {
+            when?: {
+                v?: [number, number] | undefined;
+                a?: [number, number] | undefined;
+                d?: [number, number] | undefined;
+            } | undefined;
+            directives?: string[] | undefined;
+        }, {
+            when?: {
+                v?: [number, number] | undefined;
+                a?: [number, number] | undefined;
+                d?: [number, number] | undefined;
+            } | undefined;
+            directives?: string[] | undefined;
+        }>>>;
+        /**
+         * Replay between declarations. Absent means off: the context block shows
+         * the latest stretch's affect as declared. There is no default half-life,
+         * because a rate nobody chose would be a number that looks like data.
+         * `discontinuity` is the distance (scaled units) past which a declaration
+         * that disagrees with the replay is reported; unset, it is not checked.
+         */
+        dynamics: z.ZodOptional<z.ZodObject<{
+            halfLifeDays: z.ZodNumber;
+            discontinuity: z.ZodOptional<z.ZodNumber>;
+        }, "strip", z.ZodTypeAny, {
+            halfLifeDays: number;
+            discontinuity?: number | undefined;
+        }, {
+            halfLifeDays: number;
+            discontinuity?: number | undefined;
+        }>>;
+    }, "strip", z.ZodTypeAny, {
+        labels: Record<string, {
+            v: number;
+            a: number;
+            d: number;
+            aliases: string[];
+        }>;
+        basins: Record<string, {
+            when?: {
+                v?: [number, number] | undefined;
+                a?: [number, number] | undefined;
+                d?: [number, number] | undefined;
+            } | undefined;
+            directives?: string[] | undefined;
+        }>;
+        dynamics?: {
+            halfLifeDays: number;
+            discontinuity?: number | undefined;
+        } | undefined;
+    }, {
+        labels?: Record<string, {
+            v: number;
+            a: number;
+            d: number;
+            aliases?: string[] | undefined;
+        }> | undefined;
+        basins?: Record<string, {
+            when?: {
+                v?: [number, number] | undefined;
+                a?: [number, number] | undefined;
+                d?: [number, number] | undefined;
+            } | undefined;
+            directives?: string[] | undefined;
+        }> | undefined;
+        dynamics?: {
+            halfLifeDays: number;
+            discontinuity?: number | undefined;
+        } | undefined;
+    }>>, {
+        labels: Record<string, {
+            v: number;
+            a: number;
+            d: number;
+            aliases: string[];
+        }>;
+        basins: Record<string, {
+            when?: {
+                v?: [number, number] | undefined;
+                a?: [number, number] | undefined;
+                d?: [number, number] | undefined;
+            } | undefined;
+            directives?: string[] | undefined;
+        }>;
+        dynamics?: {
+            halfLifeDays: number;
+            discontinuity?: number | undefined;
+        } | undefined;
+    }, {
+        labels?: Record<string, {
+            v: number;
+            a: number;
+            d: number;
+            aliases?: string[] | undefined;
+        }> | undefined;
+        basins?: Record<string, {
+            when?: {
+                v?: [number, number] | undefined;
+                a?: [number, number] | undefined;
+                d?: [number, number] | undefined;
+            } | undefined;
+            directives?: string[] | undefined;
+        }> | undefined;
+        dynamics?: {
+            halfLifeDays: number;
+            discontinuity?: number | undefined;
+        } | undefined;
+    } | undefined>;
     /**
      * `prose-check` configuration. Every field is optional: the defaults are the
      * AI-tells catalogue itself, so the command is useful before a universe
@@ -239,7 +393,28 @@ export declare const ConfigSchema: z.ZodObject<{
         softMaxChars: number;
         registers?: string[] | undefined;
     };
+    affect: {
+        labels: Record<string, {
+            v: number;
+            a: number;
+            d: number;
+            aliases: string[];
+        }>;
+        basins: Record<string, {
+            when?: {
+                v?: [number, number] | undefined;
+                a?: [number, number] | undefined;
+                d?: [number, number] | undefined;
+            } | undefined;
+            directives?: string[] | undefined;
+        }>;
+        dynamics?: {
+            halfLifeDays: number;
+            discontinuity?: number | undefined;
+        } | undefined;
+    };
     context: {
+        affect: "off" | "auto";
         codex: {
             include: string[];
             exclude: Record<string, string[]>;
@@ -284,7 +459,28 @@ export declare const ConfigSchema: z.ZodObject<{
         registers?: string[] | undefined;
         softMaxChars?: number | undefined;
     } | undefined;
+    affect?: {
+        labels?: Record<string, {
+            v: number;
+            a: number;
+            d: number;
+            aliases?: string[] | undefined;
+        }> | undefined;
+        basins?: Record<string, {
+            when?: {
+                v?: [number, number] | undefined;
+                a?: [number, number] | undefined;
+                d?: [number, number] | undefined;
+            } | undefined;
+            directives?: string[] | undefined;
+        }> | undefined;
+        dynamics?: {
+            halfLifeDays: number;
+            discontinuity?: number | undefined;
+        } | undefined;
+    } | undefined;
     context?: {
+        affect?: "off" | "auto" | undefined;
         codex?: {
             include?: string[] | undefined;
             exclude?: Record<string, string[]> | undefined;

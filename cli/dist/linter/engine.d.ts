@@ -32,6 +32,12 @@ export interface ChapterData {
     charactersReferenced: string[];
     pov: string | null;
     registers: Record<string, string>;
+    /**
+     * `affect:` values by character name, unparsed: a label, a transition, or a
+     * `{ v, a, d }` triple. Kept raw because the compiler reports a malformed
+     * value, and it cannot report what the loader has already coerced.
+     */
+    affect: Record<string, unknown>;
     custody: CustodyEntry[];
     beatPurpose: string | null;
     /**

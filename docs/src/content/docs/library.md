@@ -31,4 +31,15 @@ Every function also takes a root path in place of an opened universe.
   matches nothing. Continuity problems come back as `diagnostics`, and a
   character or date that `context` cannot use comes back in `errors`.
 
+* **The affect helpers are exported for tools that read affect records.**
+  `buildAffectVocabulary(config.affect.labels)` gives the resolved label
+  vocabulary, `resolveAffectLabel` looks a label up in it (exactly, or
+  `undefined`), `parseAffectDeclaration` reads an `affect:` value, and
+  `classifyAttractorBasin`, `getBehavioralDirectives` and
+  `formatAffectPromptInjection` are what the compiler and `context` use.
+  `affectStateAt(universe, character, asOf)` returns the state `context`
+  prints, with its anchor, events and mode (`declared`, `replayed` or
+  `held`). See
+  [Affect](/pinakes/affect-simulation/).
+
 The package is ESM-only and ships TypeScript types.

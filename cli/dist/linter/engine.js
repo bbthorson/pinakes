@@ -88,6 +88,7 @@ export class LinterEngine {
                     registers[k] = String(v);
                 }
             }
+            const affect = data.affect && typeof data.affect === 'object' && !Array.isArray(data.affect) ? { ...data.affect } : {};
             // Custody hand-offs. A list rather than a map (unlike `registers:`)
             // because one chapter can pass the same item twice, and each entry
             // carries a previous holder and a description of its own.
@@ -121,6 +122,7 @@ export class LinterEngine {
                 charactersReferenced,
                 pov: data.pov ? String(data.pov) : null,
                 registers,
+                affect,
                 custody,
                 beatPurpose: data.beat_purpose || null,
                 body,
@@ -405,6 +407,9 @@ export class LinterEngine {
                     // Registers check
                     for (const char of Object.keys(ch.registers)) {
                         this.checkEntity(char, 'character', ch, 'registers keys', severity, diagnostics);
+                    }
+                    for (const char of Object.keys(ch.affect)) {
+                        this.checkEntity(char, 'character', ch, 'affect keys', severity, diagnostics);
                     }
                     // Custody check — an unregistered item or holder would otherwise be
                     // dropped silently by the compiler, losing the hand-off.

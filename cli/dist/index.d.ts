@@ -4,9 +4,10 @@ import { LinterEngine, type Diagnostic, type ChapterData } from './linter/engine
 import { type CompilationReport, type CompilationResult } from './compiler/atproto.js';
 import { type ContextBundle, type CodexSection } from './context/bundle.js';
 import { type ProseReport } from './prose/check.js';
-export type { Config, Diagnostic, ChapterData, CompilationReport, CompilationResult, ContextBundle, CodexSection, ProseReport, RegistryConflict, RegistryInvalidEntry, };
+import { type AffectState, type AffectTraitProblem } from './compiler/affect-dynamics.js';
+export type { Config, Diagnostic, ChapterData, CompilationReport, CompilationResult, ContextBundle, CodexSection, ProseReport, AffectState, AffectTraitProblem, RegistryConflict, RegistryInvalidEntry, };
 export * from './keystatic/index.js';
-export * from './compiler/affect.js';
+export { BUILTIN_BASINS, CORE_AFFECT_LABELS, buildAffectVocabulary, classifyAttractorBasin, formatAffectPromptInjection, getBehavioralDirectives, normalizeAffectLabel, parseAffectDeclaration, resolveAffectLabel, type AffectDeclaration, type AffectLabelConfig, type BasinBounds, type BasinConfig, type BuiltinBasin, type ScaledVad, type VadVector, } from './compiler/affect.js';
 /**
  * A loaded universe. Open one when making several calls against the same
  * root, so the config and registry are read once; every function also
@@ -43,8 +44,8 @@ export interface CompileResult extends CompilationReport {
 }
 /**
  * Builds and validates every record. `records` holds them all in memory;
- * `stretchFindings` are continuity findings, reported by `lint` rather than
- * counted against `ok`.
+ * `stretchFindings` and `affectFindings` are continuity findings, reported by
+ * `lint` rather than counted against `ok`.
  */
 export declare function compile(input: UniverseInput, options?: CompileOptions): CompileResult;
 export interface ContextOptions {
@@ -75,3 +76,16 @@ export interface ProseCheckOptions {
  * so a mistyped `story` cannot come back as an empty, clean-looking report.
  */
 export declare function proseCheck(input: UniverseInput, options?: ProseCheckOptions): Partial<Record<ProseReport, string>>;
+export interface AffectStateAtResult {
+    /** Absent when the character has no declared affect to start from, or `errors` is non-empty. */
+    state?: AffectState;
+    /** An unresolvable character, a malformed date, or invalid codex affect fields. */
+    errors: string[];
+}
+/**
+ * A character's affect on `asOf` (YYYY-MM-DD): the state `pinakes context`
+ * prints, with how it was reached. With `affect.dynamics` unset it is the
+ * latest approved stretch's declared affect; with it set, that affect
+ * replayed through the chapter events since. Never writes anything.
+ */
+export declare function affectStateAt(input: UniverseInput, character: string, asOf: string): AffectStateAtResult;

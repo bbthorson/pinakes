@@ -15,8 +15,12 @@ import { YamlRulesLoader } from './linter/yaml-loader.js';
 import { compileProject } from './compiler/atproto.js';
 import { buildContext, renderMarkdown } from './context/bundle.js';
 import { buildProseReports } from './prose/check.js';
+import { computeAffectState } from './compiler/affect-dynamics.js';
+import { isCalendarDate } from './linter/stretches.js';
 export * from './keystatic/index.js';
-export * from './compiler/affect.js';
+// Named, not `export *`: everything listed is a compatibility promise, and the
+// affect module's internals should stay free to change.
+export { BUILTIN_BASINS, CORE_AFFECT_LABELS, buildAffectVocabulary, classifyAttractorBasin, formatAffectPromptInjection, getBehavioralDirectives, normalizeAffectLabel, parseAffectDeclaration, resolveAffectLabel, } from './compiler/affect.js';
 /** Reads `pinakes.yaml` and the registry. Throws if the config is missing or invalid. */
 export function openUniverse(root) {
     const abs = path.resolve(root);
@@ -32,9 +36,9 @@ export function lint(input) {
     const u = open(input);
     const diagnostics = u.engine.lint();
     // Stretch rules need every compiled record's dates, so build the record
-    // set in memory (nothing is written) and take its stretch findings.
-    const { stretchFindings } = compileProject(u.root, u.config, u.registry, u.engine, { write: false });
-    diagnostics.push(...stretchFindings);
+    // set in memory (nothing is written) and take its stretch and affect findings.
+    const { stretchFindings, affectFindings } = compileProject(u.root, u.config, u.registry, u.engine, { write: false });
+    diagnostics.push(...stretchFindings, ...affectFindings);
     if (u.config.paths.rules) {
         const customRules = new YamlRulesLoader(u.root, u.config.paths.rules);
         for (const storyDir of u.engine.getStories()) {
@@ -45,8 +49,8 @@ export function lint(input) {
 }
 /**
  * Builds and validates every record. `records` holds them all in memory;
- * `stretchFindings` are continuity findings, reported by `lint` rather than
- * counted against `ok`.
+ * `stretchFindings` and `affectFindings` are continuity findings, reported by
+ * `lint` rather than counted against `ok`.
  */
 export function compile(input, options = {}) {
     const u = open(input);
@@ -89,4 +93,24 @@ export function proseCheck(input, options = {}) {
     if (chapters.length === 0)
         throw new Error('No chapters found.');
     return buildProseReports(chapters, u.config, report);
+}
+/**
+ * A character's affect on `asOf` (YYYY-MM-DD): the state `pinakes context`
+ * prints, with how it was reached. With `affect.dynamics` unset it is the
+ * latest approved stretch's declared affect; with it set, that affect
+ * replayed through the chapter events since. Never writes anything.
+ */
+export function affectStateAt(input, character, asOf) {
+    const u = open(input);
+    const resolved = u.registry.resolve(character, 'character');
+    const errors = [];
+    if (!resolved)
+        errors.push(`'${character}' does not resolve to a registry character.`);
+    if (!isCalendarDate(asOf))
+        errors.push(`asOf must be a YYYY-MM-DD calendar date; got '${asOf}'.`);
+    if (!resolved || errors.length)
+        return { errors };
+    const { records } = compileProject(u.root, u.config, u.registry, u.engine, { write: false });
+    const { state, problems } = computeAffectState(u.root, u.config, u.registry, u.engine, records, resolved.id, asOf);
+    return { state, errors: problems.map((p) => `${p.file}: ${p.message}`) };
 }

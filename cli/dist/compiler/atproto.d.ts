@@ -17,6 +17,13 @@ export interface CompilationReport {
      * `linter/stretches.ts`).
      */
     stretchFindings: Diagnostic[];
+    /**
+     * Findings about `affect:` declarations in chapters and stretches: an
+     * unresolved label, a malformed or out-of-range value. Like
+     * `stretchFindings`, reported by `lint`. The compiler has already acted on
+     * them by emitting nothing for that declaration.
+     */
+    affectFindings: Diagnostic[];
     /** Every compiled record, across types, for consumers such as `context`. */
     records: any[];
     /**

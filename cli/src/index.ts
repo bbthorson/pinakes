@@ -15,6 +15,8 @@ import { YamlRulesLoader } from './linter/yaml-loader.js';
 import { compileProject, type CompilationReport, type CompilationResult } from './compiler/atproto.js';
 import { buildContext, renderMarkdown, type ContextBundle, type CodexSection } from './context/bundle.js';
 import { buildProseReports, type ProseReport } from './prose/check.js';
+import { computeAffectState, type AffectState, type AffectTraitProblem } from './compiler/affect-dynamics.js';
+import { isCalendarDate } from './linter/stretches.js';
 
 export type {
   Config,
@@ -25,12 +27,33 @@ export type {
   ContextBundle,
   CodexSection,
   ProseReport,
+  AffectState,
+  AffectTraitProblem,
   RegistryConflict,
   RegistryInvalidEntry,
 };
 
 export * from './keystatic/index.js';
-export * from './compiler/affect.js';
+// Named, not `export *`: everything listed is a compatibility promise, and the
+// affect module's internals should stay free to change.
+export {
+  BUILTIN_BASINS,
+  CORE_AFFECT_LABELS,
+  buildAffectVocabulary,
+  classifyAttractorBasin,
+  formatAffectPromptInjection,
+  getBehavioralDirectives,
+  normalizeAffectLabel,
+  parseAffectDeclaration,
+  resolveAffectLabel,
+  type AffectDeclaration,
+  type AffectLabelConfig,
+  type BasinBounds,
+  type BasinConfig,
+  type BuiltinBasin,
+  type ScaledVad,
+  type VadVector,
+} from './compiler/affect.js';
 
 /**
  * A loaded universe. Open one when making several calls against the same
@@ -71,9 +94,9 @@ export function lint(input: UniverseInput): LintResult {
   const diagnostics = u.engine.lint();
 
   // Stretch rules need every compiled record's dates, so build the record
-  // set in memory (nothing is written) and take its stretch findings.
-  const { stretchFindings } = compileProject(u.root, u.config, u.registry, u.engine, { write: false });
-  diagnostics.push(...stretchFindings);
+  // set in memory (nothing is written) and take its stretch and affect findings.
+  const { stretchFindings, affectFindings } = compileProject(u.root, u.config, u.registry, u.engine, { write: false });
+  diagnostics.push(...stretchFindings, ...affectFindings);
 
   if (u.config.paths.rules) {
     const customRules = new YamlRulesLoader(u.root, u.config.paths.rules);
@@ -101,8 +124,8 @@ export interface CompileResult extends CompilationReport {
 
 /**
  * Builds and validates every record. `records` holds them all in memory;
- * `stretchFindings` are continuity findings, reported by `lint` rather than
- * counted against `ok`.
+ * `stretchFindings` and `affectFindings` are continuity findings, reported by
+ * `lint` rather than counted against `ok`.
  */
 export function compile(input: UniverseInput, options: CompileOptions = {}): CompileResult {
   const u = open(input);
@@ -171,4 +194,29 @@ export function proseCheck(input: UniverseInput, options: ProseCheckOptions = {}
   if (chapters.length === 0) throw new Error('No chapters found.');
 
   return buildProseReports(chapters, u.config, report);
+}
+
+export interface AffectStateAtResult {
+  /** Absent when the character has no declared affect to start from, or `errors` is non-empty. */
+  state?: AffectState;
+  /** An unresolvable character, a malformed date, or invalid codex affect fields. */
+  errors: string[];
+}
+
+/**
+ * A character's affect on `asOf` (YYYY-MM-DD): the state `pinakes context`
+ * prints, with how it was reached. With `affect.dynamics` unset it is the
+ * latest approved stretch's declared affect; with it set, that affect
+ * replayed through the chapter events since. Never writes anything.
+ */
+export function affectStateAt(input: UniverseInput, character: string, asOf: string): AffectStateAtResult {
+  const u = open(input);
+  const resolved = u.registry.resolve(character, 'character');
+  const errors: string[] = [];
+  if (!resolved) errors.push(`'${character}' does not resolve to a registry character.`);
+  if (!isCalendarDate(asOf)) errors.push(`asOf must be a YYYY-MM-DD calendar date; got '${asOf}'.`);
+  if (!resolved || errors.length) return { errors };
+  const { records } = compileProject(u.root, u.config, u.registry, u.engine, { write: false });
+  const { state, problems } = computeAffectState(u.root, u.config, u.registry, u.engine, records, resolved.id, asOf);
+  return { state, errors: problems.map((p) => `${p.file}: ${p.message}`) };
 }
