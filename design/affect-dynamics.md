@@ -1,6 +1,6 @@
 ---
 title: Affect dynamics — a character's state between declarations
-status: proposed
+status: accepted
 date: 2026-09-30
 driver: Supper Club Secrets, drafting stretches and posts after Oct 2
 depends_on: bbthorson/pinakes#34 (declared affect)
@@ -10,17 +10,29 @@ depends_on: bbthorson/pinakes#34 (declared affect)
 
 ## Decisions
 
-**Only the first item below is decided.** The rest is a proposal. It builds on #34, which made
-affect something the author declares (`affect:` in chapters and stretches) and
-removed the dynamics code that nothing called. The recommendations are marked
-as such, and §13 lists the questions for the author.
+Accepted 2026-09-30, with every §13 question settled. It builds on #34, which
+made affect something the author declares (`affect:` in chapters and
+stretches) and removed the dynamics code that nothing called. Only the `rpe`
+removal had to land before 1.0.0; everything else adds to what exists and can
+ship in any 1.x release.
 
-- **2026-09-30. `rpe` is removed from `character.affect.event`** (§7), in #34,
-  before 1.0.0. It was one chapter-wide number applied to every character in
-  the chapter, and removing a field after release would be a breaking change.
-- **Proposed: `delta` keeps meaning "last declared step minus first"** (§3).
-  The model below adds fields beside it rather than changing what it means,
-  so everything else here adds to what exists and can land in any 1.x release.
+- **2026-09-30. `rpe` is removed from `character.affect.event`** (§7), in #34.
+  It was one chapter-wide number applied to every character in the chapter,
+  and removing a field after release would be a breaking change.
+- **2026-09-30. A label transition is an endpoint** (§3; §13 q1). The
+  character ends the chapter in its last step; the first step is checked
+  against the replay. A numeric value stays a shift. `delta` keeps meaning
+  "last declared step minus first", and the event gains `from` and `to`.
+- **2026-09-30. Per-character affect settings live in codex frontmatter** (§4;
+  §13 q2), as `affectBaseline`, following the rule of using frontmatter where
+  possible.
+- **2026-09-30. One global half-life, with an optional per-character scale**
+  (§5; §13 q3). `affect.dynamics.halfLifeDays` is required to turn dynamics
+  on; `affectHalfLifeScale` in a character's codex frontmatter varies it for
+  that character.
+- **2026-09-30. No baseline drift** (§6; §13 q4).
+- **2026-09-30. `affect-discontinuity` checks stretches as well as chapter
+  entries** (§10; §13 q5).
 
 ## 1. The gap
 
@@ -72,7 +84,7 @@ two ways:
 | **Impulse**: add `delta` to his current state | wherever he was, shifted by `angry − curious` | If he entered already agitated, the sum overshoots, and the chapter no longer says where he ends up |
 | **Endpoint**: he ends the chapter `angry` | `angry` | None. That is what the author wrote |
 
-**Recommendation: labels are endpoints, and numbers are impulses.**
+**Decided: labels are endpoints, and numbers are impulses.**
 
 - A label transition sets the state to its **last step**. The first step is
   the author's claim about where he *entered* the chapter, and §10 checks that
@@ -97,7 +109,9 @@ Decay needs somewhere to decay *to*. Options:
 3. **Inferred from their stretches**, for example their mean. This is exactly
    the kind of inference #34 removed.
 
-**Recommendation: (1).** A character without `affectBaseline` is still
+**Decided: (1).** Per-character affect settings go in codex frontmatter
+wherever possible, beside the rest of what the author has said about the
+character. A character without `affectBaseline` is still
 replayed through their events, but nothing decays: the state after their last
 event holds until the next one. The block says so (`not decaying: no
 baseline`), so a held state is never mistaken for a settled one.
@@ -126,14 +140,25 @@ the stretch's affect as declared, with events ignored. The deleted code
 defaulted to a half-life of about 4.6 days, a figure nobody had checked against
 prose. A default would be a number that looks like data.
 
-**Open (§13 q3):** a per-character half-life (`affectHalfLifeDays` in the
-codex). Some people stay angry for a month. Start with one global rate, and
-add this only if drafting shows the need.
+**Per character, a scale on the global rate.** Some people stay angry for a
+month. A character's codex frontmatter may set `affectHalfLifeScale`, a
+positive number that multiplies the global half-life for them:
 
-## 6. Baseline drift: recommend not building it
+```yaml
+# codex/characters/noah.md frontmatter
+affectBaseline: { v: 0, a: 10, d: 20 }
+affectHalfLifeScale: 2       # holds a grudge: half-life 8 days when the global is 4
+```
+
+It is a scale rather than a second number of days, so retuning the global rate
+moves everyone and keeps their differences. It is absent (scale 1) for most
+characters. A value that is not a positive number is `affect-malformed`, and
+the character is not replayed rather than replayed at the wrong rate.
+
+## 6. Baseline drift: not built
 
 The removed model also moved the baseline itself under sustained stress
-("allostatic load"). **Recommendation: do not build this.**
+("allostatic load"). **Decided: do not build this.**
 
 - **It cannot be checked.** Book 1 runs about three weeks. At the old rate
   (3% a day) the drift is a few points, well below what an author could
@@ -179,7 +204,7 @@ day decay by zero days between them, and are applied in chapter order.
 
 ## 9. Where the result lives: `context`, not a record
 
-**Recommendation: compute it on demand. Do not compile it into records.**
+**Compute it on demand. Do not compile it into records.**
 
 - A state at an arbitrary date is a query, not an event. Records are the
   append-only stream (`scene`, `stateEvent`, `custodyEvent`, `affect.event`),
@@ -214,7 +239,7 @@ SUGGESTED_TENDENCIES:
 ## 10. The continuity check: the reason to build this
 
 Replay gives `lint` something new to judge: whether the author's own
-declarations agree with each other.
+declarations agree with each other. It checks both of these (§13 q5):
 
 - **Entering a chapter.** For each label transition, compare the replayed
   state just before the chapter with its **first** step. If Noah's chapter
@@ -223,7 +248,8 @@ declarations agree with each other.
 - **At a stretch.** Compare a new stretch's declared affect with the state
   replayed up to its `asOf` from the stretch before it. A stretch that declares
   `settled` two days after a rage, with no event in between, is worth a second
-  look.
+  look. The stretch still re-anchors the replay either way (the author wins);
+  the warning only asks whether the author meant the jump.
 
 This would be a new rule, `affect-discontinuity` (default `warning`), which
 fires when the distance between the two exceeds
@@ -261,7 +287,7 @@ chapter records.
 | `compiler/atproto.ts` | `from` and `to` on label events. Compute `affect-discontinuity` findings |
 | `lexicons/docs.ts` | `affect.event`: add optional `from` and `to` |
 | `config.ts` | `affect.dynamics: { halfLifeDays, discontinuity }`. `affect-discontinuity` in `DEFAULT_RULES` |
-| Codex parsing | `affectBaseline` read from the character file's frontmatter |
+| Codex parsing | `affectBaseline` and `affectHalfLifeScale` read from the character file's frontmatter |
 | `context/bundle.ts` | The replayed block (§9). `affect.state` in the JSON bundle |
 | `index.ts` | Export `affectStateAt` |
 | Docs | `affect-simulation.md`, `commands/context.md`, the rules table in `continuity-and-drift.md`, "Built-in checks" in `commands/lint.md`, and `record-types.md` for the event fields |
@@ -277,6 +303,12 @@ No new record type, so there is no `RECORD_FILES` change.
 - **No anchoring stretch:** no state, even with events and a baseline.
 - **No baseline:** the state holds after the last event, and the block says
   `not decaying`.
+- **`affectHalfLifeScale: 2`:** the §11 character's Oct 8 state decays with an
+  8-day half-life. A scale of `0`, a negative number or a string is
+  `affect-malformed`, and that character gets no replayed state.
+- **A stretch declaring `settled` two days after an `angry` endpoint, with the
+  threshold set:** `affect-discontinuity` fires on the stretch, and the replay
+  still restarts from `settled`.
 - **A chapter spanning Oct 12–14, with `--as-of` Oct 13:** its event is not
   applied.
 - **An event on the anchor's `asOf`:** not applied.
@@ -289,12 +321,16 @@ Nothing changes until chapters declare `affect:` and the universe sets
 `affect.dynamics`. Book 1 declares none today, so this can ship without
 touching its records.
 
-## 13. Open questions (for the author)
+## 13. Questions settled with the author
 
-1. **§3:** Are label transitions endpoints (recommended) or impulses?
-2. **§4:** Should the baseline go in codex frontmatter (recommended), or
-   somewhere else?
-3. **§5:** One global half-life, or one per character?
-4. **§6:** Leave baseline drift out (recommended)?
-5. **§10:** Should `affect-discontinuity` also compare a stretch against the
-   replay, or only chapter entries?
+Settled 2026-09-30.
+
+1. **§3, what a chapter event means:** labels are endpoints; numbers stay
+   shifts.
+2. **§4, where the baseline goes:** codex frontmatter. Use frontmatter where
+   possible.
+3. **§5, the half-life:** one global value, with an optional per-character
+   scale on it (`affectHalfLifeScale`).
+4. **§6, baseline drift:** leave it out.
+5. **§10, what `affect-discontinuity` compares:** chapter entries *and*
+   stretches against the replay.
