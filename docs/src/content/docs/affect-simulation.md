@@ -41,7 +41,7 @@ affect:
 ```
 
 Keys resolve like `registers:` keys. Each entry compiles to one
-[`character.affect.event`](record-types.md#characteraffectevent) whose `delta`
+[`character.affect.event`](/pinakes/record-types/#characteraffectevent) whose `delta`
 is the last state minus the first, or the numbers given. A longer transition
 (`a → b → c`) keeps the first and last for the delta and records the middle in
 `stimulus`. A chapter records a shift, so a single label is `affect-malformed`.

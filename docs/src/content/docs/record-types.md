@@ -344,7 +344,7 @@ compiles to:
 - **`affect:` is optional** and is the only source of `coordinates`,
   `attractorBasin` and `behavioralDirectives`: one label or `{ v, a, d }`. The
   `register` is a voice mode and never stands in for it, so a stretch without
-  `affect:` has none of the three. See [Affect](affect-simulation.md).
+  `affect:` has none of the three. See [Affect](/pinakes/affect-simulation/).
 
 A story gets `character_stretches.json` only if it has a `stretches/`
 directory, so a universe that never writes one is unaffected.

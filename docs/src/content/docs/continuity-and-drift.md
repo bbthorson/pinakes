@@ -63,7 +63,7 @@ cannot cite it.
 The affect rules are computed the same way, by the compiler, which emits
 nothing for a declaration it could not resolve. An `affect:` key that names no
 registry character is reported under `unresolved-entities`, as a `registers:`
-key is. See [Affect](affect-simulation.md).
+key is. See [Affect](/pinakes/affect-simulation/).
 
 Supper Club Secrets sets no `rules:` block at all, so Book 1 runs on these
 defaults and passes clean.

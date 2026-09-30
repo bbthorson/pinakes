@@ -37,6 +37,6 @@ Every function also takes a root path in place of an opened universe.
   `undefined`), `parseAffectDeclaration` reads an `affect:` value, and
   `classifyAttractorBasin`, `getBehavioralDirectives` and
   `formatAffectPromptInjection` are what the compiler and `context` use. See
-  [Affect](affect-simulation.md).
+  [Affect](/pinakes/affect-simulation/).
 
 The package is ESM-only and ships TypeScript types.

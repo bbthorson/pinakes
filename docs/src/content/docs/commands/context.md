@@ -61,7 +61,7 @@ context:
 a stretch that declared its own `affect:`; a register is never turned into one.
 It prints under a header saying the voice guide and register win on any
 conflict, and lists `SUGGESTED_TENDENCIES`, not constraints. `context: { affect:
-off }` turns it off for the whole universe. See [Affect](../affect-simulation.md).
+off }` turns it off for the whole universe. See [Affect](/pinakes/affect-simulation/).
 
 The bundle is horizon-safe, not knowledge-safe. It guarantees nothing from the
 future; it cannot guarantee the included past contains only what the character
