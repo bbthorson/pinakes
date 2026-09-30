@@ -129,6 +129,9 @@ describe('keystatic collections', () => {
       array: (item: any, cfg: any) => ({ type: 'array', item, ...cfg }),
       relationship: (cfg: any) => ({ type: 'relationship', ...cfg }),
       markdoc: (cfg: any) => ({ type: 'markdoc', ...cfg }),
+      number: (cfg: any) => ({ type: 'number', ...cfg }),
+      object: (fields: any) => ({ type: 'object', fields }),
+      ignored: () => ({ type: 'ignored' }),
     };
 
     const collections = pinakes.createPinakesCollections(mockFields, {
