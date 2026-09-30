@@ -505,9 +505,6 @@ export function compileProject(
             stimulus: text(stimulus),
             register: registerEntry ? parseRegister(registerEntry[1]).register : undefined,
             delta: scaleVad(delta),
-            // Omitted, not 0, when the chapter does not declare one: a 0 would
-            // read as "exactly as expected".
-            rpe: asInteger(ch.frontmatter.rpe),
             createdAt,
             sourceFile: ch.relativeFilePath,
           })

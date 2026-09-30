@@ -151,7 +151,7 @@ test('a declared chapter transition emits one event with the right signs', () =>
   const ch = chapter({
     num: 1,
     date: '2026-10-01',
-    extra: 'registers:\n  Emma: "under-pressure (asks the right questions, then lashes out)"\naffect:\n  Emma: "curious → angry"\n',
+    extra: 'rpe: 50\nregisters:\n  Emma: "under-pressure (asks the right questions, then lashes out)"\naffect:\n  Emma: "curious → angry"\n',
   });
   withAffectUniverse({ 'stories/01_book/chapters/01_one.md': ch }, LABELS, (root) => {
     const compiled = run(root, 'compile');
@@ -162,7 +162,8 @@ test('a declared chapter transition emits one event with the right signs', () =>
     assert.equal(e.subject, 'char.emma');
     assert.equal(e.register, 'under-pressure');
     assert.ok(e.delta.valence < 0 && e.delta.arousal > 0 && e.delta.dominance > 0, JSON.stringify(e.delta));
-    assert.equal(e.rpe, undefined, 'an undeclared rpe is omitted, not 0');
+    // A chapter-wide `rpe:` would stamp one surprise on every character in it.
+    assert.equal(e.rpe, undefined, 'rpe is not part of the record');
     assert.equal(run(root, 'lint').status, 0);
   });
 });

@@ -589,12 +589,6 @@ function affectEvent(ns) {
                             ref: '#vadDelta',
                             description: 'Shift in valence, arousal and dominance, [-100, 100]: the last declared state minus the first, or the declared numbers.',
                         },
-                        rpe: {
-                            type: 'integer',
-                            minimum: -200,
-                            maximum: 200,
-                            description: "Reward prediction error, actual minus expected outcome, [-200, 200], from the chapter's `rpe:`. Absent when undeclared.",
-                        },
                         createdAt: { type: 'string', description: 'Story time as an RFC3339 datetime.', format: 'datetime' },
                         sourceFile: { type: 'string', description: 'Repository-relative chapter path.', maxLength: 1024 },
                     },

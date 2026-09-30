@@ -385,7 +385,6 @@ compiles Noah's entry to:
   Middle steps of a longer transition (`a → b → c`) are appended as `(via b)`.
 - **`register`** is the first step of the character's `registers:` entry, for
   context only. It is absent when the chapter has none.
-- **`rpe`** comes from the chapter's `rpe:` and is absent when undeclared.
 - A label that is not in the vocabulary emits no event and an
   `affect-label-unresolved` warning; it is never scored as neutral.
 
