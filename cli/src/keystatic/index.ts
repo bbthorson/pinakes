@@ -58,7 +58,7 @@ export interface PinakesKeystaticOptions {
    * should be kept but not edited. A key Pinakes already names is rejected,
    * since redefining it could reshape a value Pinakes reads.
    */
-  extraFields?: Partial<Record<PinakesCollectionName, Record<string, unknown>>>;
+  extraFields?: Partial<Record<PinakesCollectionName, Record<string, any>>>;
 }
 
 /** Keystatic types a collection path as a glob, not any string. */
@@ -206,11 +206,11 @@ export function itemFields(fields: any) {
   };
 }
 
-function withExtras<S extends Record<string, unknown>>(
+function withExtras<S extends Record<string, any>>(
   name: PinakesCollectionName,
   schema: S,
-  extra: Record<string, unknown> = {}
-): S & Record<string, unknown> {
+  extra: Record<string, any> = {}
+): S & Record<string, any> {
   for (const key of Object.keys(extra)) {
     if (key in schema) {
       throw new Error(
@@ -220,7 +220,7 @@ function withExtras<S extends Record<string, unknown>>(
   }
   // `content` stays last so the body editor sits below the frontmatter.
   const { content, ...rest } = schema;
-  return { ...rest, ...extra, content } as unknown as S & Record<string, unknown>;
+  return { ...rest, ...extra, content } as unknown as S & Record<string, any>;
 }
 
 /**
