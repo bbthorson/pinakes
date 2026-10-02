@@ -127,6 +127,13 @@ kept exactly as written and edited in the Markdown file:
 
 A save preserves them. `pinakes lint` still checks them, as always.
 
+### Files without frontmatter
+
+A collection lists every file in its folder, so a universe's working notes
+there (`00_story_outline.md`, a `README.md`) show up as entries too. Leave them
+be in Keystatic: they have no frontmatter, and saving one writes some.
+Keystatic's collection paths are globs, with no way to exclude a file.
+
 ### What a save changes
 
 With every key named, saving an entry changes no value Pinakes reads. This
