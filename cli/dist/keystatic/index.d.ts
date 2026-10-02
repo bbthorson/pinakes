@@ -56,7 +56,7 @@ export interface PinakesKeystaticOptions {
      * should be kept but not edited. A key Pinakes already names is rejected,
      * since redefining it could reshape a value Pinakes reads.
      */
-    extraFields?: Partial<Record<PinakesCollectionName, Record<string, unknown>>>;
+    extraFields?: Partial<Record<PinakesCollectionName, Record<string, any>>>;
 }
 /** Chapter frontmatter, as `pinakes lint` and `compile` read it. */
 export declare function chapterFields(fields: any, options?: {
@@ -168,7 +168,7 @@ export declare function createPinakesCollections(fields: any, options: PinakesKe
             beat_purpose: any;
             tags: any;
             content: any;
-        } & Record<string, unknown>;
+        } & Record<string, any>;
         format: {
             contentField: string;
         };
@@ -190,7 +190,7 @@ export declare function createPinakesCollections(fields: any, options: PinakesKe
             tags: any;
             note: any;
             content: any;
-        } & Record<string, unknown>;
+        } & Record<string, any>;
         format: {
             contentField: string;
         };
@@ -211,7 +211,7 @@ export declare function createPinakesCollections(fields: any, options: PinakesKe
             affect: any;
             note: any;
             content: any;
-        } & Record<string, unknown>;
+        } & Record<string, any>;
         format: {
             contentField: string;
         };
@@ -230,7 +230,7 @@ export declare function createPinakesCollections(fields: any, options: PinakesKe
             affectBaseline: any;
             affectHalfLifeScale: any;
             content: any;
-        } & Record<string, unknown>;
+        } & Record<string, any>;
         format: {
             contentField: string;
         };
@@ -252,7 +252,7 @@ export declare function createPinakesCollections(fields: any, options: PinakesKe
             tags: any;
             schedule: any;
             content: any;
-        } & Record<string, unknown>;
+        } & Record<string, any>;
         format: {
             contentField: string;
         };
@@ -267,7 +267,7 @@ export declare function createPinakesCollections(fields: any, options: PinakesKe
             description: any;
             tags: any;
             content: any;
-        } & Record<string, unknown>;
+        } & Record<string, any>;
         format: {
             contentField: string;
         };

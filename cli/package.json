@@ -1,6 +1,6 @@
 {
   "name": "@bbthorson/pinakes",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "Fictional continuity linter and AT Protocol record compiler",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -41,6 +41,7 @@
     "zod": "^3.22.4"
   },
   "devDependencies": {
+    "@keystatic/core": "^0.6.9",
     "@types/node": "^20.11.0",
     "typescript": "^5.3.3"
   },
