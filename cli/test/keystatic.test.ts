@@ -142,3 +142,20 @@ test('every frontmatter key in the starter template is named by its config', () 
     }
   }
 });
+
+test('collection paths are globs from the repository root', () => {
+  const cols = createPinakesCollections(fields, { storyDir: 'stories/one' });
+  assert.equal(cols.characters.path, 'codex/characters/*', 'codexDir defaults to the root-level codex');
+  // Type-level: Keystatic's config only takes a glob, so the result must be
+  // assignable without a cast.
+  const p: `${string}/*` | `${string}/**` = cols.chapters.path;
+  assert.equal(p, 'stories/one/chapters/*');
+});
+
+test('neither template config reaches above the repository root', () => {
+  const root = fileURLToPath(new URL('../../template/', import.meta.url));
+  for (const file of ['keystatic.config.ts', 'site/keystatic.config.ts']) {
+    const config = fs.readFileSync(path.join(root, file), 'utf-8');
+    assert.doesNotMatch(config, /(storyDir|codexDir): '\.\.\//, `${file}: Keystatic cannot read a '../' path`);
+  }
+});

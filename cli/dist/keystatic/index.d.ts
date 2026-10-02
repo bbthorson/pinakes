@@ -32,11 +32,17 @@
  */
 export type PinakesCollectionName = 'chapters' | 'posts' | 'stretches' | 'characters' | 'places' | 'items';
 export interface PinakesKeystaticOptions {
-    /** Path to the story directory, relative to keystatic.config.ts (e.g. '../stories/01-missing-hot-sauce'). */
+    /**
+     * Path to the story directory from the repository root (e.g.
+     * 'stories/01-missing-hot-sauce'). Keystatic resolves collection paths from
+     * where it reads and writes: the repository root in GitHub mode, and the
+     * folder the dev server runs in in local mode. Neither reaches above it, so a
+     * path starting '../' finds nothing.
+     */
     storyDir: string;
     /** Book URL slug for chapter previews (e.g. 'missing-hot-sauce'). */
     bookSlug?: string;
-    /** Path to the codex directory, relative to keystatic.config.ts. Defaults to '../codex'. */
+    /** Path to the codex directory from the repository root, as `storyDir`. Defaults to 'codex'. */
     codexDir?: string;
     /**
      * The chapter frontmatter key naming a chapter's sequence: the universe's
@@ -169,7 +175,7 @@ export declare function createPinakesCollections(fields: any, options: PinakesKe
         entryLayout: "content";
         label: string;
         slugField: string;
-        path: string;
+        path: `${string}/chapters/*`;
     };
     posts: {
         schema: {
@@ -191,7 +197,7 @@ export declare function createPinakesCollections(fields: any, options: PinakesKe
         entryLayout: "content";
         label: string;
         slugField: string;
-        path: string;
+        path: `${string}/posts/*`;
     };
     stretches: {
         schema: {
@@ -212,7 +218,7 @@ export declare function createPinakesCollections(fields: any, options: PinakesKe
         entryLayout: "content";
         label: string;
         slugField: string;
-        path: string;
+        path: `${string}/stretches/**`;
     };
     characters: {
         previewUrl: string;
@@ -231,7 +237,7 @@ export declare function createPinakesCollections(fields: any, options: PinakesKe
         entryLayout: "content";
         label: string;
         slugField: string;
-        path: string;
+        path: `${string}/characters/*`;
     };
     places: {
         previewUrl: string;
@@ -253,7 +259,7 @@ export declare function createPinakesCollections(fields: any, options: PinakesKe
         entryLayout: "content";
         label: string;
         slugField: string;
-        path: string;
+        path: `${string}/locations/*`;
     };
     items: {
         schema: {
@@ -268,6 +274,6 @@ export declare function createPinakesCollections(fields: any, options: PinakesKe
         entryLayout: "content";
         label: string;
         slugField: string;
-        path: string;
+        path: `${string}/items/*`;
     };
 };

@@ -38,13 +38,15 @@ import { createPinakesCollections } from '@bbthorson/pinakes/keystatic';
 
 export default config({
   storage: {
-    kind: 'local',
+    kind: 'github',
+    repo: 'OWNER/REPO',
+    branchPrefix: 'keystatic/',
   },
   collections: {
     ...createPinakesCollections(fields, {
-      storyDir: '../stories/01-missing-hot-sauce',
+      storyDir: 'stories/01-missing-hot-sauce',
       bookSlug: 'missing-hot-sauce',
-      codexDir: '../codex',
+      codexDir: 'codex',
       sequenceField: 'meal',          // project.sequenceField in pinakes.yaml
       extraFields: {                  // your universe's own keys: see below
         chapters: { clues: fields.ignored(), threads: fields.ignored() },
@@ -53,6 +55,27 @@ export default config({
   },
 });
 ```
+
+Import from **`@bbthorson/pinakes/keystatic`**, never the package root.
+Keystatic bundles this config into its admin page in the browser, and the root
+also carries the Node-side compiler: imported from there, the page fails to
+load (`Class extends value undefined is not a constructor`).
+
+### Where Keystatic reads: paths are from the repository root
+
+Collection paths (`storyDir`, `codexDir`) are resolved from where Keystatic
+reads and writes, and it never reaches above that:
+
+- **GitHub mode** reads the repository from its root. Paths are from the root,
+  whatever folder the config is in, and an edit is a commit on a branch
+  (`branchPrefix` keeps Keystatic to its own). This is the mode for a site in a
+  subfolder, as in the starter template: set `repo`, run the dev server, open
+  `/keystatic` and follow **Log in with GitHub** to create the GitHub App, which
+  writes its credentials to the site's `.env` (gitignore it).
+- **Local mode** reads the folder the dev server runs in. It suits a universe
+  whose site is at the repository root. With the site in `site/`, the stories
+  and codex are out of its reach, and every collection lists as empty: a
+  `../stories` path finds nothing.
 
 `createPinakesCollections` generates collections for:
 * **Chapters** (`stories/.../chapters/*`): title, number, sequence, part, dates, locations, POV, cast, custody hand-offs, beat, tags, and the prose.
@@ -112,6 +135,10 @@ body, then compiling: `lint` passed and all 228 records came out identical.
 
 A save does make cosmetic changes, so expect them in the diff:
 
+- The whole frontmatter block is rewritten, not just the field you changed:
+  keys go into schema order, quotes come off where YAML doesn't need them,
+  and long strings fold (`>-`). The first save of a hand-written file shows
+  the whole block in its diff.
 - An absent list field is written as `[]`.
 - The body is reformatted by Keystatic's Markdoc serializer. It adds a blank
   line after a heading that runs straight into text, and escapes some

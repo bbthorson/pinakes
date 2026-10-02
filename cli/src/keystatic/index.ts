@@ -34,11 +34,17 @@
 export type PinakesCollectionName = 'chapters' | 'posts' | 'stretches' | 'characters' | 'places' | 'items';
 
 export interface PinakesKeystaticOptions {
-  /** Path to the story directory, relative to keystatic.config.ts (e.g. '../stories/01-missing-hot-sauce'). */
+  /**
+   * Path to the story directory from the repository root (e.g.
+   * 'stories/01-missing-hot-sauce'). Keystatic resolves collection paths from
+   * where it reads and writes: the repository root in GitHub mode, and the
+   * folder the dev server runs in in local mode. Neither reaches above it, so a
+   * path starting '../' finds nothing.
+   */
   storyDir: string;
   /** Book URL slug for chapter previews (e.g. 'missing-hot-sauce'). */
   bookSlug?: string;
-  /** Path to the codex directory, relative to keystatic.config.ts. Defaults to '../codex'. */
+  /** Path to the codex directory from the repository root, as `storyDir`. Defaults to 'codex'. */
   codexDir?: string;
   /**
    * The chapter frontmatter key naming a chapter's sequence: the universe's
@@ -54,6 +60,10 @@ export interface PinakesKeystaticOptions {
    */
   extraFields?: Partial<Record<PinakesCollectionName, Record<string, unknown>>>;
 }
+
+/** Keystatic types a collection path as a glob, not any string. */
+type Glob = `${string}/*` | `${string}/**`;
+const glob = <T extends Glob>(p: T): T => p;
 
 const list = (fields: any, label: string, item: string) =>
   fields.array(fields.text({ label: item }), { label, itemLabel: (props: any) => props.value || item });
@@ -220,14 +230,14 @@ function withExtras<S extends Record<string, unknown>>(
  * @param options Universe paths, the sequence key, and the universe's own fields
  */
 export function createPinakesCollections(fields: any, options: PinakesKeystaticOptions) {
-  const { storyDir, bookSlug = 'book1', codexDir = '../codex', extraFields = {} } = options;
+  const { storyDir, bookSlug = 'book1', codexDir = 'codex', extraFields = {} } = options;
   const entry = { format: { contentField: 'content' }, entryLayout: 'content' as const };
 
   return {
     chapters: {
       label: 'Chapters',
       slugField: 'title',
-      path: `${storyDir}/chapters/*`,
+      path: glob(`${storyDir}/chapters/*`),
       ...entry,
       previewUrl: `/books/${bookSlug}/read/{slug}`,
       schema: withExtras('chapters', chapterFields(fields, options), extraFields.chapters),
@@ -235,21 +245,21 @@ export function createPinakesCollections(fields: any, options: PinakesKeystaticO
     posts: {
       label: 'In-character posts',
       slugField: 'date',
-      path: `${storyDir}/posts/*`,
+      path: glob(`${storyDir}/posts/*`),
       ...entry,
       schema: withExtras('posts', postFields(fields), extraFields.posts),
     },
     stretches: {
       label: 'Stretches',
       slugField: 'asOf',
-      path: `${storyDir}/stretches/**`,
+      path: glob(`${storyDir}/stretches/**`),
       ...entry,
       schema: withExtras('stretches', stretchFields(fields), extraFields.stretches),
     },
     characters: {
       label: 'Characters',
       slugField: 'title',
-      path: `${codexDir}/characters/*`,
+      path: glob(`${codexDir}/characters/*`),
       ...entry,
       previewUrl: '/characters/{slug}',
       schema: withExtras('characters', characterFields(fields), extraFields.characters),
@@ -257,7 +267,7 @@ export function createPinakesCollections(fields: any, options: PinakesKeystaticO
     places: {
       label: 'Places',
       slugField: 'title',
-      path: `${codexDir}/locations/*`,
+      path: glob(`${codexDir}/locations/*`),
       ...entry,
       previewUrl: '/places/{slug}',
       schema: withExtras('places', placeFields(fields), extraFields.places),
@@ -265,7 +275,7 @@ export function createPinakesCollections(fields: any, options: PinakesKeystaticO
     items: {
       label: 'Items',
       slugField: 'title',
-      path: `${codexDir}/items/*`,
+      path: glob(`${codexDir}/items/*`),
       ...entry,
       schema: withExtras('items', itemFields(fields), extraFields.items),
     },
