@@ -56,10 +56,11 @@ export default config({
 });
 ```
 
-Import from **`@bbthorson/pinakes/keystatic`**, never the package root.
-Keystatic bundles this config into its admin page in the browser, and the root
-also carries the Node-side compiler: imported from there, the page fails to
-load (`Class extends value undefined is not a constructor`).
+Import from **`@bbthorson/pinakes/keystatic`**. Keystatic bundles this config
+into its admin page in the browser, so its helpers live apart from the package
+root, which carries the Node-side compiler. Earlier versions re-exported them
+from the root, and a config importing from there failed to load in the browser
+(`Class extends value undefined is not a constructor`).
 
 ### Where Keystatic reads: paths are from the repository root
 

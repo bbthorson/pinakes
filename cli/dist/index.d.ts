@@ -6,7 +6,6 @@ import { type ContextBundle, type CodexSection } from './context/bundle.js';
 import { type ProseReport } from './prose/check.js';
 import { type AffectState, type AffectTraitProblem } from './compiler/affect-dynamics.js';
 export type { Config, Diagnostic, ChapterData, CompilationReport, CompilationResult, ContextBundle, CodexSection, ProseReport, AffectState, AffectTraitProblem, RegistryConflict, RegistryInvalidEntry, };
-export * from './keystatic/index.js';
 export { BUILTIN_BASINS, CORE_AFFECT_LABELS, buildAffectVocabulary, classifyAttractorBasin, formatAffectPromptInjection, getBehavioralDirectives, normalizeAffectLabel, parseAffectDeclaration, resolveAffectLabel, type AffectDeclaration, type AffectLabelConfig, type BasinBounds, type BasinConfig, type BuiltinBasin, type ScaledVad, type VadVector, } from './compiler/affect.js';
 /**
  * A loaded universe. Open one when making several calls against the same

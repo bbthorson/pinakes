@@ -33,7 +33,10 @@ export type {
   RegistryInvalidEntry,
 };
 
-export * from './keystatic/index.js';
+// The Keystatic collections are not exported here: they are
+// `@bbthorson/pinakes/keystatic`. Keystatic bundles its config into the
+// browser, and this entry point carries the Node-side compiler.
+
 // Named, not `export *`: everything listed is a compatibility promise, and the
 // affect module's internals should stay free to change.
 export {
