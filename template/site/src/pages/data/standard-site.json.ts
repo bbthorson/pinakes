@@ -9,7 +9,7 @@ export const GET: APIRoute = async () => {
   const chapters = await getCollection('chapters');
   
   const documents = chapters.map((c) => ({
-    uri: documentUri('book1', c.data.chapter),
+    uri: documentUri('book1', c.data.chapter, c.data.publishDate),
     record: {
       $type: 'site.standard.document',
       site: publicationUri(),

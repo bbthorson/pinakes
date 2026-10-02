@@ -17,7 +17,9 @@ import { buildContext, renderMarkdown } from './context/bundle.js';
 import { buildProseReports } from './prose/check.js';
 import { computeAffectState } from './compiler/affect-dynamics.js';
 import { isCalendarDate } from './linter/stretches.js';
-export * from './keystatic/index.js';
+// The Keystatic collections are not exported here: they are
+// `@bbthorson/pinakes/keystatic`. Keystatic bundles its config into the
+// browser, and this entry point carries the Node-side compiler.
 // Named, not `export *`: everything listed is a compatibility promise, and the
 // affect module's internals should stay free to change.
 export { BUILTIN_BASINS, CORE_AFFECT_LABELS, buildAffectVocabulary, classifyAttractorBasin, formatAffectPromptInjection, getBehavioralDirectives, normalizeAffectLabel, parseAffectDeclaration, resolveAffectLabel, } from './compiler/affect.js';

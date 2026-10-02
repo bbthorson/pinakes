@@ -118,43 +118,12 @@ describe('compiled register expressions', () => {
 });
 
 describe('keystatic collections', () => {
-  test('creates collections with expected structure and paths', () => {
-    // Mock fields object resembling Keystatic fields API
-    const mockFields = {
-      slug: (cfg: any) => ({ type: 'slug', ...cfg }),
-      text: (cfg: any) => ({ type: 'text', ...cfg }),
-      integer: (cfg: any) => ({ type: 'integer', ...cfg }),
-      date: (cfg: any) => ({ type: 'date', ...cfg }),
-      select: (cfg: any) => ({ type: 'select', ...cfg }),
-      array: (item: any, cfg: any) => ({ type: 'array', item, ...cfg }),
-      relationship: (cfg: any) => ({ type: 'relationship', ...cfg }),
-      markdoc: (cfg: any) => ({ type: 'markdoc', ...cfg }),
-      number: (cfg: any) => ({ type: 'number', ...cfg }),
-      object: (fields: any) => ({ type: 'object', fields }),
-      ignored: () => ({ type: 'ignored' }),
-    };
-
-    const collections = pinakes.createPinakesCollections(mockFields, {
-      storyDir: '../stories/01-missing-hot-sauce',
-      bookSlug: 'missing-hot-sauce',
-      codexDir: '../codex',
-    });
-
-    assert.ok(collections.chapters);
-    assert.equal(collections.chapters.path, '../stories/01-missing-hot-sauce/chapters/*');
-    assert.equal(collections.chapters.previewUrl, '/books/missing-hot-sauce/read/{slug}');
-    assert.ok(collections.chapters.schema.title);
-    assert.ok(collections.chapters.schema.chapter);
-
-    assert.ok(collections.characters);
-    assert.equal(collections.characters.path, '../codex/characters/*');
-    assert.equal(collections.characters.previewUrl, '/characters/{slug}');
-
-    assert.ok(collections.places);
-    assert.equal(collections.places.path, '../codex/locations/*');
-    assert.equal(collections.places.previewUrl, '/places/{slug}');
-
-    assert.ok(collections.items);
-    assert.ok(collections.posts);
+  test('live only at @bbthorson/pinakes/keystatic, never the package root', () => {
+    // Keystatic bundles its config into the browser, and the root carries the
+    // Node-side compiler: a root import broke the admin page. The collections
+    // themselves are covered in keystatic.test.ts.
+    for (const name of ['createPinakesCollections', 'chapterFields', 'postFields', 'stretchFields', 'characterFields', 'placeFields', 'itemFields']) {
+      assert.equal(name in pinakes, false, `${name} must not be exported from the package root`);
+    }
   });
 });

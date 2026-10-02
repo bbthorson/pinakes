@@ -30,6 +30,7 @@
  * This module must stay free of Node imports: Keystatic bundles its config
  * into the browser.
  */
+const glob = (p) => p;
 const list = (fields, label, item) => fields.array(fields.text({ label: item }), { label, itemLabel: (props) => props.value || item });
 /** Chapter frontmatter, as `pinakes lint` and `compile` read it. */
 export function chapterFields(fields, options = {}) {
@@ -177,13 +178,13 @@ function withExtras(name, schema, extra = {}) {
  * @param options Universe paths, the sequence key, and the universe's own fields
  */
 export function createPinakesCollections(fields, options) {
-    const { storyDir, bookSlug = 'book1', codexDir = '../codex', extraFields = {} } = options;
+    const { storyDir, bookSlug = 'book1', codexDir = 'codex', extraFields = {} } = options;
     const entry = { format: { contentField: 'content' }, entryLayout: 'content' };
     return {
         chapters: {
             label: 'Chapters',
             slugField: 'title',
-            path: `${storyDir}/chapters/*`,
+            path: glob(`${storyDir}/chapters/*`),
             ...entry,
             previewUrl: `/books/${bookSlug}/read/{slug}`,
             schema: withExtras('chapters', chapterFields(fields, options), extraFields.chapters),
@@ -191,21 +192,21 @@ export function createPinakesCollections(fields, options) {
         posts: {
             label: 'In-character posts',
             slugField: 'date',
-            path: `${storyDir}/posts/*`,
+            path: glob(`${storyDir}/posts/*`),
             ...entry,
             schema: withExtras('posts', postFields(fields), extraFields.posts),
         },
         stretches: {
             label: 'Stretches',
             slugField: 'asOf',
-            path: `${storyDir}/stretches/**`,
+            path: glob(`${storyDir}/stretches/**`),
             ...entry,
             schema: withExtras('stretches', stretchFields(fields), extraFields.stretches),
         },
         characters: {
             label: 'Characters',
             slugField: 'title',
-            path: `${codexDir}/characters/*`,
+            path: glob(`${codexDir}/characters/*`),
             ...entry,
             previewUrl: '/characters/{slug}',
             schema: withExtras('characters', characterFields(fields), extraFields.characters),
@@ -213,7 +214,7 @@ export function createPinakesCollections(fields, options) {
         places: {
             label: 'Places',
             slugField: 'title',
-            path: `${codexDir}/locations/*`,
+            path: glob(`${codexDir}/locations/*`),
             ...entry,
             previewUrl: '/places/{slug}',
             schema: withExtras('places', placeFields(fields), extraFields.places),
@@ -221,7 +222,7 @@ export function createPinakesCollections(fields, options) {
         items: {
             label: 'Items',
             slugField: 'title',
-            path: `${codexDir}/items/*`,
+            path: glob(`${codexDir}/items/*`),
             ...entry,
             schema: withExtras('items', itemFields(fields), extraFields.items),
         },
