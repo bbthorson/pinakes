@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { type UniverseFS } from './fs.js';
 type Severity = 'error' | 'warning' | 'off';
 export declare const ConfigSchema: z.ZodObject<{
     spec: z.ZodDefault<z.ZodNumber>;
@@ -973,7 +974,7 @@ export declare const ConfigSchema: z.ZodObject<{
     } | undefined;
 }>;
 export type Config = z.infer<typeof ConfigSchema>;
-export declare function loadConfig(projectRoot: string): {
+export declare function loadConfig(projectRoot: string, ufs?: UniverseFS): {
     config: Config;
     configPath: string;
 };

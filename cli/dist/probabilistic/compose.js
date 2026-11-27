@@ -8,8 +8,8 @@
  *   before serialization so the Narrator sees ONLY their observable surface
  *   (`say` + `physicalTell`).
  */
-import fs from 'fs';
 import path from 'path';
+import { nodeFS } from '../fs.js';
 export const DEFAULT_NARRATOR_GUIDANCE = [
     'Third-person-limited POV lock: render interiority (`notice`, `holdBack`) ONLY for the POV character. Non-POV characters are represented strictly by observable speech (`say`) and physical tells (`physicalTell`); never head-hop into their private thoughts or unspoken motives.',
     'Avoid brief-to-dialogue seams: integrate each character\'s sampled move organically into conversational turns and scene rhythm rather than splicing a greeting or line into turn two of an already-started exchange.',
@@ -38,6 +38,7 @@ export function stripToObservableSurface(entry) {
 }
 export function composeNarratorBundle(options) {
     const errors = [];
+    const ufs = options.ufs ?? nodeFS;
     if (options.winningMoves.length === 0) {
         return { errors: ['No winning character moves provided.'] };
     }
@@ -69,13 +70,13 @@ export function composeNarratorBundle(options) {
         const abs = options.projectRoot
             ? path.resolve(options.projectRoot, options.writingGuidePath)
             : path.resolve(options.writingGuidePath);
-        if (!fs.existsSync(abs)) {
+        if (!ufs.exists(abs)) {
             errors.push(`Writing guide not found at ${options.writingGuidePath}.`);
             return { errors };
         }
         writingGuide = {
             path: options.writingGuidePath,
-            content: fs.readFileSync(abs, 'utf-8').trim(),
+            content: ufs.readFile(abs).trim(),
         };
     }
     return {

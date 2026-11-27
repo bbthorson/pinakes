@@ -1,3 +1,4 @@
+import { type UniverseFS } from '../fs.js';
 import type { CharacterMove, NarratorHandoffBundle, ObservableCharacterMove } from './schemas.js';
 export interface WinningCharacterMove {
     character: string;
@@ -14,6 +15,7 @@ export interface ComposeNarratorOptions {
     writingGuidePath?: string;
     projectRoot?: string;
     extraGuidance?: string[];
+    ufs?: UniverseFS;
 }
 export declare const DEFAULT_NARRATOR_GUIDANCE: readonly string[];
 /**

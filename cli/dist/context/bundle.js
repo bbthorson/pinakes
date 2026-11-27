@@ -1,28 +1,3 @@
-/**
- * The as-of bundle: what a character can see on one story date.
- *
- * Every tier looks backward. A character knows what has happened to them and
- * not what the author has planned, so everything here has ended on or before
- * `asOf` — the same horizon `stretch-source-future` enforces on stretches. The
- * bundle exists so that whoever drafts in a character's voice (an author, or a
- * model) is handed that horizon rather than trusted to keep to it.
- *
- * Three tiers, plus the record of what the character did in public:
- *
- * - **Long:** the codex file, cut to the headings `context.codex` allows. Fails
- *   closed: nothing is shown unless included, and held material is removed by
- *   heading or by paragraph prefix. What was withheld is counted, never named —
- *   a heading like "The Online Life" is itself a disclosure.
- * - **Mid:** the latest approved stretch with `asOf` on or before the date.
- * - **Short:** state events whose span covers the date. By default only the
- *   register expression, not the annotation: annotations are written about the
- *   character by an author who knows the whole book, and routinely carry things
- *   the character does not know. `fullState` opts in, with a warning.
- * - **History:** the character's posts, the posts they replied to, and the posts
- *   that mention them, all dated on or before `asOf`; and the scenes they were
- *   present for that have ended, by title only.
- */
-import fs from 'fs';
 import path from 'path';
 import { isCalendarDate } from '../linter/stretches.js';
 import { namesUnendedChapter } from './chapter-refs.js';
@@ -122,11 +97,11 @@ function bookKeyOf(storyDir) {
 }
 function findStubInStory(storyDir, characterId, registry, engine) {
     const charsDir = path.join(storyDir, 'characters');
-    if (!fs.existsSync(charsDir))
+    if (!engine.ufs.exists(charsDir))
         return undefined;
     const slug = (characterId.includes('.') ? characterId.split('.', 2)[1] : characterId).toLowerCase();
-    const files = fs
-        .readdirSync(charsDir)
+    const files = engine.ufs
+        .readdir(charsDir)
         .filter((f) => f.endsWith('.md') && !f.startsWith('_') && !f.startsWith('00_'))
         .sort();
     // Direct slug match first (`stories/<book>/characters/<slug>.md`).
@@ -136,7 +111,7 @@ function findStubInStory(storyDir, characterId, registry, engine) {
     // Fallback: match by frontmatter `id` or `character`.
     for (const f of files) {
         const full = path.join(charsDir, f);
-        const { data } = engine.parseFrontmatter(fs.readFileSync(full, 'utf-8'));
+        const { data } = engine.parseFrontmatter(engine.ufs.readFile(full));
         if (!data)
             continue;
         const candidate = data.id ?? data.character;
@@ -194,7 +169,7 @@ export function buildContext(root, config, registry, engine, records, characterN
     let withheld = 0;
     let srcFile = entity?.sourceFile ? path.resolve(root, entity.sourceFile) : '';
     let srcRel = entity?.sourceFile || undefined;
-    let sourceScope = srcFile && fs.existsSync(srcFile) ? 'series' : undefined;
+    let sourceScope = srcFile && engine.ufs.exists(srcFile) ? 'series' : undefined;
     if (!sourceScope) {
         let candidateStories = engine.getStories();
         if (options.story) {
@@ -235,8 +210,8 @@ export function buildContext(root, config, registry, engine, records, characterN
             }
         }
     }
-    if (srcFile && fs.existsSync(srcFile)) {
-        const parsed = engine.parseFrontmatter(fs.readFileSync(srcFile, 'utf-8'));
+    if (srcFile && engine.ufs.exists(srcFile)) {
+        const parsed = engine.parseFrontmatter(engine.ufs.readFile(srcFile));
         for (const key of codexCfg.frontmatter) {
             const v = parsed.data?.[key];
             if (v === undefined || v === null || typeof v === 'object')

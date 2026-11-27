@@ -2,6 +2,7 @@
 
 import { createRequire } from 'module';
 import { fileURLToPath } from 'url';
+import readline from 'readline';
 import { Command } from 'commander';
 import path from 'path';
 import fs from 'fs';
@@ -25,8 +26,10 @@ import {
   loadCalibrationJsonl,
   runCalibration,
   renderCalibrationMarkdown,
+  PinakesMcpServer,
   TEMPORAL_LENSES,
   type Diagnostic,
+  type McpMode,
   type TemporalLens,
   type WinningCharacterMove,
 } from './index.js';
@@ -490,6 +493,53 @@ program
       console.error(`Error: ${e.message}`);
       process.exit(1);
     }
+  });
+
+program
+  .command('mcp')
+  .description('Run a local Pinakes MCP server over stdio (scene or author mode)')
+  .option('--mode <mode>', 'Firewall mode: scene | author', 'author')
+  .option('--scorer <provider>', 'Optional scorer override: clef | clef-flash | llm | mock')
+  .option('-r, --root <path>', 'Project root directory', process.cwd())
+  .action((options) => {
+    const mode = String(options.mode) as McpMode;
+    if (mode !== 'scene' && mode !== 'author') {
+      console.error(`Error: --mode must be 'scene' or 'author'; got '${mode}'.`);
+      process.exit(1);
+    }
+    const root = path.resolve(options.root);
+    const server = new PinakesMcpServer({
+      mode,
+      version,
+      getUniverse: () => openUniverse(root),
+      getScorer: options.scorer
+        ? (tier) => {
+            const u = openUniverse(root);
+            const provider =
+              options.scorer === 'clef' && tier === 'flash' ? 'clef-flash' : options.scorer;
+            return createDecisionScorer(u.config, { provider });
+          }
+        : undefined,
+    });
+
+    const rl = readline.createInterface({ input: process.stdin, crlfDelay: Infinity });
+    rl.on('line', async (line) => {
+      const trimmed = line.trim();
+      if (!trimmed) return;
+      try {
+        const msg = JSON.parse(trimmed);
+        const resp = await server.handleJsonRpc(msg);
+        if (resp) process.stdout.write(JSON.stringify(resp) + '\n');
+      } catch (e: any) {
+        process.stdout.write(
+          JSON.stringify({
+            jsonrpc: '2.0',
+            id: null,
+            error: { code: -32700, message: `Parse error: ${e?.message ?? String(e)}` },
+          }) + '\n'
+        );
+      }
+    });
   });
 
 program

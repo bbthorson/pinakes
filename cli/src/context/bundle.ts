@@ -188,11 +188,11 @@ function findStubInStory(
   engine: LinterEngine
 ): string | undefined {
   const charsDir = path.join(storyDir, 'characters');
-  if (!fs.existsSync(charsDir)) return undefined;
+  if (!engine.ufs.exists(charsDir)) return undefined;
 
   const slug = (characterId.includes('.') ? characterId.split('.', 2)[1] : characterId).toLowerCase();
-  const files = fs
-    .readdirSync(charsDir)
+  const files = engine.ufs
+    .readdir(charsDir)
     .filter((f) => f.endsWith('.md') && !f.startsWith('_') && !f.startsWith('00_'))
     .sort();
 
@@ -203,7 +203,7 @@ function findStubInStory(
   // Fallback: match by frontmatter `id` or `character`.
   for (const f of files) {
     const full = path.join(charsDir, f);
-    const { data } = engine.parseFrontmatter(fs.readFileSync(full, 'utf-8'));
+    const { data } = engine.parseFrontmatter(engine.ufs.readFile(full));
     if (!data) continue;
     const candidate = data.id ?? data.character;
     if (typeof candidate === 'string' && registry.resolve(candidate, 'character')?.id === characterId) {
@@ -270,7 +270,7 @@ export function buildContext(
   let withheld = 0;
   let srcFile = entity?.sourceFile ? path.resolve(root, entity.sourceFile) : '';
   let srcRel: string | undefined = entity?.sourceFile || undefined;
-  let sourceScope: 'series' | 'book' | undefined = srcFile && fs.existsSync(srcFile) ? 'series' : undefined;
+  let sourceScope: 'series' | 'book' | undefined = srcFile && engine.ufs.exists(srcFile) ? 'series' : undefined;
 
   if (!sourceScope) {
     let candidateStories = engine.getStories();
@@ -315,8 +315,8 @@ export function buildContext(
     }
   }
 
-  if (srcFile && fs.existsSync(srcFile)) {
-    const parsed = engine.parseFrontmatter(fs.readFileSync(srcFile, 'utf-8'));
+  if (srcFile && engine.ufs.exists(srcFile)) {
+    const parsed = engine.parseFrontmatter(engine.ufs.readFile(srcFile));
     for (const key of codexCfg.frontmatter) {
       const v = parsed.data?.[key];
       if (v === undefined || v === null || typeof v === 'object') continue;

@@ -1,8 +1,8 @@
-import fs from 'fs';
 import path from 'path';
 import YAML from 'yaml';
 import { z } from 'zod';
 import { BUILTIN_BASINS, CORE_AFFECT_LABELS, normalizeAffectLabel } from './compiler/affect.js';
+import { nodeFS, type UniverseFS } from './fs.js';
 
 type Severity = 'error' | 'warning' | 'off';
 
@@ -352,7 +352,10 @@ export const ConfigSchema = z.object({
 
 export type Config = z.infer<typeof ConfigSchema>;
 
-export function loadConfig(projectRoot: string): { config: Config; configPath: string } {
+export function loadConfig(
+  projectRoot: string,
+  ufs: UniverseFS = nodeFS
+): { config: Config; configPath: string } {
   const possiblePaths = [
     path.join(projectRoot, 'pinakes.yaml'),
     path.join(projectRoot, 'pinakes.yml'),
@@ -364,9 +367,9 @@ export function loadConfig(projectRoot: string): { config: Config; configPath: s
   let rawContent = '';
 
   for (const p of possiblePaths) {
-    if (fs.existsSync(p)) {
+    if (ufs.exists(p)) {
       configPath = p;
-      rawContent = fs.readFileSync(p, 'utf-8');
+      rawContent = ufs.readFile(p);
       break;
     }
   }

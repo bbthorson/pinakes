@@ -1,7 +1,7 @@
-import fs from 'fs';
 import path from 'path';
 import YAML from 'yaml';
 import { z } from 'zod';
+import { nodeFS, type UniverseFS } from '../fs.js';
 
 export const EntitySchema = z.object({
   id: z.string(),
@@ -71,8 +71,15 @@ export class Registry {
   /** Entries that failed validation, for `lint` and `compile` to report. */
   public readonly invalidEntries: RegistryInvalidEntry[] = [];
   public readonly registryFile: string;
+  private readonly ufs: UniverseFS;
 
-  constructor(projectRoot: string, registryRelPath: string, nonEntitiesRelPath: string) {
+  constructor(
+    projectRoot: string,
+    registryRelPath: string,
+    nonEntitiesRelPath: string,
+    ufs: UniverseFS = nodeFS
+  ) {
+    this.ufs = ufs;
     const registryPath = path.resolve(projectRoot, registryRelPath);
     const nonEntitiesPath = path.resolve(projectRoot, nonEntitiesRelPath);
     this.registryFile = path.relative(projectRoot, registryPath);
@@ -82,11 +89,11 @@ export class Registry {
   }
 
   private loadRegistry(filePath: string) {
-    if (!fs.existsSync(filePath)) {
+    if (!this.ufs.exists(filePath)) {
       throw new Error(`Registry file not found at ${filePath}`);
     }
 
-    const raw = fs.readFileSync(filePath, 'utf-8');
+    const raw = this.ufs.readFile(filePath);
     const parsed = YAML.parse(raw) || {};
 
     // entities.yaml groups entities under characters:, places:, items:
@@ -134,11 +141,11 @@ export class Registry {
   }
 
   private loadNonEntities(filePath: string) {
-    if (!fs.existsSync(filePath)) {
+    if (!this.ufs.exists(filePath)) {
       return; // non_entities.yaml is optional
     }
 
-    const raw = fs.readFileSync(filePath, 'utf-8');
+    const raw = this.ufs.readFile(filePath);
     const parsed = YAML.parse(raw) || {};
 
     const categories = ['people', 'places', 'montage'];

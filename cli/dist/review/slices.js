@@ -11,7 +11,6 @@
  * 5. `forward-mid`:    target chapter + full book outline + subplot threads + scene-relevant interiority maps
  * 6. `forward-long`:   target chapter + series_arcs + series_plan
  */
-import fs from 'fs';
 import path from 'path';
 import { buildFirstAppearanceLedgerFromEngine, filterLedgerBeforeChapter, getBookKeyFromDir, renderFirstAppearancesMarkdown, } from '../compiler/first-appearances.js';
 export const TEMPORAL_LENSES = [
@@ -43,16 +42,16 @@ function resolveStoryDir(engine, story) {
     return (stories.find((s) => path.basename(s).toLowerCase() === needle || getBookKeyFromDir(s) === needle) ??
         stories.find((s) => path.basename(s).toLowerCase().includes(needle)));
 }
-function readOptionalFile(root, candidates, label, documents, missingInputs, configuredExplicitly) {
+function readOptionalFile(root, ufs, candidates, label, documents, missingInputs, configuredExplicitly) {
     for (const rel of candidates) {
         if (!rel)
             continue;
         const abs = path.resolve(root, rel);
-        if (fs.existsSync(abs) && fs.statSync(abs).isFile()) {
+        if (ufs.exists(abs) && ufs.isFile(abs)) {
             documents.push({
                 label,
                 path: path.relative(root, abs),
-                content: fs.readFileSync(abs, 'utf-8').trim(),
+                content: ufs.readFile(abs).trim(),
             });
             return;
         }
@@ -62,10 +61,10 @@ function readOptionalFile(root, candidates, label, documents, missingInputs, con
         missingInputs.push(`${label}: ${first}`);
     }
 }
-function findFirstExisting(root, rels) {
+function findFirstExisting(root, ufs, rels) {
     for (const rel of rels) {
         const abs = path.resolve(root, rel);
-        if (fs.existsSync(abs) && fs.statSync(abs).isFile())
+        if (ufs.exists(abs) && ufs.isFile(abs))
             return rel;
     }
     return undefined;
@@ -170,8 +169,9 @@ export function buildReviewSlices(root, config, registry, engine, records, optio
         ...(targetSeq !== undefined ? { sequence: targetSeq } : {}),
         numberedBody: numberLines(target.body),
     };
+    const ufs = engine.ufs;
     const outlinePath = expandPathTemplate(pathsCfg.outline, storyRel, book) ??
-        findFirstExisting(root, [
+        findFirstExisting(root, ufs, [
             path.join(storyRel, 'plot', 'outline.md'),
             path.join(storyRel, 'chapters', '00_story_outline.md'),
             path.join(storyRel, 'plot', '00_story_outline.md'),
@@ -190,14 +190,14 @@ export function buildReviewSlices(root, config, registry, engine, records, optio
                     content: p.body,
                 });
             }
-            readOptionalFile(root, [expandPathTemplate(pathsCfg.writingGuide, storyRel, book)], 'Writing Guide', documents, missingInputs, Boolean(pathsCfg.writingGuide));
+            readOptionalFile(root, ufs, [expandPathTemplate(pathsCfg.writingGuide, storyRel, book)], 'Writing Guide', documents, missingInputs, Boolean(pathsCfg.writingGuide));
         }
         else if (lens === 'backward-mid') {
-            readOptionalFile(root, [
+            readOptionalFile(root, ufs, [
                 expandPathTemplate(pathsCfg.bookBible, storyRel, book),
                 path.join(storyRel, 'plot', '00_story_background.md'),
             ], 'Book Bible', documents, missingInputs, Boolean(pathsCfg.bookBible));
-            readOptionalFile(root, [expandPathTemplate(pathsCfg.voiceGuide, storyRel, book)], 'Voice Guide', documents, missingInputs, Boolean(pathsCfg.voiceGuide));
+            readOptionalFile(root, ufs, [expandPathTemplate(pathsCfg.voiceGuide, storyRel, book)], 'Voice Guide', documents, missingInputs, Boolean(pathsCfg.voiceGuide));
             // Latest approved stretches for present characters on or before target chapter date
             const stretches = records.filter((r) => r.$type === `${NS}.character.stretch` &&
                 r.status === 'approved' &&
@@ -239,16 +239,16 @@ export function buildReviewSlices(root, config, registry, engine, records, optio
                 if (!ent?.sourceFile)
                     continue;
                 const abs = path.resolve(root, ent.sourceFile);
-                if (fs.existsSync(abs)) {
+                if (ufs.exists(abs)) {
                     documents.push({
                         label: `Series Codex — ${ent.displayName}`,
                         path: ent.sourceFile,
-                        content: fs.readFileSync(abs, 'utf-8').trim(),
+                        content: ufs.readFile(abs).trim(),
                     });
                 }
             }
             // Held-secret policy (file and/or pinakes.yaml configured heldSecrets)
-            readOptionalFile(root, [expandPathTemplate(pathsCfg.heldSecretPolicy, storyRel, book)], 'Held-Secret Policy', documents, missingInputs, Boolean(pathsCfg.heldSecretPolicy));
+            readOptionalFile(root, ufs, [expandPathTemplate(pathsCfg.heldSecretPolicy, storyRel, book)], 'Held-Secret Policy', documents, missingInputs, Boolean(pathsCfg.heldSecretPolicy));
             if (config.probabilistic.heldSecrets.length > 0) {
                 const policyLines = config.probabilistic.heldSecrets.map((s) => `- **${s.id}**: ${s.description}${s.holdUntil ? ` (holdUntil: ${JSON.stringify(s.holdUntil)})` : ''}`);
                 documents.push({ label: 'Configured Held Secrets (pinakes.yaml)', content: policyLines.join('\n') });
@@ -257,8 +257,8 @@ export function buildReviewSlices(root, config, registry, engine, records, optio
         else if (lens === 'forward-short') {
             if (outlinePath) {
                 const abs = path.resolve(root, outlinePath);
-                if (fs.existsSync(abs)) {
-                    const full = fs.readFileSync(abs, 'utf-8');
+                if (ufs.exists(abs)) {
+                    const full = ufs.readFile(abs);
                     const extracted = Number.isFinite(targetNum)
                         ? extractUpcomingOutline(full, targetNum, upcomingCount)
                         : full.trim();
@@ -280,8 +280,8 @@ export function buildReviewSlices(root, config, registry, engine, records, optio
             }
         }
         else if (lens === 'forward-mid') {
-            readOptionalFile(root, [outlinePath], 'Full Book Outline', documents, missingInputs, Boolean(pathsCfg.outline));
-            readOptionalFile(root, [
+            readOptionalFile(root, ufs, [outlinePath], 'Full Book Outline', documents, missingInputs, Boolean(pathsCfg.outline));
+            readOptionalFile(root, ufs, [
                 expandPathTemplate(pathsCfg.subplotThreads, storyRel, book),
                 path.join(storyRel, 'tracking', 'subplot_threads.md'),
             ], 'Subplot Threads', documents, missingInputs, Boolean(pathsCfg.subplotThreads));
@@ -289,8 +289,8 @@ export function buildReviewSlices(root, config, registry, engine, records, optio
             const intDirRel = expandPathTemplate(pathsCfg.interiorityDir, storyRel, book) ??
                 path.join(storyRel, 'tracking', 'interiority');
             const intDirAbs = path.resolve(root, intDirRel);
-            if (fs.existsSync(intDirAbs) && fs.statSync(intDirAbs).isDirectory()) {
-                const intFiles = fs.readdirSync(intDirAbs).filter((f) => f.endsWith('.md') && !f.startsWith('00_'));
+            if (ufs.exists(intDirAbs) && ufs.isDirectory(intDirAbs)) {
+                const intFiles = ufs.readdir(intDirAbs).filter((f) => f.endsWith('.md') && !f.startsWith('00_'));
                 for (const name of target.charactersPresent) {
                     const hit = registry.resolve(name, 'character');
                     if (!hit)
@@ -302,7 +302,7 @@ export function buildReviewSlices(root, config, registry, engine, records, optio
                         documents.push({
                             label: `Interiority Map — ${name}`,
                             path: path.relative(root, full),
-                            content: fs.readFileSync(full, 'utf-8').trim(),
+                            content: ufs.readFile(full).trim(),
                         });
                     }
                 }
@@ -312,8 +312,8 @@ export function buildReviewSlices(root, config, registry, engine, records, optio
             }
         }
         else if (lens === 'forward-long') {
-            readOptionalFile(root, [expandPathTemplate(pathsCfg.seriesArcs, storyRel, book), 'codex/series_arcs.md'], 'Series Arcs', documents, missingInputs, Boolean(pathsCfg.seriesArcs));
-            readOptionalFile(root, [expandPathTemplate(pathsCfg.seriesPlan, storyRel, book), 'codex/series_plan.md'], 'Series Plan', documents, missingInputs, Boolean(pathsCfg.seriesPlan));
+            readOptionalFile(root, ufs, [expandPathTemplate(pathsCfg.seriesArcs, storyRel, book), 'codex/series_arcs.md'], 'Series Arcs', documents, missingInputs, Boolean(pathsCfg.seriesArcs));
+            readOptionalFile(root, ufs, [expandPathTemplate(pathsCfg.seriesPlan, storyRel, book), 'codex/series_plan.md'], 'Series Plan', documents, missingInputs, Boolean(pathsCfg.seriesPlan));
         }
         slices.push({
             lens,

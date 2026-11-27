@@ -1,8 +1,8 @@
-import fs from 'fs';
 import path from 'path';
 import YAML from 'yaml';
 import { z } from 'zod';
 import { BUILTIN_BASINS, CORE_AFFECT_LABELS, normalizeAffectLabel } from './compiler/affect.js';
+import { nodeFS } from './fs.js';
 const DEFAULT_RULES = {
     'unresolved-entities': 'error',
     'non-sequential-dates': 'error',
@@ -336,7 +336,7 @@ export const ConfigSchema = z.object({
         .default({})
         .transform((rules) => ({ ...DEFAULT_RULES, ...rules })),
 });
-export function loadConfig(projectRoot) {
+export function loadConfig(projectRoot, ufs = nodeFS) {
     const possiblePaths = [
         path.join(projectRoot, 'pinakes.yaml'),
         path.join(projectRoot, 'pinakes.yml'),
@@ -346,9 +346,9 @@ export function loadConfig(projectRoot) {
     let configPath = '';
     let rawContent = '';
     for (const p of possiblePaths) {
-        if (fs.existsSync(p)) {
+        if (ufs.exists(p)) {
             configPath = p;
-            rawContent = fs.readFileSync(p, 'utf-8');
+            rawContent = ufs.readFile(p);
             break;
         }
     }

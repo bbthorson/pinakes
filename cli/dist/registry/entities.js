@@ -1,7 +1,7 @@
-import fs from 'fs';
 import path from 'path';
 import YAML from 'yaml';
 import { z } from 'zod';
+import { nodeFS } from '../fs.js';
 export const EntitySchema = z.object({
     id: z.string(),
     type: z.string(),
@@ -33,7 +33,9 @@ export class Registry {
     /** Entries that failed validation, for `lint` and `compile` to report. */
     invalidEntries = [];
     registryFile;
-    constructor(projectRoot, registryRelPath, nonEntitiesRelPath) {
+    ufs;
+    constructor(projectRoot, registryRelPath, nonEntitiesRelPath, ufs = nodeFS) {
+        this.ufs = ufs;
         const registryPath = path.resolve(projectRoot, registryRelPath);
         const nonEntitiesPath = path.resolve(projectRoot, nonEntitiesRelPath);
         this.registryFile = path.relative(projectRoot, registryPath);
@@ -41,10 +43,10 @@ export class Registry {
         this.loadNonEntities(nonEntitiesPath);
     }
     loadRegistry(filePath) {
-        if (!fs.existsSync(filePath)) {
+        if (!this.ufs.exists(filePath)) {
             throw new Error(`Registry file not found at ${filePath}`);
         }
-        const raw = fs.readFileSync(filePath, 'utf-8');
+        const raw = this.ufs.readFile(filePath);
         const parsed = YAML.parse(raw) || {};
         // entities.yaml groups entities under characters:, places:, items:
         const groups = ['characters', 'places', 'items'];
@@ -89,10 +91,10 @@ export class Registry {
         }
     }
     loadNonEntities(filePath) {
-        if (!fs.existsSync(filePath)) {
+        if (!this.ufs.exists(filePath)) {
             return; // non_entities.yaml is optional
         }
-        const raw = fs.readFileSync(filePath, 'utf-8');
+        const raw = this.ufs.readFile(filePath);
         const parsed = YAML.parse(raw) || {};
         const categories = ['people', 'places', 'montage'];
         for (const cat of categories) {

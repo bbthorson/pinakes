@@ -9,6 +9,7 @@
  */
 import path from 'path';
 import { loadConfig } from './config.js';
+import { MemoryFS, nodeFS } from './fs.js';
 import { Registry } from './registry/entities.js';
 import { LinterEngine } from './linter/engine.js';
 import { YamlRulesLoader } from './linter/yaml-loader.js';
@@ -17,6 +18,7 @@ import { buildContext, renderMarkdown } from './context/bundle.js';
 import { buildProseReports } from './prose/check.js';
 import { computeAffectState } from './compiler/affect-dynamics.js';
 import { isCalendarDate } from './linter/stretches.js';
+export { MemoryFS, nodeFS };
 // The Keystatic collections are not exported here: they are
 // `@bbthorson/pinakes/keystatic`. Keystatic bundles its config into the
 // browser, and this entry point carries the Node-side compiler.
@@ -24,11 +26,19 @@ import { isCalendarDate } from './linter/stretches.js';
 // affect module's internals should stay free to change.
 export { BUILTIN_BASINS, CORE_AFFECT_LABELS, buildAffectVocabulary, classifyAttractorBasin, formatAffectPromptInjection, getBehavioralDirectives, normalizeAffectLabel, parseAffectDeclaration, resolveAffectLabel, } from './compiler/affect.js';
 /** Reads `pinakes.yaml` and the registry. Throws if the config is missing or invalid. */
-export function openUniverse(root) {
+export function openUniverse(root, ufs = nodeFS) {
     const abs = path.resolve(root);
-    const { config } = loadConfig(abs);
-    const registry = new Registry(abs, config.paths.registry, config.paths.nonEntities);
-    return { root: abs, config, registry, engine: new LinterEngine(abs, config, registry) };
+    const { config } = loadConfig(abs, ufs);
+    const registry = new Registry(abs, config.paths.registry, config.paths.nonEntities, ufs);
+    return { root: abs, config, registry, engine: new LinterEngine(abs, config, registry, ufs) };
+}
+/**
+ * Opens a universe entirely in memory from a `{ relativePath: fileContent }`
+ * snapshot (for example, a GitHub repo snapshot cached in Cloudflare R2).
+ */
+export function openMemoryUniverse(files, root = '/universe') {
+    const mem = new MemoryFS(files, root);
+    return openUniverse(mem.root, mem);
 }
 function open(input) {
     return typeof input === 'string' ? openUniverse(input) : input;
@@ -222,6 +232,7 @@ export function composeNarrator(input, options) {
         ...options,
         writingGuidePath,
         projectRoot: u.root,
+        ufs: u.engine.ufs,
     });
 }
 /** Assembles deterministic temporal review slices for the 6-lens review board. Never writes to disk. */
@@ -260,3 +271,4 @@ export async function reviewPrepass(input, options) {
     });
     return { result, errors: [] };
 }
+export { PinakesMcpServer, } from './mcp/server.js';

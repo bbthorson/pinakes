@@ -9,11 +9,15 @@ authors; this file covers working on the code.
 - `cli/src/` — the TypeScript source. `index.ts` is the public library API
   (the package's `main`); `cli.ts` wires the commands on top of it and only
   formats output and sets exit codes. `linter/`, `compiler/`, `context/`,
-  `lexicons/`, `registry/` and `prose/` hold the logic.
+  `lexicons/`, `registry/`, `prose/`, `probabilistic/`, `review/`, `mcp/`,
+  and `fs.ts` (`UniverseFS` / `MemoryFS`) hold the logic.
 - `cli/dist/` — **committed** build output. Never edit it by hand.
 - `cli/test/` — tests, in TypeScript, run with Node's built-in runner. Node
   strips the types itself, so they are never compiled; `test/tsconfig.json`
   only type-checks them.
+- `worker/` — hosted Cloudflare Worker MCP server (`/mcp/scene` & `/mcp/author`),
+  GitHub-to-R2 snapshot sync, OAuth 2.1 + allowlist / Bearer auth, and native
+  Workers AI Clef binding.
 - `template/` — the starter universe `pinakes init` copies. The build copies it
   into `cli/dist/template/`; edit `template/`, not the copy.
 - `docs/` — the documentation site (Astro Starlight, deployed to GitHub Pages by

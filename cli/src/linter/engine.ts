@@ -1,10 +1,10 @@
-import fs from 'fs';
 import path from 'path';
 import YAML from 'yaml';
 import { Registry } from '../registry/entities.js';
 import { Config } from '../config.js';
 import { parseRegister } from './registers.js';
 import { ACCOUNT_FIELDS, readAccountField } from './identity.js';
+import { nodeFS, type UniverseFS } from '../fs.js';
 
 export interface Diagnostic {
   file: string;
@@ -74,11 +74,13 @@ export class LinterEngine {
   private config: Config;
   private registry: Registry;
   private projectRoot: string;
+  public readonly ufs: UniverseFS;
 
-  constructor(projectRoot: string, config: Config, registry: Registry) {
+  constructor(projectRoot: string, config: Config, registry: Registry, ufs: UniverseFS = nodeFS) {
     this.projectRoot = projectRoot;
     this.config = config;
     this.registry = registry;
+    this.ufs = ufs;
   }
 
   // Parses the frontmatter between the first two '---' fences
@@ -116,8 +118,8 @@ export class LinterEngine {
   /** Chapter files in a story, in filename order; `_` and `00_` files are templates. */
   private chapterFiles(storyDir: string): string[] {
     const chaptersPath = path.join(storyDir, 'chapters');
-    if (!fs.existsSync(chaptersPath)) return [];
-    return fs.readdirSync(chaptersPath)
+    if (!this.ufs.exists(chaptersPath)) return [];
+    return this.ufs.readdir(chaptersPath)
       .filter(f => f.endsWith('.md') && !f.startsWith('_') && !f.startsWith('00_'))
       .sort()
       .map(f => path.join(chaptersPath, f));
@@ -128,7 +130,7 @@ export class LinterEngine {
 
     for (const filePath of this.chapterFiles(storyDir)) {
       const relativeFilePath = path.relative(this.projectRoot, filePath);
-      const content = fs.readFileSync(filePath, 'utf-8');
+      const content = this.ufs.readFile(filePath);
 
       const { data, text, body } = this.parseFrontmatter(content);
       // Unparseable or chapter-less files are skipped here and reported by
@@ -235,14 +237,14 @@ export class LinterEngine {
    */
   public loadPosts(storyDir: string): PostSource[] {
     const dir = path.join(storyDir, 'posts');
-    if (!fs.existsSync(dir)) return [];
-    return fs
-      .readdirSync(dir)
+    if (!this.ufs.exists(dir)) return [];
+    return this.ufs
+      .readdir(dir)
       .filter((f) => f.endsWith('.md') && !f.startsWith('00_'))
       .sort()
       .map((fileName) => {
         const filePath = path.join(dir, fileName);
-        const content = fs.readFileSync(filePath, 'utf-8');
+        const content = this.ufs.readFile(filePath);
         const { data } = this.parseFrontmatter(content);
         return {
           filePath,
@@ -264,14 +266,14 @@ export class LinterEngine {
    */
   public loadStretches(storyDir: string): StretchSource[] {
     const dir = path.join(storyDir, 'stretches');
-    if (!fs.existsSync(dir)) return [];
+    if (!this.ufs.exists(dir)) return [];
 
     const found: { filePath: string; folder: string; fileName: string }[] = [];
-    for (const entry of fs.readdirSync(dir).sort()) {
+    for (const entry of this.ufs.readdir(dir).sort()) {
       if (entry.startsWith('00_') || entry.startsWith('.')) continue;
       const entryPath = path.join(dir, entry);
-      if (fs.statSync(entryPath).isDirectory()) {
-        for (const fileName of fs.readdirSync(entryPath).sort()) {
+      if (this.ufs.isDirectory(entryPath)) {
+        for (const fileName of this.ufs.readdir(entryPath).sort()) {
           if (fileName.endsWith('.md') && !fileName.startsWith('00_')) {
             found.push({ filePath: path.join(entryPath, fileName), folder: entry, fileName });
           }
@@ -282,7 +284,7 @@ export class LinterEngine {
     }
 
     return found.map(({ filePath, folder, fileName }) => {
-      const content = fs.readFileSync(filePath, 'utf-8');
+      const content = this.ufs.readFile(filePath);
       const { data } = this.parseFrontmatter(content);
       return {
         filePath,
@@ -303,7 +305,7 @@ export class LinterEngine {
     const out: Diagnostic[] = [];
     for (const filePath of this.chapterFiles(storyDir)) {
       const file = path.relative(this.projectRoot, filePath);
-      const content = fs.readFileSync(filePath, 'utf-8');
+      const content = this.ufs.readFile(filePath);
       const { data, text } = this.parseFrontmatter(content);
       if (data === null) {
         let detail = '';
@@ -328,11 +330,11 @@ export class LinterEngine {
   // Get active stories (non-templates)
   public getStories(): string[] {
     const storiesPath = path.join(this.projectRoot, this.config.paths.stories);
-    if (!fs.existsSync(storiesPath)) return [];
+    if (!this.ufs.exists(storiesPath)) return [];
 
-    return fs.readdirSync(storiesPath)
+    return this.ufs.readdir(storiesPath)
       .map(name => path.join(storiesPath, name))
-      .filter(p => fs.statSync(p).isDirectory() && !path.basename(p).startsWith('_') && !path.basename(p).startsWith('.'));
+      .filter(p => this.ufs.isDirectory(p) && !path.basename(p).startsWith('_') && !path.basename(p).startsWith('.'));
   }
 
   /**
@@ -420,8 +422,8 @@ export class LinterEngine {
     for (const ent of this.registry.allEntities) {
       if (ent.type !== 'character' || !ent.sourceFile) continue;
       const file = path.resolve(this.projectRoot, ent.sourceFile);
-      if (!fs.existsSync(file)) continue;
-      const data = this.parseFrontmatter(fs.readFileSync(file, 'utf-8')).data;
+      if (!this.ufs.exists(file)) continue;
+      const data = this.parseFrontmatter(this.ufs.readFile(file)).data;
       if (!data || typeof data !== 'object') continue;
       for (const name of ACCOUNT_FIELDS) {
         if (!(name in data)) continue;

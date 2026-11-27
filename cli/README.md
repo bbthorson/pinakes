@@ -19,7 +19,7 @@ npm install -g @bbthorson/pinakes
 pinakes init my-universe
 cd my-universe
 pinakes lint      # check continuity: timelines, casting, co-presence, item custody
-pinakes compile   # write AT Protocol records and their Lexicons to records/
+pinakes compile   # write AT Protocol records, Lexicons, and entity_first_appearances.json to records/
 ```
 
 ```
@@ -29,21 +29,38 @@ pinakes compile   # write AT Protocol records and their Lexicons to records/
 FAIL — pinakes found errors.
 ```
 
+### Probabilistic writing, six-lens review & MCP
+
+On top of the deterministic core, Pinakes includes an optional probabilistic Scene-Mode writing pipeline, an Author-Mode six-lens review board, and a firewall-enforced MCP server (local stdio and hosted Cloudflare Worker):
+
+```sh
+pinakes brief -s book2 -c 6 --as-of 2026-10-12 --characters "Emma,Marta"   # firewalled 3-move brief prompts
+pinakes sample -b emma_brief.json --scorer clef --log emma_roll.json      # Clef scoring + doNotReveal mask + SHA-256 draw
+pinakes compose --pov Emma --moves emma_roll.json marta_roll.json         # POV-locked narrator handoff (strips non-POV interiority)
+pinakes review -s book2 -c 6 --lens all                                   # 6-lens temporal review slices
+pinakes review -s book2 -c 6 --prepass                                    # Clef-flash -> Clef 27B probabilistic lint pre-pass
+pinakes calibrate -d beats.jsonl --scorers clef-flash,clef                # JSONL calibration harness (accuracy, Brier, ECE)
+pinakes mcp --mode scene                                                  # local MCP server over stdio (scene or author mode)
+```
+
+For remote web clients (Claude.ai, etc.), [`worker/`](https://github.com/bbthorson/pinakes/tree/main/worker) provides a hosted Cloudflare Worker with Streamable HTTP MCP (`/mcp/scene` and `/mcp/author`), GitHub-to-R2 snapshot caching, GitHub OAuth 2.1 + allowlist / Bearer auth, and native Workers AI Clef bindings.
+
 ## Documentation
 
-* **[Concepts](https://github.com/bbthorson/pinakes/blob/main/docs/concepts.md)**: where the name comes from, the Golden Rule, and the inward and outward layers
-* **[Getting started](https://github.com/bbthorson/pinakes/blob/main/docs/getting-started.md)**: installing, `pinakes init`, and the directory layout
-* **Commands**: [`lint`](https://github.com/bbthorson/pinakes/blob/main/docs/commands/lint.md), [`compile`](https://github.com/bbthorson/pinakes/blob/main/docs/commands/compile.md), [`prose-check`](https://github.com/bbthorson/pinakes/blob/main/docs/commands/prose-check.md), [`context`](https://github.com/bbthorson/pinakes/blob/main/docs/commands/context.md)
-* **[Using Pinakes as a library](https://github.com/bbthorson/pinakes/blob/main/docs/library.md)**: `import { lint } from '@bbthorson/pinakes'`
-* **[Guides](https://github.com/bbthorson/pinakes/blob/main/docs/README.md)**: [record types](https://github.com/bbthorson/pinakes/blob/main/docs/record-types.md), [prose to records](https://github.com/bbthorson/pinakes/blob/main/docs/prose-to-records.md), [continuity and drift](https://github.com/bbthorson/pinakes/blob/main/docs/continuity-and-drift.md), and [prose triage](https://github.com/bbthorson/pinakes/blob/main/docs/prose-triage.md), worked through against a real six-book universe
+* **[Concepts](https://github.com/bbthorson/pinakes/blob/main/docs/src/content/docs/concepts.md)**: where the name comes from, the Golden Rule, and the inward and outward layers
+* **[Getting started](https://github.com/bbthorson/pinakes/blob/main/docs/src/content/docs/getting-started.md)**: installing, `pinakes init`, and the directory layout
+* **Commands**: [`lint`](https://github.com/bbthorson/pinakes/blob/main/docs/src/content/docs/commands/lint.md), [`compile`](https://github.com/bbthorson/pinakes/blob/main/docs/src/content/docs/commands/compile.md), [`prose-check`](https://github.com/bbthorson/pinakes/blob/main/docs/src/content/docs/commands/prose-check.md), [`context`](https://github.com/bbthorson/pinakes/blob/main/docs/src/content/docs/commands/context.md)
+* **[Using Pinakes as a library](https://github.com/bbthorson/pinakes/blob/main/docs/src/content/docs/library.md)**: `import { lint, openMemoryUniverse, PinakesMcpServer } from '@bbthorson/pinakes'`
+* **[Guides](https://github.com/bbthorson/pinakes/blob/main/docs/src/content/docs/guides.md)**: [record types](https://github.com/bbthorson/pinakes/blob/main/docs/src/content/docs/record-types.md), [prose to records](https://github.com/bbthorson/pinakes/blob/main/docs/src/content/docs/prose-to-records.md), [continuity and drift](https://github.com/bbthorson/pinakes/blob/main/docs/src/content/docs/continuity-and-drift.md), [prose triage](https://github.com/bbthorson/pinakes/blob/main/docs/src/content/docs/prose-triage.md), [probabilistic writing & review](https://github.com/bbthorson/pinakes/blob/main/docs/src/content/docs/probabilistic-layer.md), and [MCP & Cloudflare Workers](https://github.com/bbthorson/pinakes/blob/main/docs/src/content/docs/mcp-and-cloudflare.md)
 
 ## Developing
 
 ```sh
 cd cli && npm ci && npm test
+cd worker && npm install && npm run typecheck && npm test
 ```
 
-`npm test` builds from `src/` and runs `cli/test/` with Node's built-in test runner. The tests create throwaway universes in a temp directory and check what `lint`, `compile`, and `context` report and exit with. Commit the rebuilt `cli/dist` along with your change; CI checks that it matches a fresh build.
+`npm test` in `cli/` builds from `src/` and runs `cli/test/` with Node's built-in test runner. Commit the rebuilt `cli/dist` along with your change; CI checks that it matches a fresh build.
 
 Edit this README, not `cli/README.md`: the build regenerates that copy (the one npm shows) from this file, with links made absolute. Conventions for working in the code, for people and coding agents alike, are in [`CLAUDE.md`](https://github.com/bbthorson/pinakes/blob/main/CLAUDE.md).
 

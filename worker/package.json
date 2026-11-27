@@ -1,0 +1,21 @@
+{
+  "name": "@bbthorson/pinakes-worker",
+  "version": "1.0.2",
+  "private": true,
+  "type": "module",
+  "description": "Hosted Cloudflare Worker MCP server for Pinakes (GitHub + R2 cache + native Workers AI Clef)",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "typecheck": "tsc --noEmit",
+    "test": "node --experimental-strip-types --test 'test/**/*.test.ts'"
+  },
+  "dependencies": {
+    "@bbthorson/pinakes": "file:../cli"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20250129.0",
+    "typescript": "^5.3.3",
+    "wrangler": "^3.109.0"
+  }
+}

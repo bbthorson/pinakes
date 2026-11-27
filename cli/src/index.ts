@@ -9,6 +9,7 @@
  */
 import path from 'path';
 import { loadConfig, type Config } from './config.js';
+import { MemoryFS, nodeFS, type UniverseFS } from './fs.js';
 import { Registry, type RegistryConflict, type RegistryInvalidEntry } from './registry/entities.js';
 import { LinterEngine, type Diagnostic, type ChapterData } from './linter/engine.js';
 import { YamlRulesLoader } from './linter/yaml-loader.js';
@@ -17,6 +18,8 @@ import { buildContext, renderMarkdown, type ContextBundle, type CodexSection } f
 import { buildProseReports, type ProseReport } from './prose/check.js';
 import { computeAffectState, type AffectState, type AffectTraitProblem } from './compiler/affect-dynamics.js';
 import { isCalendarDate } from './linter/stretches.js';
+
+export { MemoryFS, nodeFS, type UniverseFS };
 
 export type {
   Config,
@@ -74,11 +77,20 @@ export interface Universe {
 type UniverseInput = string | Universe;
 
 /** Reads `pinakes.yaml` and the registry. Throws if the config is missing or invalid. */
-export function openUniverse(root: string): Universe {
+export function openUniverse(root: string, ufs: UniverseFS = nodeFS): Universe {
   const abs = path.resolve(root);
-  const { config } = loadConfig(abs);
-  const registry = new Registry(abs, config.paths.registry, config.paths.nonEntities);
-  return { root: abs, config, registry, engine: new LinterEngine(abs, config, registry) };
+  const { config } = loadConfig(abs, ufs);
+  const registry = new Registry(abs, config.paths.registry, config.paths.nonEntities, ufs);
+  return { root: abs, config, registry, engine: new LinterEngine(abs, config, registry, ufs) };
+}
+
+/**
+ * Opens a universe entirely in memory from a `{ relativePath: fileContent }`
+ * snapshot (for example, a GitHub repo snapshot cached in Cloudflare R2).
+ */
+export function openMemoryUniverse(files: Record<string, string>, root = '/universe'): Universe {
+  const mem = new MemoryFS(files, root);
+  return openUniverse(mem.root, mem);
 }
 
 function open(input: UniverseInput): Universe {
@@ -543,7 +555,7 @@ export async function sampleBrief(
 /** Assembles a POV-locked Single Narrator Pen Handoff bundle. */
 export function composeNarrator(
   input: UniverseInput,
-  options: Omit<ComposeNarratorOptions, 'projectRoot'>
+  options: Omit<ComposeNarratorOptions, 'projectRoot' | 'ufs'>
 ): { bundle?: NarratorHandoffBundle; errors: string[] } {
   const u = open(input);
   const writingGuidePath = options.writingGuidePath ?? u.config.probabilistic.review.paths.writingGuide;
@@ -551,6 +563,7 @@ export function composeNarrator(
     ...options,
     writingGuidePath,
     projectRoot: u.root,
+    ufs: u.engine.ufs,
   });
 }
 
@@ -606,4 +619,15 @@ export async function reviewPrepass(
   });
   return { result, errors: [] };
 }
+
+export {
+  PinakesMcpServer,
+  type McpMode,
+  type McpToolDefinition,
+  type McpToolCallResult,
+  type McpExtraTool,
+  type PinakesMcpServerOptions,
+  type JsonRpcRequest,
+  type JsonRpcResponse,
+} from './mcp/server.js';
 

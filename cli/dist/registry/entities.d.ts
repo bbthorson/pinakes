@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { type UniverseFS } from '../fs.js';
 export declare const EntitySchema: z.ZodObject<{
     id: z.ZodString;
     type: z.ZodString;
@@ -80,7 +81,8 @@ export declare class Registry {
     /** Entries that failed validation, for `lint` and `compile` to report. */
     readonly invalidEntries: RegistryInvalidEntry[];
     readonly registryFile: string;
-    constructor(projectRoot: string, registryRelPath: string, nonEntitiesRelPath: string);
+    private readonly ufs;
+    constructor(projectRoot: string, registryRelPath: string, nonEntitiesRelPath: string, ufs?: UniverseFS);
     private loadRegistry;
     private loadNonEntities;
     normalize(raw: string): string;

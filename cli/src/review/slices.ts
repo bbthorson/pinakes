@@ -11,11 +11,11 @@
  * 5. `forward-mid`:    target chapter + full book outline + subplot threads + scene-relevant interiority maps
  * 6. `forward-long`:   target chapter + series_arcs + series_plan
  */
-import fs from 'fs';
 import path from 'path';
+import type { UniverseFS } from '../fs.js';
 import type { Config } from '../config.js';
 import type { Registry } from '../registry/entities.js';
-import type { ChapterData, LinterEngine } from '../linter/engine.js';
+import type { LinterEngine } from '../linter/engine.js';
 import {
   buildFirstAppearanceLedgerFromEngine,
   filterLedgerBeforeChapter,
@@ -106,6 +106,7 @@ function resolveStoryDir(engine: LinterEngine, story: string): string | undefine
 
 function readOptionalFile(
   root: string,
+  ufs: UniverseFS,
   candidates: (string | undefined)[],
   label: string,
   documents: SliceDocument[],
@@ -115,11 +116,11 @@ function readOptionalFile(
   for (const rel of candidates) {
     if (!rel) continue;
     const abs = path.resolve(root, rel);
-    if (fs.existsSync(abs) && fs.statSync(abs).isFile()) {
+    if (ufs.exists(abs) && ufs.isFile(abs)) {
       documents.push({
         label,
         path: path.relative(root, abs),
-        content: fs.readFileSync(abs, 'utf-8').trim(),
+        content: ufs.readFile(abs).trim(),
       });
       return;
     }
@@ -130,10 +131,10 @@ function readOptionalFile(
   }
 }
 
-function findFirstExisting(root: string, rels: string[]): string | undefined {
+function findFirstExisting(root: string, ufs: UniverseFS, rels: string[]): string | undefined {
   for (const rel of rels) {
     const abs = path.resolve(root, rel);
-    if (fs.existsSync(abs) && fs.statSync(abs).isFile()) return rel;
+    if (ufs.exists(abs) && ufs.isFile(abs)) return rel;
   }
   return undefined;
 }
@@ -256,9 +257,10 @@ export function buildReviewSlices(
     numberedBody: numberLines(target.body),
   };
 
+  const ufs = engine.ufs;
   const outlinePath =
     expandPathTemplate(pathsCfg.outline, storyRel, book) ??
-    findFirstExisting(root, [
+    findFirstExisting(root, ufs, [
       path.join(storyRel, 'plot', 'outline.md'),
       path.join(storyRel, 'chapters', '00_story_outline.md'),
       path.join(storyRel, 'plot', '00_story_outline.md'),
@@ -282,6 +284,7 @@ export function buildReviewSlices(
       }
       readOptionalFile(
         root,
+        ufs,
         [expandPathTemplate(pathsCfg.writingGuide, storyRel, book)],
         'Writing Guide',
         documents,
@@ -291,6 +294,7 @@ export function buildReviewSlices(
     } else if (lens === 'backward-mid') {
       readOptionalFile(
         root,
+        ufs,
         [
           expandPathTemplate(pathsCfg.bookBible, storyRel, book),
           path.join(storyRel, 'plot', '00_story_background.md'),
@@ -302,6 +306,7 @@ export function buildReviewSlices(
       );
       readOptionalFile(
         root,
+        ufs,
         [expandPathTemplate(pathsCfg.voiceGuide, storyRel, book)],
         'Voice Guide',
         documents,
@@ -351,11 +356,11 @@ export function buildReviewSlices(
         const ent = registry.getEntity(id);
         if (!ent?.sourceFile) continue;
         const abs = path.resolve(root, ent.sourceFile);
-        if (fs.existsSync(abs)) {
+        if (ufs.exists(abs)) {
           documents.push({
             label: `Series Codex — ${ent.displayName}`,
             path: ent.sourceFile,
-            content: fs.readFileSync(abs, 'utf-8').trim(),
+            content: ufs.readFile(abs).trim(),
           });
         }
       }
@@ -363,6 +368,7 @@ export function buildReviewSlices(
       // Held-secret policy (file and/or pinakes.yaml configured heldSecrets)
       readOptionalFile(
         root,
+        ufs,
         [expandPathTemplate(pathsCfg.heldSecretPolicy, storyRel, book)],
         'Held-Secret Policy',
         documents,
@@ -378,8 +384,8 @@ export function buildReviewSlices(
     } else if (lens === 'forward-short') {
       if (outlinePath) {
         const abs = path.resolve(root, outlinePath);
-        if (fs.existsSync(abs)) {
-          const full = fs.readFileSync(abs, 'utf-8');
+        if (ufs.exists(abs)) {
+          const full = ufs.readFile(abs);
           const extracted = Number.isFinite(targetNum)
             ? extractUpcomingOutline(full, targetNum, upcomingCount)
             : full.trim();
@@ -403,6 +409,7 @@ export function buildReviewSlices(
     } else if (lens === 'forward-mid') {
       readOptionalFile(
         root,
+        ufs,
         [outlinePath],
         'Full Book Outline',
         documents,
@@ -411,6 +418,7 @@ export function buildReviewSlices(
       );
       readOptionalFile(
         root,
+        ufs,
         [
           expandPathTemplate(pathsCfg.subplotThreads, storyRel, book),
           path.join(storyRel, 'tracking', 'subplot_threads.md'),
@@ -426,8 +434,8 @@ export function buildReviewSlices(
         expandPathTemplate(pathsCfg.interiorityDir, storyRel, book) ??
         path.join(storyRel, 'tracking', 'interiority');
       const intDirAbs = path.resolve(root, intDirRel);
-      if (fs.existsSync(intDirAbs) && fs.statSync(intDirAbs).isDirectory()) {
-        const intFiles = fs.readdirSync(intDirAbs).filter((f) => f.endsWith('.md') && !f.startsWith('00_'));
+      if (ufs.exists(intDirAbs) && ufs.isDirectory(intDirAbs)) {
+        const intFiles = ufs.readdir(intDirAbs).filter((f) => f.endsWith('.md') && !f.startsWith('00_'));
         for (const name of target.charactersPresent) {
           const hit = registry.resolve(name, 'character');
           if (!hit) continue;
@@ -438,7 +446,7 @@ export function buildReviewSlices(
             documents.push({
               label: `Interiority Map — ${name}`,
               path: path.relative(root, full),
-              content: fs.readFileSync(full, 'utf-8').trim(),
+              content: ufs.readFile(full).trim(),
             });
           }
         }
@@ -448,6 +456,7 @@ export function buildReviewSlices(
     } else if (lens === 'forward-long') {
       readOptionalFile(
         root,
+        ufs,
         [expandPathTemplate(pathsCfg.seriesArcs, storyRel, book), 'codex/series_arcs.md'],
         'Series Arcs',
         documents,
@@ -456,6 +465,7 @@ export function buildReviewSlices(
       );
       readOptionalFile(
         root,
+        ufs,
         [expandPathTemplate(pathsCfg.seriesPlan, storyRel, book), 'codex/series_plan.md'],
         'Series Plan',
         documents,

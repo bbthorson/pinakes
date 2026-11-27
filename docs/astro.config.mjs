@@ -47,6 +47,8 @@ export default defineConfig({
             { label: 'Prose triage', slug: 'prose-triage' },
             { label: 'Keystatic CMS', slug: 'keystatic' },
             { label: 'Affect', slug: 'affect-simulation' },
+            { label: 'Probabilistic writing & review', slug: 'probabilistic-layer' },
+            { label: 'MCP & Cloudflare Workers', slug: 'mcp-and-cloudflare' },
           ],
         },
         {

@@ -1,5 +1,6 @@
 import { Registry } from '../registry/entities.js';
 import { Config } from '../config.js';
+import { type UniverseFS } from '../fs.js';
 export interface Diagnostic {
     file: string;
     line?: number;
@@ -63,7 +64,8 @@ export declare class LinterEngine {
     private config;
     private registry;
     private projectRoot;
-    constructor(projectRoot: string, config: Config, registry: Registry);
+    readonly ufs: UniverseFS;
+    constructor(projectRoot: string, config: Config, registry: Registry, ufs?: UniverseFS);
     parseFrontmatter(content: string): {
         data: any;
         text: string;

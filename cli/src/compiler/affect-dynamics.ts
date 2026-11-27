@@ -53,8 +53,8 @@ export function readAffectTraits(
   const traits: AffectTraits = { halfLifeScale: 1 };
   if (!sourceFile) return { traits, problems: [] };
   const abs = path.resolve(projectRoot, sourceFile);
-  if (!fs.existsSync(abs)) return { traits, problems: [] };
-  const { data } = engine.parseFrontmatter(fs.readFileSync(abs, 'utf-8'));
+  if (!engine.ufs.exists(abs)) return { traits, problems: [] };
+  const { data } = engine.parseFrontmatter(engine.ufs.readFile(abs));
   if (!data) return { traits, problems: [] };
 
   const problems: AffectTraitProblem[] = [];

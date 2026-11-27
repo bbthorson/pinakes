@@ -140,8 +140,8 @@ interface CharacterCodex {
  * see `accountValue`.
  */
 function readCharacterFile(filePath: string, engine: LinterEngine): CharacterCodex {
-  if (!filePath || !fs.existsSync(filePath)) return {};
-  const content = fs.readFileSync(filePath, 'utf-8');
+  if (!filePath || !engine.ufs.exists(filePath)) return {};
+  const content = engine.ufs.readFile(filePath);
   const { data } = engine.parseFrontmatter(content);
   return {
     oneLine: getOverviewOneline(content),
@@ -660,14 +660,14 @@ export function compileProject(
 
   // 2. Locations / places compile
   const locationsDir = path.resolve(projectRoot, config.paths.locations);
-  if (fs.existsSync(locationsDir)) {
-    const locFiles = fs.readdirSync(locationsDir)
+  if (engine.ufs.exists(locationsDir)) {
+    const locFiles = engine.ufs.readdir(locationsDir)
       .filter(f => f.endsWith('.md') && !f.startsWith('_') && f !== 'index.md')
       .sort();
 
     for (const file of locFiles) {
       const filePath = path.join(locationsDir, file);
-      const content = fs.readFileSync(filePath, 'utf-8');
+      const content = engine.ufs.readFile(filePath);
       const { data } = engine.parseFrontmatter(content);
 
       if (data && data.id && String(data.id).startsWith('place.')) {
@@ -725,8 +725,8 @@ export function compileProject(
     let codex: { description?: string; tags?: string[] } = {};
     if (ent.sourceFile) {
       const srcFile = path.resolve(projectRoot, ent.sourceFile);
-      if (fs.existsSync(srcFile)) {
-        const { data } = engine.parseFrontmatter(fs.readFileSync(srcFile, 'utf-8'));
+      if (engine.ufs.exists(srcFile)) {
+        const { data } = engine.parseFrontmatter(engine.ufs.readFile(srcFile));
         codex = { description: text(data?.description), tags: tagList(data?.tags) };
       }
     }

@@ -1,10 +1,12 @@
 import { type Config } from './config.js';
+import { MemoryFS, nodeFS, type UniverseFS } from './fs.js';
 import { Registry, type RegistryConflict, type RegistryInvalidEntry } from './registry/entities.js';
 import { LinterEngine, type Diagnostic, type ChapterData } from './linter/engine.js';
 import { type CompilationReport, type CompilationResult } from './compiler/atproto.js';
 import { type ContextBundle, type CodexSection } from './context/bundle.js';
 import { type ProseReport } from './prose/check.js';
 import { type AffectState, type AffectTraitProblem } from './compiler/affect-dynamics.js';
+export { MemoryFS, nodeFS, type UniverseFS };
 export type { Config, Diagnostic, ChapterData, CompilationReport, CompilationResult, ContextBundle, CodexSection, ProseReport, AffectState, AffectTraitProblem, RegistryConflict, RegistryInvalidEntry, };
 export { BUILTIN_BASINS, CORE_AFFECT_LABELS, buildAffectVocabulary, classifyAttractorBasin, formatAffectPromptInjection, getBehavioralDirectives, normalizeAffectLabel, parseAffectDeclaration, resolveAffectLabel, type AffectDeclaration, type AffectLabelConfig, type BasinBounds, type BasinConfig, type BuiltinBasin, type ScaledVad, type VadVector, } from './compiler/affect.js';
 /**
@@ -21,7 +23,12 @@ export interface Universe {
 }
 type UniverseInput = string | Universe;
 /** Reads `pinakes.yaml` and the registry. Throws if the config is missing or invalid. */
-export declare function openUniverse(root: string): Universe;
+export declare function openUniverse(root: string, ufs?: UniverseFS): Universe;
+/**
+ * Opens a universe entirely in memory from a `{ relativePath: fileContent }`
+ * snapshot (for example, a GitHub repo snapshot cached in Cloudflare R2).
+ */
+export declare function openMemoryUniverse(files: Record<string, string>, root?: string): Universe;
 export interface LintResult {
     diagnostics: Diagnostic[];
     /** `false` when any diagnostic is an error: the verdict `pinakes lint` exits 1 on. */
@@ -126,7 +133,7 @@ export interface SampleBriefOptions {
  */
 export declare function sampleBrief(input: UniverseInput, brief: CharacterBrief, options?: SampleBriefOptions): Promise<SampleOutcome>;
 /** Assembles a POV-locked Single Narrator Pen Handoff bundle. */
-export declare function composeNarrator(input: UniverseInput, options: Omit<ComposeNarratorOptions, 'projectRoot'>): {
+export declare function composeNarrator(input: UniverseInput, options: Omit<ComposeNarratorOptions, 'projectRoot' | 'ufs'>): {
     bundle?: NarratorHandoffBundle;
     errors: string[];
 };
@@ -143,3 +150,4 @@ export declare function reviewPrepass(input: UniverseInput, options: {
     result?: ProbabilisticPrepassResult;
     errors: string[];
 }>;
+export { PinakesMcpServer, type McpMode, type McpToolDefinition, type McpToolCallResult, type McpExtraTool, type PinakesMcpServerOptions, type JsonRpcRequest, type JsonRpcResponse, } from './mcp/server.js';

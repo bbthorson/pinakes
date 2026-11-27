@@ -1,0 +1,32 @@
+name = "pinakes-mcp"
+main = "src/index.ts"
+compatibility_date = "2025-01-29"
+compatibility_flags = ["nodejs_compat"]
+
+[ai]
+binding = "AI"
+
+[[r2_buckets]]
+binding = "SNAPSHOTS"
+bucket_name = "pinakes-snapshots"
+
+[[kv_namespaces]]
+binding = "AUTH_KV"
+id = "REPLACE_WITH_YOUR_KV_NAMESPACE_ID"
+
+[vars]
+# Default GitHub repo (`owner/repo`) and branch when not passed per request.
+GITHUB_REPO = "owner/your-universe-repo"
+GITHUB_REF = "main"
+# Comma-separated GitHub usernames allowed to sign in via OAuth.
+# Fails closed if empty.
+ALLOWED_GITHUB_USERS = "bbthorson"
+# Daily cap on Workers AI Clef calls to prevent runaway agent loops.
+MAX_DAILY_CLEF_CALLS = "500"
+
+# Set these via `wrangler secret put <NAME>`:
+# - PINAKES_MCP_TOKEN       (optional static Bearer token for personal scripts/CLI)
+# - GITHUB_TOKEN            (optional PAT for private repo sync when using Bearer auth)
+# - GITHUB_CLIENT_ID        (GitHub OAuth App client ID for Claude.ai / remote web MCP)
+# - GITHUB_CLIENT_SECRET    (GitHub OAuth App client secret)
+# - GITHUB_WEBHOOK_SECRET   (optional HMAC-SHA256 secret for POST /webhook/github)

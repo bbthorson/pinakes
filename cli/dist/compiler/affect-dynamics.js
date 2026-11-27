@@ -1,14 +1,3 @@
-/**
- * Affect dynamics over compiled records: a character's state on a date,
- * replayed from their latest declared stretch through their chapter affect
- * events, relaxing toward a baseline between them. See
- * `design/affect-dynamics.md`.
- *
- * `context` and the compiler's `affect-discontinuity` check both call this, so
- * the state the drafter is shown and the state `lint` checks declarations
- * against cannot disagree.
- */
-import fs from 'fs';
 import path from 'path';
 import { affectDistance, buildAffectVocabulary, classifyAttractorBasin, parseAffectDeclaration, replayAffect, resolveAffectLabel, scaleVad, } from './affect.js';
 /**
@@ -21,9 +10,9 @@ export function readAffectTraits(projectRoot, sourceFile, engine, vocab) {
     if (!sourceFile)
         return { traits, problems: [] };
     const abs = path.resolve(projectRoot, sourceFile);
-    if (!fs.existsSync(abs))
+    if (!engine.ufs.exists(abs))
         return { traits, problems: [] };
-    const { data } = engine.parseFrontmatter(fs.readFileSync(abs, 'utf-8'));
+    const { data } = engine.parseFrontmatter(engine.ufs.readFile(abs));
     if (!data)
         return { traits, problems: [] };
     const problems = [];

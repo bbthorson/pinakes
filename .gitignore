@@ -15,3 +15,4 @@ node_modules/
 
 # Local tests
 cli/test-universe/
+.wrangler/

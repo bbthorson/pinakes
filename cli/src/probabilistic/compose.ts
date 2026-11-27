@@ -8,8 +8,8 @@
  *   before serialization so the Narrator sees ONLY their observable surface
  *   (`say` + `physicalTell`).
  */
-import fs from 'fs';
 import path from 'path';
+import { nodeFS, type UniverseFS } from '../fs.js';
 import type {
   CharacterMove,
   NarratorHandoffBundle,
@@ -33,6 +33,7 @@ export interface ComposeNarratorOptions {
   writingGuidePath?: string;
   projectRoot?: string;
   extraGuidance?: string[];
+  ufs?: UniverseFS;
 }
 
 export const DEFAULT_NARRATOR_GUIDANCE: readonly string[] = [
@@ -67,6 +68,7 @@ export function composeNarratorBundle(options: ComposeNarratorOptions): {
   errors: string[];
 } {
   const errors: string[] = [];
+  const ufs = options.ufs ?? nodeFS;
   if (options.winningMoves.length === 0) {
     return { errors: ['No winning character moves provided.'] };
   }
@@ -104,13 +106,13 @@ export function composeNarratorBundle(options: ComposeNarratorOptions): {
     const abs = options.projectRoot
       ? path.resolve(options.projectRoot, options.writingGuidePath)
       : path.resolve(options.writingGuidePath);
-    if (!fs.existsSync(abs)) {
+    if (!ufs.exists(abs)) {
       errors.push(`Writing guide not found at ${options.writingGuidePath}.`);
       return { errors };
     }
     writingGuide = {
       path: options.writingGuidePath,
-      content: fs.readFileSync(abs, 'utf-8').trim(),
+      content: ufs.readFile(abs).trim(),
     };
   }
 
