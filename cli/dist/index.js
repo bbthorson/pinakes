@@ -69,6 +69,7 @@ export function context(input, character, asOf, options = {}) {
     const { records } = compileProject(u.root, u.config, u.registry, u.engine, { write: false });
     return buildContext(u.root, u.config, u.registry, u.engine, records, character, asOf, {
         fullState: Boolean(options.fullState),
+        story: options.story,
     });
 }
 /** Renders a context bundle as the Markdown `pinakes context` prints. */
@@ -115,4 +116,147 @@ export function affectStateAt(input, character, asOf) {
     const { records } = compileProject(u.root, u.config, u.registry, u.engine, { write: false });
     const { state, problems } = computeAffectState(u.root, u.config, u.registry, u.engine, records, resolved.id, asOf);
     return { state, errors: problems.map((p) => `${p.file}: ${p.message}`) };
+}
+// ------------------------------------------------------------------ probabilistic & review layer
+import { buildFirstAppearanceLedgerFromEngine, filterLedgerBeforeChapter, getBookKeyFromDir, renderFirstAppearancesMarkdown, } from './compiler/first-appearances.js';
+import { CharacterBriefSchema, CharacterMoveSchema, MoveIdSchema, } from './probabilistic/schemas.js';
+import { THREE_MOVE_BRIEF_CONTRACT, buildSceneBriefBundles, collectConstraintRules, evaluateDeterministicMask, isConstraintActive, renderCharacterBriefPrompt, } from './probabilistic/brief.js';
+import { MOVE_IDS, computeSeed, sampleCharacterMove, } from './probabilistic/sampler.js';
+import { DEFAULT_NARRATOR_GUIDANCE, composeNarratorBundle, renderNarratorBundleMarkdown, stripToObservableSurface, } from './probabilistic/compose.js';
+import { CloudflareClefScorer, GenericLlmScorer, MockDecisionScorer, createDecisionScorer, parseClefResponse, scoreBriefWithScorer, } from './probabilistic/scorer.js';
+import { CalibrationExampleSchema, loadCalibrationJsonl, parseCalibrationJsonl, renderCalibrationMarkdown, runCalibration, } from './probabilistic/calibrate.js';
+import { TEMPORAL_LENSES, buildReviewSlices, numberLines, renderReviewSliceMarkdown, } from './review/slices.js';
+import { ReviewFindingSchema, defaultCategoryForLens, mergeReviewFindings, parseLineSpan, renderMergedFindingsMarkdown, } from './review/findings.js';
+import { collectAmbiguousTellHits, runProbabilisticLintPrepass, } from './review/runner.js';
+export { 
+// First-appearance ledger
+filterLedgerBeforeChapter, renderFirstAppearancesMarkdown, 
+// Probabilistic schemas & Scene-Mode brief
+MoveIdSchema, CharacterMoveSchema, CharacterBriefSchema, THREE_MOVE_BRIEF_CONTRACT, collectConstraintRules, evaluateDeterministicMask, isConstraintActive, renderCharacterBriefPrompt, 
+// Seeded sampler
+MOVE_IDS, computeSeed, sampleCharacterMove, 
+// POV-locked narrator handoff
+DEFAULT_NARRATOR_GUIDANCE, composeNarratorBundle, stripToObservableSurface, renderNarratorBundleMarkdown, 
+// Decision scorers
+CloudflareClefScorer, MockDecisionScorer, GenericLlmScorer, createDecisionScorer, parseClefResponse, scoreBriefWithScorer, 
+// Calibration
+CalibrationExampleSchema, loadCalibrationJsonl, parseCalibrationJsonl, runCalibration, renderCalibrationMarkdown, 
+// Six-lens review board
+TEMPORAL_LENSES, numberLines, renderReviewSliceMarkdown, ReviewFindingSchema, defaultCategoryForLens, parseLineSpan, mergeReviewFindings, renderMergedFindingsMarkdown, collectAmbiguousTellHits, runProbabilisticLintPrepass, };
+/** Builds the deterministic First-Appearance Entity Ledger for a universe. Never writes to disk. */
+export function firstAppearances(input) {
+    const u = open(input);
+    return buildFirstAppearanceLedgerFromEngine(u.registry, u.engine);
+}
+/** Assembles Scene-Mode 3-Move Character Brief prompt bundles with the information firewall enforced. */
+export function briefBundles(input, request) {
+    const u = open(input);
+    const { records } = compileProject(u.root, u.config, u.registry, u.engine, { write: false });
+    const needle = request.story.toLowerCase();
+    const matchedStory = u.engine
+        .getStories()
+        .find((s) => path.basename(s).toLowerCase().includes(needle) || getBookKeyFromDir(s) === needle);
+    const book = request.book ?? (matchedStory ? getBookKeyFromDir(matchedStory) : request.story);
+    return buildSceneBriefBundles(u.root, u.config, u.registry, u.engine, records, { ...request, book });
+}
+/**
+ * Evaluates pre-sampling constraints (deterministic + optional semantic Clef gates),
+ * scores candidate moves when a scorer is provided, and draws deterministically.
+ */
+export async function sampleBrief(input, brief, options = {}) {
+    const u = open(input);
+    const validated = CharacterBriefSchema.parse(brief);
+    const rules = collectConstraintRules(u.config, options.extraConstraints);
+    const detMask = evaluateDeterministicMask(validated, rules);
+    let rawProbs = options.rawProbs;
+    let scorerName = 'manual';
+    const combinedMask = {
+        A: { ...detMask.A, reasons: [...detMask.A.reasons] },
+        B: { ...detMask.B, reasons: [...detMask.B.reasons] },
+        C: { ...detMask.C, reasons: [...detMask.C.reasons] },
+    };
+    if (!rawProbs) {
+        const scorer = options.scorer ?? createDecisionScorer(u.config);
+        scorerName = scorer.name;
+        const { records } = compileProject(u.root, u.config, u.registry, u.engine, { write: false });
+        const ctxRes = buildContext(u.root, u.config, u.registry, u.engine, records, validated.character, validated.asOf, {
+            fullState: false,
+            story: options.story ?? validated.book,
+        });
+        const ctxMd = ctxRes.bundle ? renderMarkdown(ctxRes.bundle) : `Character: ${validated.character}`;
+        const scored = await scoreBriefWithScorer(scorer, validated, {
+            contextMarkdown: ctxMd,
+            sceneSetup: options.sceneSetup ?? '',
+            constraints: rules,
+            leakThreshold: u.config.probabilistic.escalation.leakThreshold,
+        });
+        rawProbs = scored.rawProbs;
+        for (const id of MOVE_IDS) {
+            const sem = scored.semanticMask[id];
+            if (sem?.masked) {
+                combinedMask[id].masked = true;
+                combinedMask[id].reasons.push(...sem.reasons);
+            }
+        }
+    }
+    const beatType = options.beatType ?? validated.beatType;
+    const samplingCfg = u.config.probabilistic.sampling;
+    const temperature = options.temperature ??
+        (beatType && samplingCfg.beatTemperatures[beatType] !== undefined
+            ? samplingCfg.beatTemperatures[beatType]
+            : samplingCfg.temperature);
+    return sampleCharacterMove(validated, {
+        rawProbs,
+        mask: combinedMask,
+        floor: options.floor ?? samplingCfg.floor,
+        temperature,
+        reroll: options.reroll,
+        scorer: scorerName,
+    });
+}
+/** Assembles a POV-locked Single Narrator Pen Handoff bundle. */
+export function composeNarrator(input, options) {
+    const u = open(input);
+    const writingGuidePath = options.writingGuidePath ?? u.config.probabilistic.review.paths.writingGuide;
+    return composeNarratorBundle({
+        ...options,
+        writingGuidePath,
+        projectRoot: u.root,
+    });
+}
+/** Assembles deterministic temporal review slices for the 6-lens review board. Never writes to disk. */
+export function reviewSlices(input, options) {
+    const u = open(input);
+    const { records } = compileProject(u.root, u.config, u.registry, u.engine, { write: false });
+    return buildReviewSlices(u.root, u.config, u.registry, u.engine, records, options);
+}
+/** Runs the batched Clef-flash -> Clef 27B probabilistic lint pre-pass for a target chapter. */
+export async function reviewPrepass(input, options) {
+    const u = open(input);
+    const { records } = compileProject(u.root, u.config, u.registry, u.engine, { write: false });
+    const { slices, errors } = buildReviewSlices(u.root, u.config, u.registry, u.engine, records, {
+        story: options.story,
+        chapter: options.chapter,
+        lenses: ['backward-short'],
+    });
+    if (errors.length || slices.length === 0)
+        return { errors };
+    const slice = slices[0];
+    const storyDir = u.engine
+        .getStories()
+        .find((s) => path.basename(s).toLowerCase().includes(options.story.toLowerCase()) ||
+        getBookKeyFromDir(s) === options.story.toLowerCase());
+    const ch = storyDir
+        ? u.engine.loadChapters(storyDir).find((c) => String(c.chapterNum) === String(options.chapter))
+        : undefined;
+    if (!ch)
+        return { errors: [`Could not load chapter body for ${options.story} ch ${options.chapter}.`] };
+    const flashScorer = options.flashScorer ?? createDecisionScorer(u.config, { provider: u.config.probabilistic.scorer.provider === 'mock' ? 'mock' : 'clef-flash' });
+    const deepScorer = options.deepScorer ?? (u.config.probabilistic.scorer.provider === 'clef' ? createDecisionScorer(u.config, { provider: 'clef' }) : undefined);
+    const result = await runProbabilisticLintPrepass(ch.body, slice, u.config, {
+        flashScorer,
+        deepScorer,
+        plantedClues: options.plantedClues,
+    });
+    return { result, errors: [] };
 }

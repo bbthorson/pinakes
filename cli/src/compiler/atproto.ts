@@ -6,6 +6,11 @@ import { ChapterData, Diagnostic, LinterEngine, StretchSource } from '../linter/
 import { lintStretches, SourceIndex, StretchEntry } from '../linter/stretches.js';
 import { buildLexiconDocs, compileLexiconDocs, validateRecords, writeLexiconDocs } from '../lexicons/index.js';
 import { pruneStale } from './prune.js';
+import {
+  buildFirstAppearanceLedger,
+  type BookChapters,
+  type EntityFirstAppearance,
+} from './first-appearances.js';
 import { discontinuityFindings, readAffectTraits } from './affect-dynamics.js';
 import { parseRegister } from '../linter/registers.js';
 import { readAccountField, type AccountFieldName } from '../linter/identity.js';
@@ -202,6 +207,12 @@ export interface CompilationReport {
   /** Every compiled record, across types, for consumers such as `context`. */
   records: any[];
   /**
+   * Deterministic First-Appearance Entity Ledger across all compiled books:
+   * when each character, place, and item is first present, referenced, or
+   * named on-page.
+   */
+  firstAppearances: EntityFirstAppearance[];
+  /**
    * Stale record and Lexicon files this compile deleted, relative to the
    * project root. `null` when pruning was skipped because the output
    * directory is not a directory of its own (see `prune.ts`).
@@ -281,6 +292,7 @@ export function compileProject(
 
   /** Book key -> the story directory that claimed it. */
   const bookOwners = new Map<string, string>();
+  const compiledBooks: BookChapters[] = [];
 
   // 1. Stories compile (scenes, state events, custody events)
   for (const storyDir of stories) {
@@ -301,6 +313,7 @@ export function compileProject(
       continue;
     }
     bookOwners.set(book, storyDir);
+    compiledBooks.push({ book, chapters });
 
     const scenes: any[] = [];
     const events: any[] = [];
@@ -897,6 +910,18 @@ export function compileProject(
     writeRecords(path.join(seriesDir, 'items.json'), allItems);
   }
 
+  const firstAppearances = buildFirstAppearanceLedger(registry, compiledBooks);
+  if (firstAppearances.length > 0) {
+    const ledgerPath = path.join(seriesDir, 'entity_first_appearances.json');
+    const relative = path.relative(projectRoot, ledgerPath);
+    if (write) {
+      fs.mkdirSync(path.dirname(ledgerPath), { recursive: true });
+      fs.writeFileSync(ledgerPath, JSON.stringify(firstAppearances, null, 2) + '\n', 'utf-8');
+      written.add(path.resolve(ledgerPath));
+    }
+    results.push({ file: relative, count: firstAppearances.length });
+  }
+
   // Ids are the record keys, so two records sharing one is a collision in any
   // repository they are published to. The usual cause is two chapter files
   // with the same `chapter:` number.
@@ -925,5 +950,5 @@ export function compileProject(
   const pruned = write ? pruneStale(projectRoot, outputDir, written) : [];
   const removed = pruned && pruned.map(f => path.relative(projectRoot, f));
 
-  return { results, lexiconFiles, diagnostics, stretchFindings, affectFindings, records: allRecords, removed };
+  return { results, lexiconFiles, diagnostics, stretchFindings, affectFindings, records: allRecords, firstAppearances, removed };
 }

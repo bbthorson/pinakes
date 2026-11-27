@@ -359,6 +359,348 @@ export declare const ConfigSchema: z.ZodObject<{
         closerMaxWords?: number | undefined;
     }>>;
     /**
+     * Optional probabilistic writing and editorial layer configuration.
+     * Every field has a safe default so existing universes need not configure it.
+     */
+    probabilistic: z.ZodDefault<z.ZodObject<{
+        scorer: z.ZodDefault<z.ZodObject<{
+            provider: z.ZodDefault<z.ZodEnum<["clef", "llm", "mock"]>>;
+            model: z.ZodDefault<z.ZodString>;
+            flashModel: z.ZodDefault<z.ZodString>;
+            /** Custom Jev-API / Workers AI compatible endpoint URL (overrides Cloudflare account URL). */
+            endpoint: z.ZodOptional<z.ZodString>;
+            accountIdEnv: z.ZodDefault<z.ZodString>;
+            apiTokenEnv: z.ZodDefault<z.ZodString>;
+            llmEndpoint: z.ZodOptional<z.ZodString>;
+            llmModel: z.ZodOptional<z.ZodString>;
+            llmApiKeyEnv: z.ZodDefault<z.ZodString>;
+        }, "strip", z.ZodTypeAny, {
+            provider: "clef" | "llm" | "mock";
+            model: string;
+            flashModel: string;
+            accountIdEnv: string;
+            apiTokenEnv: string;
+            llmApiKeyEnv: string;
+            endpoint?: string | undefined;
+            llmEndpoint?: string | undefined;
+            llmModel?: string | undefined;
+        }, {
+            provider?: "clef" | "llm" | "mock" | undefined;
+            model?: string | undefined;
+            flashModel?: string | undefined;
+            endpoint?: string | undefined;
+            accountIdEnv?: string | undefined;
+            apiTokenEnv?: string | undefined;
+            llmEndpoint?: string | undefined;
+            llmModel?: string | undefined;
+            llmApiKeyEnv?: string | undefined;
+        }>>;
+        sampling: z.ZodDefault<z.ZodObject<{
+            floor: z.ZodDefault<z.ZodNumber>;
+            temperature: z.ZodDefault<z.ZodNumber>;
+            beatTemperatures: z.ZodDefault<z.ZodRecord<z.ZodString, z.ZodNumber>>;
+        }, "strip", z.ZodTypeAny, {
+            floor: number;
+            temperature: number;
+            beatTemperatures: Record<string, number>;
+        }, {
+            floor?: number | undefined;
+            temperature?: number | undefined;
+            beatTemperatures?: Record<string, number> | undefined;
+        }>>;
+        escalation: z.ZodDefault<z.ZodObject<{
+            lowConfidence: z.ZodDefault<z.ZodNumber>;
+            highConfidence: z.ZodDefault<z.ZodNumber>;
+            leakThreshold: z.ZodDefault<z.ZodNumber>;
+            toneCeiling: z.ZodOptional<z.ZodNumber>;
+        }, "strip", z.ZodTypeAny, {
+            lowConfidence: number;
+            highConfidence: number;
+            leakThreshold: number;
+            toneCeiling?: number | undefined;
+        }, {
+            lowConfidence?: number | undefined;
+            highConfidence?: number | undefined;
+            leakThreshold?: number | undefined;
+            toneCeiling?: number | undefined;
+        }>>;
+        heldSecrets: z.ZodDefault<z.ZodArray<z.ZodObject<{
+            id: z.ZodString;
+            description: z.ZodString;
+            terms: z.ZodDefault<z.ZodArray<z.ZodString, "many">>;
+            patterns: z.ZodDefault<z.ZodArray<z.ZodString, "many">>;
+            holdUntil: z.ZodOptional<z.ZodObject<{
+                book: z.ZodOptional<z.ZodString>;
+                chapter: z.ZodOptional<z.ZodNumber>;
+                date: z.ZodOptional<z.ZodString>;
+            }, "strip", z.ZodTypeAny, {
+                date?: string | undefined;
+                book?: string | undefined;
+                chapter?: number | undefined;
+            }, {
+                date?: string | undefined;
+                book?: string | undefined;
+                chapter?: number | undefined;
+            }>>;
+            checkFields: z.ZodDefault<z.ZodArray<z.ZodEnum<["tactic", "notice", "say", "holdBack", "physicalTell"]>, "many">>;
+        }, "strip", z.ZodTypeAny, {
+            id: string;
+            description: string;
+            terms: string[];
+            patterns: string[];
+            checkFields: ("tactic" | "notice" | "say" | "holdBack" | "physicalTell")[];
+            holdUntil?: {
+                date?: string | undefined;
+                book?: string | undefined;
+                chapter?: number | undefined;
+            } | undefined;
+        }, {
+            id: string;
+            description: string;
+            terms?: string[] | undefined;
+            patterns?: string[] | undefined;
+            holdUntil?: {
+                date?: string | undefined;
+                book?: string | undefined;
+                chapter?: number | undefined;
+            } | undefined;
+            checkFields?: ("tactic" | "notice" | "say" | "holdBack" | "physicalTell")[] | undefined;
+        }>, "many">>;
+        doNotReveal: z.ZodDefault<z.ZodArray<z.ZodObject<{
+            id: z.ZodString;
+            description: z.ZodString;
+            terms: z.ZodDefault<z.ZodArray<z.ZodString, "many">>;
+            patterns: z.ZodDefault<z.ZodArray<z.ZodString, "many">>;
+            holdUntil: z.ZodOptional<z.ZodObject<{
+                book: z.ZodOptional<z.ZodString>;
+                chapter: z.ZodOptional<z.ZodNumber>;
+                date: z.ZodOptional<z.ZodString>;
+            }, "strip", z.ZodTypeAny, {
+                date?: string | undefined;
+                book?: string | undefined;
+                chapter?: number | undefined;
+            }, {
+                date?: string | undefined;
+                book?: string | undefined;
+                chapter?: number | undefined;
+            }>>;
+            checkFields: z.ZodDefault<z.ZodArray<z.ZodEnum<["tactic", "notice", "say", "holdBack", "physicalTell"]>, "many">>;
+        }, "strip", z.ZodTypeAny, {
+            id: string;
+            description: string;
+            terms: string[];
+            patterns: string[];
+            checkFields: ("tactic" | "notice" | "say" | "holdBack" | "physicalTell")[];
+            holdUntil?: {
+                date?: string | undefined;
+                book?: string | undefined;
+                chapter?: number | undefined;
+            } | undefined;
+        }, {
+            id: string;
+            description: string;
+            terms?: string[] | undefined;
+            patterns?: string[] | undefined;
+            holdUntil?: {
+                date?: string | undefined;
+                book?: string | undefined;
+                chapter?: number | undefined;
+            } | undefined;
+            checkFields?: ("tactic" | "notice" | "say" | "holdBack" | "physicalTell")[] | undefined;
+        }>, "many">>;
+        /** Craft-vocabulary words/regexes to flag in review pre-passes (e.g. `red herring(s)?`). */
+        craftVocabulary: z.ZodDefault<z.ZodArray<z.ZodString, "many">>;
+        review: z.ZodDefault<z.ZodObject<{
+            priorChapters: z.ZodDefault<z.ZodNumber>;
+            upcomingChapters: z.ZodDefault<z.ZodNumber>;
+            paths: z.ZodDefault<z.ZodObject<{
+                writingGuide: z.ZodOptional<z.ZodString>;
+                voiceGuide: z.ZodOptional<z.ZodString>;
+                bookBible: z.ZodOptional<z.ZodString>;
+                outline: z.ZodOptional<z.ZodString>;
+                subplotThreads: z.ZodOptional<z.ZodString>;
+                interiorityDir: z.ZodOptional<z.ZodString>;
+                seriesArcs: z.ZodOptional<z.ZodString>;
+                seriesPlan: z.ZodOptional<z.ZodString>;
+                heldSecretPolicy: z.ZodOptional<z.ZodString>;
+            }, "strip", z.ZodTypeAny, {
+                writingGuide?: string | undefined;
+                voiceGuide?: string | undefined;
+                bookBible?: string | undefined;
+                outline?: string | undefined;
+                subplotThreads?: string | undefined;
+                interiorityDir?: string | undefined;
+                seriesArcs?: string | undefined;
+                seriesPlan?: string | undefined;
+                heldSecretPolicy?: string | undefined;
+            }, {
+                writingGuide?: string | undefined;
+                voiceGuide?: string | undefined;
+                bookBible?: string | undefined;
+                outline?: string | undefined;
+                subplotThreads?: string | undefined;
+                interiorityDir?: string | undefined;
+                seriesArcs?: string | undefined;
+                seriesPlan?: string | undefined;
+                heldSecretPolicy?: string | undefined;
+            }>>;
+        }, "strip", z.ZodTypeAny, {
+            paths: {
+                writingGuide?: string | undefined;
+                voiceGuide?: string | undefined;
+                bookBible?: string | undefined;
+                outline?: string | undefined;
+                subplotThreads?: string | undefined;
+                interiorityDir?: string | undefined;
+                seriesArcs?: string | undefined;
+                seriesPlan?: string | undefined;
+                heldSecretPolicy?: string | undefined;
+            };
+            priorChapters: number;
+            upcomingChapters: number;
+        }, {
+            paths?: {
+                writingGuide?: string | undefined;
+                voiceGuide?: string | undefined;
+                bookBible?: string | undefined;
+                outline?: string | undefined;
+                subplotThreads?: string | undefined;
+                interiorityDir?: string | undefined;
+                seriesArcs?: string | undefined;
+                seriesPlan?: string | undefined;
+                heldSecretPolicy?: string | undefined;
+            } | undefined;
+            priorChapters?: number | undefined;
+            upcomingChapters?: number | undefined;
+        }>>;
+    }, "strip", z.ZodTypeAny, {
+        scorer: {
+            provider: "clef" | "llm" | "mock";
+            model: string;
+            flashModel: string;
+            accountIdEnv: string;
+            apiTokenEnv: string;
+            llmApiKeyEnv: string;
+            endpoint?: string | undefined;
+            llmEndpoint?: string | undefined;
+            llmModel?: string | undefined;
+        };
+        sampling: {
+            floor: number;
+            temperature: number;
+            beatTemperatures: Record<string, number>;
+        };
+        escalation: {
+            lowConfidence: number;
+            highConfidence: number;
+            leakThreshold: number;
+            toneCeiling?: number | undefined;
+        };
+        heldSecrets: {
+            id: string;
+            description: string;
+            terms: string[];
+            patterns: string[];
+            checkFields: ("tactic" | "notice" | "say" | "holdBack" | "physicalTell")[];
+            holdUntil?: {
+                date?: string | undefined;
+                book?: string | undefined;
+                chapter?: number | undefined;
+            } | undefined;
+        }[];
+        doNotReveal: {
+            id: string;
+            description: string;
+            terms: string[];
+            patterns: string[];
+            checkFields: ("tactic" | "notice" | "say" | "holdBack" | "physicalTell")[];
+            holdUntil?: {
+                date?: string | undefined;
+                book?: string | undefined;
+                chapter?: number | undefined;
+            } | undefined;
+        }[];
+        craftVocabulary: string[];
+        review: {
+            paths: {
+                writingGuide?: string | undefined;
+                voiceGuide?: string | undefined;
+                bookBible?: string | undefined;
+                outline?: string | undefined;
+                subplotThreads?: string | undefined;
+                interiorityDir?: string | undefined;
+                seriesArcs?: string | undefined;
+                seriesPlan?: string | undefined;
+                heldSecretPolicy?: string | undefined;
+            };
+            priorChapters: number;
+            upcomingChapters: number;
+        };
+    }, {
+        scorer?: {
+            provider?: "clef" | "llm" | "mock" | undefined;
+            model?: string | undefined;
+            flashModel?: string | undefined;
+            endpoint?: string | undefined;
+            accountIdEnv?: string | undefined;
+            apiTokenEnv?: string | undefined;
+            llmEndpoint?: string | undefined;
+            llmModel?: string | undefined;
+            llmApiKeyEnv?: string | undefined;
+        } | undefined;
+        sampling?: {
+            floor?: number | undefined;
+            temperature?: number | undefined;
+            beatTemperatures?: Record<string, number> | undefined;
+        } | undefined;
+        escalation?: {
+            lowConfidence?: number | undefined;
+            highConfidence?: number | undefined;
+            leakThreshold?: number | undefined;
+            toneCeiling?: number | undefined;
+        } | undefined;
+        heldSecrets?: {
+            id: string;
+            description: string;
+            terms?: string[] | undefined;
+            patterns?: string[] | undefined;
+            holdUntil?: {
+                date?: string | undefined;
+                book?: string | undefined;
+                chapter?: number | undefined;
+            } | undefined;
+            checkFields?: ("tactic" | "notice" | "say" | "holdBack" | "physicalTell")[] | undefined;
+        }[] | undefined;
+        doNotReveal?: {
+            id: string;
+            description: string;
+            terms?: string[] | undefined;
+            patterns?: string[] | undefined;
+            holdUntil?: {
+                date?: string | undefined;
+                book?: string | undefined;
+                chapter?: number | undefined;
+            } | undefined;
+            checkFields?: ("tactic" | "notice" | "say" | "holdBack" | "physicalTell")[] | undefined;
+        }[] | undefined;
+        craftVocabulary?: string[] | undefined;
+        review?: {
+            paths?: {
+                writingGuide?: string | undefined;
+                voiceGuide?: string | undefined;
+                bookBible?: string | undefined;
+                outline?: string | undefined;
+                subplotThreads?: string | undefined;
+                interiorityDir?: string | undefined;
+                seriesArcs?: string | undefined;
+                seriesPlan?: string | undefined;
+                heldSecretPolicy?: string | undefined;
+            } | undefined;
+            priorChapters?: number | undefined;
+            upcomingChapters?: number | undefined;
+        } | undefined;
+    }>>;
+    /**
      * Per-rule severity. A universe's `rules:` block is merged over the defaults
      * rather than replacing them: setting one rule to `off` must not leave every
      * other rule without a severity, which reported errors as warnings and let
@@ -435,6 +777,70 @@ export declare const ConfigSchema: z.ZodObject<{
             note?: string | undefined;
         }[] | undefined;
     };
+    probabilistic: {
+        scorer: {
+            provider: "clef" | "llm" | "mock";
+            model: string;
+            flashModel: string;
+            accountIdEnv: string;
+            apiTokenEnv: string;
+            llmApiKeyEnv: string;
+            endpoint?: string | undefined;
+            llmEndpoint?: string | undefined;
+            llmModel?: string | undefined;
+        };
+        sampling: {
+            floor: number;
+            temperature: number;
+            beatTemperatures: Record<string, number>;
+        };
+        escalation: {
+            lowConfidence: number;
+            highConfidence: number;
+            leakThreshold: number;
+            toneCeiling?: number | undefined;
+        };
+        heldSecrets: {
+            id: string;
+            description: string;
+            terms: string[];
+            patterns: string[];
+            checkFields: ("tactic" | "notice" | "say" | "holdBack" | "physicalTell")[];
+            holdUntil?: {
+                date?: string | undefined;
+                book?: string | undefined;
+                chapter?: number | undefined;
+            } | undefined;
+        }[];
+        doNotReveal: {
+            id: string;
+            description: string;
+            terms: string[];
+            patterns: string[];
+            checkFields: ("tactic" | "notice" | "say" | "holdBack" | "physicalTell")[];
+            holdUntil?: {
+                date?: string | undefined;
+                book?: string | undefined;
+                chapter?: number | undefined;
+            } | undefined;
+        }[];
+        craftVocabulary: string[];
+        review: {
+            paths: {
+                writingGuide?: string | undefined;
+                voiceGuide?: string | undefined;
+                bookBible?: string | undefined;
+                outline?: string | undefined;
+                subplotThreads?: string | undefined;
+                interiorityDir?: string | undefined;
+                seriesArcs?: string | undefined;
+                seriesPlan?: string | undefined;
+                heldSecretPolicy?: string | undefined;
+            };
+            priorChapters: number;
+            upcomingChapters: number;
+        };
+    };
 }, {
     project: {
         name: string;
@@ -500,6 +906,70 @@ export declare const ConfigSchema: z.ZodObject<{
             character?: string | undefined;
         }[] | undefined;
         closerMaxWords?: number | undefined;
+    } | undefined;
+    probabilistic?: {
+        scorer?: {
+            provider?: "clef" | "llm" | "mock" | undefined;
+            model?: string | undefined;
+            flashModel?: string | undefined;
+            endpoint?: string | undefined;
+            accountIdEnv?: string | undefined;
+            apiTokenEnv?: string | undefined;
+            llmEndpoint?: string | undefined;
+            llmModel?: string | undefined;
+            llmApiKeyEnv?: string | undefined;
+        } | undefined;
+        sampling?: {
+            floor?: number | undefined;
+            temperature?: number | undefined;
+            beatTemperatures?: Record<string, number> | undefined;
+        } | undefined;
+        escalation?: {
+            lowConfidence?: number | undefined;
+            highConfidence?: number | undefined;
+            leakThreshold?: number | undefined;
+            toneCeiling?: number | undefined;
+        } | undefined;
+        heldSecrets?: {
+            id: string;
+            description: string;
+            terms?: string[] | undefined;
+            patterns?: string[] | undefined;
+            holdUntil?: {
+                date?: string | undefined;
+                book?: string | undefined;
+                chapter?: number | undefined;
+            } | undefined;
+            checkFields?: ("tactic" | "notice" | "say" | "holdBack" | "physicalTell")[] | undefined;
+        }[] | undefined;
+        doNotReveal?: {
+            id: string;
+            description: string;
+            terms?: string[] | undefined;
+            patterns?: string[] | undefined;
+            holdUntil?: {
+                date?: string | undefined;
+                book?: string | undefined;
+                chapter?: number | undefined;
+            } | undefined;
+            checkFields?: ("tactic" | "notice" | "say" | "holdBack" | "physicalTell")[] | undefined;
+        }[] | undefined;
+        craftVocabulary?: string[] | undefined;
+        review?: {
+            paths?: {
+                writingGuide?: string | undefined;
+                voiceGuide?: string | undefined;
+                bookBible?: string | undefined;
+                outline?: string | undefined;
+                subplotThreads?: string | undefined;
+                interiorityDir?: string | undefined;
+                seriesArcs?: string | undefined;
+                seriesPlan?: string | undefined;
+                heldSecretPolicy?: string | undefined;
+            } | undefined;
+            priorChapters?: number | undefined;
+            upcomingChapters?: number | undefined;
+        } | undefined;
     } | undefined;
 }>;
 export type Config = z.infer<typeof ConfigSchema>;

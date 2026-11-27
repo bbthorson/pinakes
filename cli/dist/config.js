@@ -232,6 +232,100 @@ export const ConfigSchema = z.object({
     })
         .default({ carveOuts: [], closerMaxWords: 12 }),
     /**
+     * Optional probabilistic writing and editorial layer configuration.
+     * Every field has a safe default so existing universes need not configure it.
+     */
+    probabilistic: z
+        .object({
+        scorer: z
+            .object({
+            provider: z.enum(['clef', 'llm', 'mock']).default('clef'),
+            model: z.string().default('@cf/cloudflare/clef'),
+            flashModel: z.string().default('@cf/cloudflare/clef-flash'),
+            /** Custom Jev-API / Workers AI compatible endpoint URL (overrides Cloudflare account URL). */
+            endpoint: z.string().optional(),
+            accountIdEnv: z.string().default('CLOUDFLARE_ACCOUNT_ID'),
+            apiTokenEnv: z.string().default('CLOUDFLARE_API_TOKEN'),
+            llmEndpoint: z.string().optional(),
+            llmModel: z.string().optional(),
+            llmApiKeyEnv: z.string().default('OPENAI_API_KEY'),
+        })
+            .default({}),
+        sampling: z
+            .object({
+            floor: z.number().min(0).max(1).default(0.08),
+            temperature: z.number().positive().default(0.85),
+            beatTemperatures: z.record(z.number().positive()).default({}),
+        })
+            .default({}),
+        escalation: z
+            .object({
+            lowConfidence: z.number().min(0).max(1).default(0.35),
+            highConfidence: z.number().min(0).max(1).default(0.65),
+            leakThreshold: z.number().min(0).max(1).default(0.5),
+            toneCeiling: z.number().min(1).max(10).optional(),
+        })
+            .default({}),
+        heldSecrets: z
+            .array(z.object({
+            id: z.string(),
+            description: z.string(),
+            terms: z.array(z.string()).default([]),
+            patterns: z.array(z.string()).default([]),
+            holdUntil: z
+                .object({
+                book: z.string().optional(),
+                chapter: z.number().int().positive().optional(),
+                date: z.string().optional(),
+            })
+                .optional(),
+            checkFields: z
+                .array(z.enum(['tactic', 'notice', 'say', 'holdBack', 'physicalTell']))
+                .default(['say', 'tactic', 'physicalTell']),
+        }))
+            .default([]),
+        doNotReveal: z
+            .array(z.object({
+            id: z.string(),
+            description: z.string(),
+            terms: z.array(z.string()).default([]),
+            patterns: z.array(z.string()).default([]),
+            holdUntil: z
+                .object({
+                book: z.string().optional(),
+                chapter: z.number().int().positive().optional(),
+                date: z.string().optional(),
+            })
+                .optional(),
+            checkFields: z
+                .array(z.enum(['tactic', 'notice', 'say', 'holdBack', 'physicalTell']))
+                .default(['say', 'tactic', 'physicalTell']),
+        }))
+            .default([]),
+        /** Craft-vocabulary words/regexes to flag in review pre-passes (e.g. `red herring(s)?`). */
+        craftVocabulary: z.array(z.string()).default(['red herring(?:s)?']),
+        review: z
+            .object({
+            priorChapters: z.number().int().min(0).default(3),
+            upcomingChapters: z.number().int().min(1).default(4),
+            paths: z
+                .object({
+                writingGuide: z.string().optional(),
+                voiceGuide: z.string().optional(),
+                bookBible: z.string().optional(),
+                outline: z.string().optional(),
+                subplotThreads: z.string().optional(),
+                interiorityDir: z.string().optional(),
+                seriesArcs: z.string().optional(),
+                seriesPlan: z.string().optional(),
+                heldSecretPolicy: z.string().optional(),
+            })
+                .default({}),
+        })
+            .default({}),
+    })
+        .default({}),
+    /**
      * Per-rule severity. A universe's `rules:` block is merged over the defaults
      * rather than replacing them: setting one rule to `off` must not leave every
      * other rule without a severity, which reported errors as warnings and let

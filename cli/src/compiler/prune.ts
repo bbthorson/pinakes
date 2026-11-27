@@ -24,6 +24,7 @@ export const RECORD_FILES = new Set([
   'places.json',
   'character_profiles.json',
   'items.json',
+  'entity_first_appearances.json',
 ]);
 
 /** Lexicon file suffixes, NSID authority removed: `.scene.json`, `.character.post.json`, ... */

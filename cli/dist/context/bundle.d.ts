@@ -27,6 +27,10 @@ export interface ContextBundle {
         /** Sections and paragraphs removed by configuration. A count, never names. */
         withheld: number;
         configured: boolean;
+        /** Relative path to the codex or book-scoped guest stub file that populated the long tier. */
+        sourceFile?: string;
+        /** Whether the long tier came from a series codex file or a book-scoped character stub. */
+        sourceScope?: 'series' | 'book';
     };
     mid: {
         latest?: Record<string, any>;
@@ -82,5 +86,6 @@ withholdParagraph?: (text: string) => boolean): {
 };
 export declare function buildContext(root: string, config: Config, registry: Registry, engine: LinterEngine, records: any[], characterName: string, asOf: string, options?: {
     fullState?: boolean;
+    story?: string;
 }): BuildResult;
 export declare function renderMarkdown(b: ContextBundle): string;

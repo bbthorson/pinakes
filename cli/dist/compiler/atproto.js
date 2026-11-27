@@ -3,6 +3,7 @@ import path from 'path';
 import { lintStretches } from '../linter/stretches.js';
 import { buildLexiconDocs, compileLexiconDocs, validateRecords, writeLexiconDocs } from '../lexicons/index.js';
 import { pruneStale } from './prune.js';
+import { buildFirstAppearanceLedger, } from './first-appearances.js';
 import { discontinuityFindings, readAffectTraits } from './affect-dynamics.js';
 import { parseRegister } from '../linter/registers.js';
 import { readAccountField } from '../linter/identity.js';
@@ -208,6 +209,7 @@ export function compileProject(projectRoot, config, registry, engine, options = 
     const firstCustody = new Map();
     /** Book key -> the story directory that claimed it. */
     const bookOwners = new Map();
+    const compiledBooks = [];
     // 1. Stories compile (scenes, state events, custody events)
     for (const storyDir of stories) {
         const book = getBookKey(storyDir);
@@ -227,6 +229,7 @@ export function compileProject(projectRoot, config, registry, engine, options = 
             continue;
         }
         bookOwners.set(book, storyDir);
+        compiledBooks.push({ book, chapters });
         const scenes = [];
         const events = [];
         const affectEvents = [];
@@ -766,6 +769,17 @@ export function compileProject(projectRoot, config, registry, engine, options = 
     if (allItems.length > 0) {
         writeRecords(path.join(seriesDir, 'items.json'), allItems);
     }
+    const firstAppearances = buildFirstAppearanceLedger(registry, compiledBooks);
+    if (firstAppearances.length > 0) {
+        const ledgerPath = path.join(seriesDir, 'entity_first_appearances.json');
+        const relative = path.relative(projectRoot, ledgerPath);
+        if (write) {
+            fs.mkdirSync(path.dirname(ledgerPath), { recursive: true });
+            fs.writeFileSync(ledgerPath, JSON.stringify(firstAppearances, null, 2) + '\n', 'utf-8');
+            written.add(path.resolve(ledgerPath));
+        }
+        results.push({ file: relative, count: firstAppearances.length });
+    }
     // Ids are the record keys, so two records sharing one is a collision in any
     // repository they are published to. The usual cause is two chapter files
     // with the same `chapter:` number.
@@ -794,5 +808,5 @@ export function compileProject(projectRoot, config, registry, engine, options = 
     // memory and must leave the output directory exactly as they found it.
     const pruned = write ? pruneStale(projectRoot, outputDir, written) : [];
     const removed = pruned && pruned.map(f => path.relative(projectRoot, f));
-    return { results, lexiconFiles, diagnostics, stretchFindings, affectFindings, records: allRecords, removed };
+    return { results, lexiconFiles, diagnostics, stretchFindings, affectFindings, records: allRecords, firstAppearances, removed };
 }

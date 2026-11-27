@@ -113,6 +113,39 @@ withholdParagraph = () => false) {
     const unmatchedExcludes = exclude.filter((p) => !headingsSeen.some((h) => matches(h, [p])));
     return { sections, withheld, unmatchedExcludes };
 }
+function bookKeyOf(storyDir) {
+    const base = path.basename(storyDir);
+    const m = base.match(/^0*(\d+)/);
+    if (m)
+        return `book${parseInt(m[1], 10)}`;
+    return base.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+}
+function findStubInStory(storyDir, characterId, registry, engine) {
+    const charsDir = path.join(storyDir, 'characters');
+    if (!fs.existsSync(charsDir))
+        return undefined;
+    const slug = (characterId.includes('.') ? characterId.split('.', 2)[1] : characterId).toLowerCase();
+    const files = fs
+        .readdirSync(charsDir)
+        .filter((f) => f.endsWith('.md') && !f.startsWith('_') && !f.startsWith('00_'))
+        .sort();
+    // Direct slug match first (`stories/<book>/characters/<slug>.md`).
+    const direct = files.find((f) => path.basename(f, '.md').toLowerCase() === slug);
+    if (direct)
+        return path.join(charsDir, direct);
+    // Fallback: match by frontmatter `id` or `character`.
+    for (const f of files) {
+        const full = path.join(charsDir, f);
+        const { data } = engine.parseFrontmatter(fs.readFileSync(full, 'utf-8'));
+        if (!data)
+            continue;
+        const candidate = data.id ?? data.character;
+        if (typeof candidate === 'string' && registry.resolve(candidate, 'character')?.id === characterId) {
+            return full;
+        }
+    }
+    return undefined;
+}
 export function buildContext(root, config, registry, engine, records, characterName, asOf, options = {}) {
     const errors = [];
     const NS = config.project.nsid;
@@ -154,12 +187,54 @@ export function buildContext(root, config, registry, engine, records, characterN
         chapterEnds.set(m[1], perBook);
     }
     const unended = (text) => namesUnendedChapter(text, asOf, chapterEnds);
-    // Long tier
+    // Long tier — series codex first, falling back to book-scoped guest character stubs.
     const codexCfg = config.context.codex;
     const frontmatter = {};
     let sections = [];
     let withheld = 0;
-    const srcFile = entity?.sourceFile ? path.resolve(root, entity.sourceFile) : '';
+    let srcFile = entity?.sourceFile ? path.resolve(root, entity.sourceFile) : '';
+    let srcRel = entity?.sourceFile || undefined;
+    let sourceScope = srcFile && fs.existsSync(srcFile) ? 'series' : undefined;
+    if (!sourceScope) {
+        let candidateStories = engine.getStories();
+        if (options.story) {
+            const needle = options.story.toLowerCase();
+            candidateStories = candidateStories.filter((s) => path.basename(s).toLowerCase().includes(needle) || bookKeyOf(s) === needle);
+            if (candidateStories.length === 0) {
+                errors.push(`--story '${options.story}' did not match any story directory.`);
+            }
+        }
+        const stubMatches = [];
+        for (const s of candidateStories) {
+            const stub = findStubInStory(s, id, registry, engine);
+            if (stub)
+                stubMatches.push({ storyDir: s, bookKey: bookKeyOf(s), filePath: stub });
+        }
+        if (stubMatches.length === 1) {
+            srcFile = stubMatches[0].filePath;
+            srcRel = path.relative(root, srcFile);
+            sourceScope = 'book';
+        }
+        else if (stubMatches.length > 1) {
+            // Disambiguate by selecting the story whose compiled scenes cover or most recently precede `asOf`.
+            const covering = stubMatches.filter(({ bookKey }) => {
+                const scenes = typed('scene').filter((sc) => String(sc.id).startsWith(`scene.${bookKey}.`));
+                if (scenes.length === 0)
+                    return false;
+                const minDate = scenes.reduce((min, sc) => (sc.storyDate < min ? sc.storyDate : min), scenes[0].storyDate);
+                const maxDate = scenes.reduce((max, sc) => (ends(sc) > max ? ends(sc) : max), ends(scenes[0]));
+                return minDate <= asOf && asOf <= maxDate;
+            });
+            if (covering.length === 1) {
+                srcFile = covering[0].filePath;
+                srcRel = path.relative(root, srcFile);
+                sourceScope = 'book';
+            }
+            else {
+                errors.push(`Multiple book-scoped character stubs found for ${displayName} (${stubMatches.map((m) => path.relative(root, m.filePath)).join(', ')}). Pass --story to select one.`);
+            }
+        }
+    }
     if (srcFile && fs.existsSync(srcFile)) {
         const parsed = engine.parseFrontmatter(fs.readFileSync(srcFile, 'utf-8'));
         for (const key of codexCfg.frontmatter) {
@@ -179,7 +254,7 @@ export function buildContext(root, config, registry, engine, records, characterN
         // section is itself a disclosure. The count and the file are enough to act on.
         if (cut.unmatchedExcludes.length > 0) {
             errors.push(`context.codex.exclude for ${displayName} has ${cut.unmatchedExcludes.length} heading(s) not found in ` +
-                `${entity?.sourceFile}. A renamed heading would stop being withheld, so this is an error.`);
+                `${srcRel ?? srcFile}. A renamed heading would stop being withheld, so this is an error.`);
         }
     }
     if (errors.length)
@@ -254,7 +329,13 @@ export function buildContext(root, config, registry, engine, records, characterN
             character: { id, displayName },
             asOf,
             affect,
-            long: { frontmatter, sections, withheld, configured: codexCfg.include.length > 0 },
+            long: {
+                frontmatter,
+                sections,
+                withheld,
+                configured: codexCfg.include.length > 0,
+                ...(srcRel && sourceScope ? { sourceFile: srcRel, sourceScope } : {}),
+            },
             mid: {
                 latest,
                 earlier: approved.slice(0, -1).map((r) => r.id),

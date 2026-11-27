@@ -50,6 +50,8 @@ export declare function compile(input: UniverseInput, options?: CompileOptions):
 export interface ContextOptions {
     /** Include state-event annotations, which are authored omnisciently. */
     fullState?: boolean;
+    /** Optional story directory name or book key to disambiguate book-scoped guest character stubs. */
+    story?: string;
 }
 export interface ContextResult {
     /** Absent when `errors` is non-empty. */
@@ -88,3 +90,56 @@ export interface AffectStateAtResult {
  * replayed through the chapter events since. Never writes anything.
  */
 export declare function affectStateAt(input: UniverseInput, character: string, asOf: string): AffectStateAtResult;
+import { filterLedgerBeforeChapter, renderFirstAppearancesMarkdown, type EntityAppearancePoint, type EntityFirstAppearance } from './compiler/first-appearances.js';
+import { CharacterBriefSchema, CharacterMoveSchema, MoveIdSchema, type CharacterBrief, type CharacterMove, type HoldUntil, type MoveId, type MoveMaskResult, type NarratorHandoffBundle, type ObservableCharacterMove, type PovCharacterMove, type SampleRollLog, type SecretConstraintRule } from './probabilistic/schemas.js';
+import { THREE_MOVE_BRIEF_CONTRACT, collectConstraintRules, evaluateDeterministicMask, isConstraintActive, renderCharacterBriefPrompt, type BuildSceneBriefsResult, type CharacterBriefPromptBundle, type SceneBriefRequest } from './probabilistic/brief.js';
+import { MOVE_IDS, computeSeed, sampleCharacterMove, type SampleOptions, type SampleOutcome, type SeedResult } from './probabilistic/sampler.js';
+import { DEFAULT_NARRATOR_GUIDANCE, composeNarratorBundle, renderNarratorBundleMarkdown, stripToObservableSurface, type ComposeNarratorOptions, type WinningCharacterMove } from './probabilistic/compose.js';
+import { CloudflareClefScorer, GenericLlmScorer, MockDecisionScorer, createDecisionScorer, parseClefResponse, scoreBriefWithScorer, type BriefScoreResult, type ClefScorerOptions, type DecisionQuestion, type DecisionScoreRequest, type DecisionScorer, type GenericLlmScorerOptions, type QuestionType, type ScoredAnswer } from './probabilistic/scorer.js';
+import { CalibrationExampleSchema, loadCalibrationJsonl, parseCalibrationJsonl, renderCalibrationMarkdown, runCalibration, type CalibrationBucket, type CalibrationExample, type CalibrationReport, type ScorerCalibrationMetrics } from './probabilistic/calibrate.js';
+import { TEMPORAL_LENSES, numberLines, renderReviewSliceMarkdown, type BuildReviewSlicesOptions, type BuildReviewSlicesResult, type ReviewSlice, type SliceDocument, type TemporalLens } from './review/slices.js';
+import { ReviewFindingSchema, defaultCategoryForLens, mergeReviewFindings, parseLineSpan, renderMergedFindingsMarkdown, type ConvergenceCluster, type FindingCategory, type FindingSeverity, type MergedReviewFinding, type MergedReviewReport, type ReviewFinding, type ReviewLens } from './review/findings.js';
+import { collectAmbiguousTellHits, runProbabilisticLintPrepass, type EscalatedItem, type LensReviewer, type PlantedClue, type ProbabilisticPrepassOptions, type ProbabilisticPrepassResult } from './review/runner.js';
+export { filterLedgerBeforeChapter, renderFirstAppearancesMarkdown, MoveIdSchema, CharacterMoveSchema, CharacterBriefSchema, THREE_MOVE_BRIEF_CONTRACT, collectConstraintRules, evaluateDeterministicMask, isConstraintActive, renderCharacterBriefPrompt, MOVE_IDS, computeSeed, sampleCharacterMove, DEFAULT_NARRATOR_GUIDANCE, composeNarratorBundle, stripToObservableSurface, renderNarratorBundleMarkdown, CloudflareClefScorer, MockDecisionScorer, GenericLlmScorer, createDecisionScorer, parseClefResponse, scoreBriefWithScorer, CalibrationExampleSchema, loadCalibrationJsonl, parseCalibrationJsonl, runCalibration, renderCalibrationMarkdown, TEMPORAL_LENSES, numberLines, renderReviewSliceMarkdown, ReviewFindingSchema, defaultCategoryForLens, parseLineSpan, mergeReviewFindings, renderMergedFindingsMarkdown, collectAmbiguousTellHits, runProbabilisticLintPrepass, };
+export type { EntityAppearancePoint, EntityFirstAppearance, MoveId, CharacterMove, CharacterBrief, HoldUntil, SecretConstraintRule, MoveMaskResult, SampleRollLog, ObservableCharacterMove, PovCharacterMove, NarratorHandoffBundle, SceneBriefRequest, CharacterBriefPromptBundle, BuildSceneBriefsResult, SeedResult, SampleOptions, SampleOutcome, WinningCharacterMove, ComposeNarratorOptions, QuestionType, DecisionQuestion, ScoredAnswer, DecisionScoreRequest, DecisionScorer, ClefScorerOptions, GenericLlmScorerOptions, BriefScoreResult, CalibrationExample, CalibrationBucket, ScorerCalibrationMetrics, CalibrationReport, TemporalLens, SliceDocument, ReviewSlice, BuildReviewSlicesOptions, BuildReviewSlicesResult, ReviewLens, FindingSeverity, FindingCategory, ReviewFinding, MergedReviewFinding, ConvergenceCluster, MergedReviewReport, PlantedClue, ProbabilisticPrepassOptions, EscalatedItem, ProbabilisticPrepassResult, LensReviewer, };
+/** Builds the deterministic First-Appearance Entity Ledger for a universe. Never writes to disk. */
+export declare function firstAppearances(input: UniverseInput): EntityFirstAppearance[];
+/** Assembles Scene-Mode 3-Move Character Brief prompt bundles with the information firewall enforced. */
+export declare function briefBundles(input: UniverseInput, request: Omit<SceneBriefRequest, 'book'> & {
+    book?: string;
+}): BuildSceneBriefsResult;
+export interface SampleBriefOptions {
+    /** Manual raw probabilities; if omitted, `scorer` is used. */
+    rawProbs?: Record<MoveId, number>;
+    scorer?: DecisionScorer;
+    sceneSetup?: string;
+    story?: string;
+    floor?: number;
+    temperature?: number;
+    beatType?: string;
+    reroll?: string | number;
+    extraConstraints?: SecretConstraintRule[];
+}
+/**
+ * Evaluates pre-sampling constraints (deterministic + optional semantic Clef gates),
+ * scores candidate moves when a scorer is provided, and draws deterministically.
+ */
+export declare function sampleBrief(input: UniverseInput, brief: CharacterBrief, options?: SampleBriefOptions): Promise<SampleOutcome>;
+/** Assembles a POV-locked Single Narrator Pen Handoff bundle. */
+export declare function composeNarrator(input: UniverseInput, options: Omit<ComposeNarratorOptions, 'projectRoot'>): {
+    bundle?: NarratorHandoffBundle;
+    errors: string[];
+};
+/** Assembles deterministic temporal review slices for the 6-lens review board. Never writes to disk. */
+export declare function reviewSlices(input: UniverseInput, options: BuildReviewSlicesOptions): BuildReviewSlicesResult;
+/** Runs the batched Clef-flash -> Clef 27B probabilistic lint pre-pass for a target chapter. */
+export declare function reviewPrepass(input: UniverseInput, options: {
+    story: string;
+    chapter: number | string;
+    flashScorer?: DecisionScorer;
+    deepScorer?: DecisionScorer;
+    plantedClues?: PlantedClue[];
+}): Promise<{
+    result?: ProbabilisticPrepassResult;
+    errors: string[];
+}>;

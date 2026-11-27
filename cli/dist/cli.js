@@ -4,7 +4,7 @@ import { fileURLToPath } from 'url';
 import { Command } from 'commander';
 import path from 'path';
 import fs from 'fs';
-import { openUniverse, lint, compile, context, proseCheck, renderContextMarkdown } from './index.js';
+import { openUniverse, lint, compile, context, proseCheck, renderContextMarkdown, briefBundles, renderCharacterBriefPrompt, sampleBrief, composeNarrator, renderNarratorBundleMarkdown, reviewSlices, renderReviewSliceMarkdown, reviewPrepass, renderMergedFindingsMarkdown, createDecisionScorer, loadCalibrationJsonl, runCalibration, renderCalibrationMarkdown, TEMPORAL_LENSES, } from './index.js';
 /**
  * The version comes from package.json rather than a literal here. A
  * hand-maintained copy drifts: `--version` reported 0.2.0 against a 0.2.1
@@ -119,13 +119,17 @@ program
     .argument('<character>', 'Character, by registry name or id')
     .requiredOption('--as-of <date>', 'Story date to assemble from, YYYY-MM-DD')
     .option('-r, --root <path>', 'Project root directory', process.cwd())
+    .option('-s, --story <name>', 'Story directory or book key (for book-scoped guest character stubs)')
     .option('--json', 'Emit the bundle as JSON instead of Markdown')
     .option('--full-state', 'Include state-event annotations (authored omnisciently; may exceed what the character knows)')
     .option('-o, --out <file>', 'Write to this file instead of stdout')
     .action((character, options) => {
     const root = path.resolve(options.root);
     try {
-        const { bundle, errors } = context(root, character, options.asOf, { fullState: Boolean(options.fullState) });
+        const { bundle, errors } = context(root, character, options.asOf, {
+            fullState: Boolean(options.fullState),
+            story: options.story,
+        });
         if (!bundle) {
             for (const e of errors)
                 console.error(`Error: ${e}`);
@@ -138,6 +142,309 @@ program
         }
         else {
             process.stdout.write(output);
+        }
+    }
+    catch (e) {
+        console.error(`Error: ${e.message}`);
+        process.exit(1);
+    }
+});
+program
+    .command('brief')
+    .description('Assemble Scene-Mode 3-Move Character Brief prompt bundles (information firewall enforced)')
+    .requiredOption('-s, --story <name>', 'Story directory name or book key')
+    .requiredOption('-c, --chapter <num>', 'Target chapter number')
+    .requiredOption('--as-of <date>', 'Story date, YYYY-MM-DD')
+    .requiredOption('--characters <list>', 'Comma-separated list of characters in the scene')
+    .option('--setup <file>', 'Markdown/text file describing the immediate scene setup')
+    .option('--setup-text <text>', 'Inline scene setup text')
+    .option('-r, --root <path>', 'Project root directory', process.cwd())
+    .option('--json', 'Emit bundles as JSON instead of Markdown')
+    .option('-o, --out <dir>', 'Write one file per character into this directory')
+    .action((options) => {
+    const root = path.resolve(options.root);
+    try {
+        const sceneSetup = options.setup
+            ? fs.readFileSync(path.resolve(options.setup), 'utf-8')
+            : (options.setupText ?? '');
+        const characters = String(options.characters)
+            .split(',')
+            .map((s) => s.trim())
+            .filter(Boolean);
+        const { bundles, errors } = briefBundles(root, {
+            story: options.story,
+            chapter: isNaN(Number(options.chapter)) ? options.chapter : Number(options.chapter),
+            asOf: options.asOf,
+            characters,
+            sceneSetup,
+        });
+        if (errors.length > 0) {
+            for (const e of errors)
+                console.error(`Error: ${e}`);
+            process.exit(1);
+        }
+        if (options.out) {
+            const outDir = path.resolve(options.out);
+            fs.mkdirSync(outDir, { recursive: true });
+            for (const b of bundles) {
+                const slug = b.character.id.split('.', 2)[1] ?? b.character.id;
+                const ext = options.json ? 'json' : 'md';
+                const content = options.json ? JSON.stringify(b, null, 2) + '\n' : renderCharacterBriefPrompt(b);
+                const file = path.join(outDir, `${slug}.${ext}`);
+                fs.writeFileSync(file, content, 'utf-8');
+                console.error(`Wrote ${file}`);
+            }
+        }
+        else if (options.json) {
+            process.stdout.write(JSON.stringify(bundles, null, 2) + '\n');
+        }
+        else {
+            process.stdout.write(bundles.map(renderCharacterBriefPrompt).join('\n---\n\n'));
+        }
+    }
+    catch (e) {
+        console.error(`Error: ${e.message}`);
+        process.exit(1);
+    }
+});
+program
+    .command('sample')
+    .description('Score and deterministically sample a winning move from a 3-Move Character Brief JSON')
+    .requiredOption('-b, --brief <file>', 'Path to a 3-Move Character Brief JSON file')
+    .option('--probs <pA,pB,pC>', 'Manual raw probabilities for A,B,C (skips scorer call)')
+    .option('--scorer <provider>', 'Scorer override: clef | clef-flash | llm | mock')
+    .option('--setup <file>', 'Optional scene setup file (passed to scorer)')
+    .option('--floor <num>', 'Plausibility floor (default from pinakes.yaml or 0.08)')
+    .option('--temp <num>', 'Sampling temperature (default from pinakes.yaml or 0.85)')
+    .option('--beat-type <type>', 'Beat type key for per-beat temperature lookup')
+    .option('--reroll <token>', 'Optional reroll token appended to the SHA-256 seed')
+    .option('--log <file>', 'Write structured SampleRollLog JSON to this file')
+    .option('-r, --root <path>', 'Project root directory', process.cwd())
+    .action(async (options) => {
+    const root = path.resolve(options.root);
+    try {
+        const brief = JSON.parse(fs.readFileSync(path.resolve(options.brief), 'utf-8'));
+        const universe = openUniverse(root);
+        let rawProbs;
+        if (options.probs) {
+            const parts = String(options.probs)
+                .split(',')
+                .map((s) => Number(s.trim()));
+            if (parts.length !== 3 || parts.some((n) => !Number.isFinite(n))) {
+                throw new Error('--probs must be three comma-separated numbers: pA,pB,pC');
+            }
+            rawProbs = { A: parts[0], B: parts[1], C: parts[2] };
+        }
+        const scorer = options.scorer
+            ? createDecisionScorer(universe.config, { provider: options.scorer })
+            : undefined;
+        const sceneSetup = options.setup ? fs.readFileSync(path.resolve(options.setup), 'utf-8') : '';
+        const outcome = await sampleBrief(universe, brief, {
+            rawProbs,
+            scorer,
+            sceneSetup,
+            floor: options.floor !== undefined ? Number(options.floor) : undefined,
+            temperature: options.temp !== undefined ? Number(options.temp) : undefined,
+            beatType: options.beatType,
+            reroll: options.reroll,
+        });
+        if (!outcome.ok || !outcome.log) {
+            console.error(`Error: ${outcome.error ?? 'Sampling failed.'}`);
+            process.exit(1);
+        }
+        const json = JSON.stringify(outcome.log, null, 2) + '\n';
+        if (options.log) {
+            fs.writeFileSync(path.resolve(options.log), json, 'utf-8');
+            console.error(`Wrote roll log to ${options.log}`);
+        }
+        process.stdout.write(json);
+    }
+    catch (e) {
+        console.error(`Error: ${e.message}`);
+        process.exit(1);
+    }
+});
+program
+    .command('compose')
+    .description('Assemble a POV-locked Single Narrator Pen Handoff bundle from winning moves')
+    .requiredOption('--pov <character>', 'POV character (receives full interiority; all others stripped to observable surface)')
+    .requiredOption('--moves <files...>', 'One or more SampleRollLog or WinningCharacterMove JSON files')
+    .option('--setup <file>', 'Scene setup file')
+    .option('--setup-text <text>', 'Inline scene setup text')
+    .option('--writing-guide <file>', 'Path to writing guide (overrides pinakes.yaml)')
+    .option('--book <key>', 'Book key metadata')
+    .option('--chapter <num>', 'Chapter number metadata')
+    .option('--as-of <date>', 'Story date metadata')
+    .option('--json', 'Emit bundle as JSON instead of Markdown')
+    .option('-o, --out <file>', 'Write output to this file instead of stdout')
+    .option('-r, --root <path>', 'Project root directory', process.cwd())
+    .action((options) => {
+    const root = path.resolve(options.root);
+    try {
+        const winningMoves = [];
+        for (const f of options.moves) {
+            const parsed = JSON.parse(fs.readFileSync(path.resolve(f), 'utf-8'));
+            const items = Array.isArray(parsed) ? parsed : [parsed];
+            for (const item of items) {
+                if (item.chosenMove && item.seedInput) {
+                    // SampleRollLog shape: `<book>:<chapter>:<date>:<character>[:reroll]`
+                    const parts = String(item.seedInput).split(':');
+                    const character = item.character ?? parts[3] ?? 'Unknown';
+                    winningMoves.push({ character, move: item.chosenMove });
+                }
+                else if (item.character && item.move) {
+                    winningMoves.push({ character: item.character, characterId: item.characterId, move: item.move });
+                }
+                else {
+                    throw new Error(`Unrecognized move JSON shape in ${f}. Expected SampleRollLog or { character, move }.`);
+                }
+            }
+        }
+        const sceneSetup = options.setup
+            ? fs.readFileSync(path.resolve(options.setup), 'utf-8')
+            : (options.setupText ?? '');
+        const { bundle, errors } = composeNarrator(root, {
+            book: options.book,
+            chapter: options.chapter,
+            asOf: options.asOf,
+            povCharacter: options.pov,
+            sceneSetup,
+            winningMoves,
+            writingGuidePath: options.writingGuide,
+        });
+        if (!bundle || errors.length > 0) {
+            for (const e of errors)
+                console.error(`Error: ${e}`);
+            process.exit(1);
+        }
+        const output = options.json ? JSON.stringify(bundle, null, 2) + '\n' : renderNarratorBundleMarkdown(bundle);
+        if (options.out) {
+            fs.writeFileSync(path.resolve(options.out), output, 'utf-8');
+            console.error(`Wrote ${options.out}`);
+        }
+        else {
+            process.stdout.write(output);
+        }
+    }
+    catch (e) {
+        console.error(`Error: ${e.message}`);
+        process.exit(1);
+    }
+});
+program
+    .command('review')
+    .description('Six-Lens Temporal Review Board — assemble temporal slices and/or run probabilistic lint pre-pass')
+    .requiredOption('-s, --story <name>', 'Story directory name or book key')
+    .requiredOption('-c, --chapter <num>', 'Target chapter number')
+    .option('--lens <name>', `Lens to assemble: ${TEMPORAL_LENSES.join(' | ')} | all`, 'all')
+    .option('--prepass', 'Run the Clef-flash -> Clef 27B probabilistic lint pre-pass')
+    .option('--scorer <provider>', 'Scorer override for pre-pass: clef | clef-flash | llm | mock')
+    .option('--json', 'Emit JSON instead of Markdown')
+    .option('-o, --out <dir>', 'Write slice/report files into this directory')
+    .option('-r, --root <path>', 'Project root directory', process.cwd())
+    .action(async (options) => {
+    const root = path.resolve(options.root);
+    try {
+        const universe = openUniverse(root);
+        const chapter = isNaN(Number(options.chapter)) ? options.chapter : Number(options.chapter);
+        if (options.prepass) {
+            const flashScorer = options.scorer
+                ? createDecisionScorer(universe.config, { provider: options.scorer })
+                : undefined;
+            const { result, errors } = await reviewPrepass(universe, {
+                story: options.story,
+                chapter,
+                flashScorer,
+            });
+            if (!result || errors.length > 0) {
+                for (const e of errors)
+                    console.error(`Error: ${e}`);
+                process.exit(1);
+            }
+            const out = options.json
+                ? JSON.stringify(result, null, 2) + '\n'
+                : renderMergedFindingsMarkdown(result.merged);
+            if (options.out) {
+                const outDir = path.resolve(options.out);
+                fs.mkdirSync(outDir, { recursive: true });
+                const file = path.join(outDir, `prepass.${options.json ? 'json' : 'md'}`);
+                fs.writeFileSync(file, out, 'utf-8');
+                console.error(`Wrote ${file}`);
+            }
+            else {
+                process.stdout.write(out);
+            }
+            return;
+        }
+        const lenses = options.lens === 'all' ? [...TEMPORAL_LENSES] : [options.lens];
+        for (const l of lenses) {
+            if (!TEMPORAL_LENSES.includes(l)) {
+                throw new Error(`Unknown lens '${l}'. Expected one of: ${TEMPORAL_LENSES.join(', ')}, all`);
+            }
+        }
+        const { slices, errors } = reviewSlices(universe, { story: options.story, chapter, lenses });
+        if (errors.length > 0) {
+            for (const e of errors)
+                console.error(`Error: ${e}`);
+            process.exit(1);
+        }
+        if (options.out) {
+            const outDir = path.resolve(options.out);
+            fs.mkdirSync(outDir, { recursive: true });
+            for (const sl of slices) {
+                const ext = options.json ? 'json' : 'md';
+                const content = options.json ? JSON.stringify(sl, null, 2) + '\n' : renderReviewSliceMarkdown(sl);
+                const file = path.join(outDir, `${sl.lens}.${ext}`);
+                fs.writeFileSync(file, content, 'utf-8');
+                console.error(`Wrote ${file}`);
+            }
+        }
+        else if (options.json) {
+            process.stdout.write(JSON.stringify(slices, null, 2) + '\n');
+        }
+        else {
+            process.stdout.write(slices.map(renderReviewSliceMarkdown).join('\n---\n\n'));
+        }
+    }
+    catch (e) {
+        console.error(`Error: ${e.message}`);
+        process.exit(1);
+    }
+});
+program
+    .command('calibrate')
+    .description('Evaluate DecisionScorers (e.g. clef-flash vs clef) against a JSONL dataset of labeled beats')
+    .requiredOption('-d, --dataset <file>', 'Path to JSONL calibration dataset')
+    .option('--scorers <list>', 'Comma-separated scorers: clef-flash,clef,mock,llm', 'clef-flash,clef')
+    .option('--json', 'Emit JSON report instead of Markdown')
+    .option('-o, --out <file>', 'Write report to this file instead of stdout')
+    .option('-r, --root <path>', 'Project root directory', process.cwd())
+    .action(async (options) => {
+    const root = path.resolve(options.root);
+    try {
+        const { examples, errors } = loadCalibrationJsonl(path.resolve(options.dataset));
+        if (errors.length > 0) {
+            for (const e of errors)
+                console.error(`Error: ${e}`);
+            process.exit(1);
+        }
+        if (examples.length === 0) {
+            throw new Error('Calibration dataset is empty.');
+        }
+        const universe = openUniverse(root);
+        const scorerNames = String(options.scorers)
+            .split(',')
+            .map((s) => s.trim())
+            .filter(Boolean);
+        const scorers = scorerNames.map((provider) => createDecisionScorer(universe.config, { provider }));
+        const report = await runCalibration(examples, scorers);
+        const out = options.json ? JSON.stringify(report, null, 2) + '\n' : renderCalibrationMarkdown(report);
+        if (options.out) {
+            fs.writeFileSync(path.resolve(options.out), out, 'utf-8');
+            console.error(`Wrote ${options.out}`);
+        }
+        else {
+            process.stdout.write(out);
         }
     }
     catch (e) {

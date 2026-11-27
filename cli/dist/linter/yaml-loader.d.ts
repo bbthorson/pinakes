@@ -35,23 +35,23 @@ export declare const CustomRuleSchema: z.ZodEffects<z.ZodDiscriminatedUnion<"sel
     severity: z.ZodDefault<z.ZodUnion<[z.ZodLiteral<"error">, z.ZodLiteral<"warning">]>>;
 }, "strip", z.ZodTypeAny, {
     name: string;
+    description: string;
     selector: "chapter";
     validate: {
         field: string;
         pattern?: string | undefined;
         required?: boolean | undefined;
     };
-    description: string;
     severity: "error" | "warning";
 }, {
     name: string;
+    description: string;
     selector: "chapter";
     validate: {
         field: string;
         pattern?: string | undefined;
         required?: boolean | undefined;
     };
-    description: string;
     severity?: "error" | "warning" | undefined;
 }>, z.ZodObject<{
     selector: z.ZodLiteral<"stateEvent">;
@@ -70,40 +70,40 @@ export declare const CustomRuleSchema: z.ZodEffects<z.ZodDiscriminatedUnion<"sel
     severity: z.ZodDefault<z.ZodUnion<[z.ZodLiteral<"error">, z.ZodLiteral<"warning">]>>;
 }, "strip", z.ZodTypeAny, {
     name: string;
+    description: string;
     selector: "stateEvent";
     validate: {
         pattern: string;
         field: "register";
     };
-    description: string;
     severity: "error" | "warning";
 }, {
     name: string;
+    description: string;
     selector: "stateEvent";
     validate: {
         pattern: string;
         field: "register";
     };
-    description: string;
     severity?: "error" | "warning" | undefined;
 }>]>, {
     name: string;
+    description: string;
     selector: "chapter";
     validate: {
         field: string;
         pattern?: string | undefined;
         required?: boolean | undefined;
     };
-    description: string;
     severity: "error" | "warning";
 } | {
     name: string;
+    description: string;
     selector: "stateEvent";
     validate: {
         pattern: string;
         field: "register";
     };
-    description: string;
     severity: "error" | "warning";
 }, unknown>;
 export type CustomRule = z.infer<typeof CustomRuleSchema>;

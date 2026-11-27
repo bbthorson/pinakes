@@ -35,3 +35,36 @@ paths:
 #       character: "[Character]"
 #       note: "their catalogued quiet register"
 #   closerMaxWords: 12
+
+# Optional. Configures the probabilistic writing & editorial layer
+# (`pinakes brief`, `sample`, `compose`, `review`, `calibrate`). Every field
+# has a safe default, so this block can be omitted entirely.
+#
+# probabilistic:
+#   scorer:
+#     provider: clef                      # clef | llm | mock
+#     model: "@cf/cloudflare/clef"
+#     flashModel: "@cf/cloudflare/clef-flash"
+#     # endpoint: "https://your-jev-api.example/score"
+#   sampling:
+#     floor: 0.08
+#     temperature: 0.85
+#     beatTemperatures:
+#       plot-pivot: 0.6
+#       banter: 1.1
+#   escalation:
+#     lowConfidence: 0.35
+#     highConfidence: 0.65
+#     leakThreshold: 0.5
+#     toneCeiling: 7
+#   craftVocabulary:
+#     - "red herring(?:s)?"
+#   heldSecrets: []
+#   doNotReveal: []
+#   review:
+#     priorChapters: 3
+#     upcomingChapters: 4
+#     paths:
+#       writingGuide: "ai_instructions.md"
+#       seriesPlan: "codex/series_plan.md"
+

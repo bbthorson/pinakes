@@ -1,6 +1,7 @@
 import { Config } from '../config.js';
 import { Registry } from '../registry/entities.js';
 import { Diagnostic, LinterEngine } from '../linter/engine.js';
+import { type EntityFirstAppearance } from './first-appearances.js';
 export interface CompilationResult {
     file: string;
     count: number;
@@ -26,6 +27,12 @@ export interface CompilationReport {
     affectFindings: Diagnostic[];
     /** Every compiled record, across types, for consumers such as `context`. */
     records: any[];
+    /**
+     * Deterministic First-Appearance Entity Ledger across all compiled books:
+     * when each character, place, and item is first present, referenced, or
+     * named on-page.
+     */
+    firstAppearances: EntityFirstAppearance[];
     /**
      * Stale record and Lexicon files this compile deleted, relative to the
      * project root. `null` when pruning was skipped because the output
