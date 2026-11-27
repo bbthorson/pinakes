@@ -1,6 +1,6 @@
 {
   "name": "@bbthorson/pinakes-worker",
-  "version": "1.0.2",
+  "version": "1.1.0",
   "private": true,
   "type": "module",
   "description": "Hosted Cloudflare Worker MCP server for Pinakes (GitHub + R2 cache + native Workers AI Clef)",

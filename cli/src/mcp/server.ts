@@ -248,7 +248,7 @@ export class PinakesMcpServer {
 
   constructor(options: PinakesMcpServerOptions) {
     this.mode = options.mode;
-    this.version = options.version ?? '1.0.2';
+    this.version = options.version ?? '1.1.0';
     this.getUniverse = options.getUniverse;
     this.getScorer = options.getScorer;
     this.extraTools = new Map((options.extraTools ?? []).map((t) => [t.definition.name, t]));
