@@ -409,6 +409,97 @@ export declare const ConfigSchema: z.ZodObject<{
             temperature?: number | undefined;
             beatTemperatures?: Record<string, number> | undefined;
         }>>;
+        /**
+         * Optional System-1 vs. System-2 brief generation routing: maps character
+         * affect basin, beat type, scope (`main` vs. `guest`), or character name
+         * to a recommended `model` and/or `reasoningEffort` (`none` | `low` |
+         * `medium` | `high`). First matching rule wins, falling back to `default`.
+         */
+        briefRouting: z.ZodDefault<z.ZodObject<{
+            default: z.ZodDefault<z.ZodObject<{
+                model: z.ZodOptional<z.ZodString>;
+                reasoningEffort: z.ZodOptional<z.ZodEnum<["none", "low", "medium", "high"]>>;
+            }, "strip", z.ZodTypeAny, {
+                model?: string | undefined;
+                reasoningEffort?: "none" | "low" | "medium" | "high" | undefined;
+            }, {
+                model?: string | undefined;
+                reasoningEffort?: "none" | "low" | "medium" | "high" | undefined;
+            }>>;
+            rules: z.ZodDefault<z.ZodArray<z.ZodObject<{
+                name: z.ZodOptional<z.ZodString>;
+                when: z.ZodObject<{
+                    basin: z.ZodOptional<z.ZodUnion<[z.ZodString, z.ZodArray<z.ZodString, "many">]>>;
+                    beatType: z.ZodOptional<z.ZodUnion<[z.ZodString, z.ZodArray<z.ZodString, "many">]>>;
+                    scope: z.ZodOptional<z.ZodEnum<["main", "guest"]>>;
+                    character: z.ZodOptional<z.ZodUnion<[z.ZodString, z.ZodArray<z.ZodString, "many">]>>;
+                }, "strip", z.ZodTypeAny, {
+                    character?: string | string[] | undefined;
+                    basin?: string | string[] | undefined;
+                    beatType?: string | string[] | undefined;
+                    scope?: "main" | "guest" | undefined;
+                }, {
+                    character?: string | string[] | undefined;
+                    basin?: string | string[] | undefined;
+                    beatType?: string | string[] | undefined;
+                    scope?: "main" | "guest" | undefined;
+                }>;
+                model: z.ZodOptional<z.ZodString>;
+                reasoningEffort: z.ZodOptional<z.ZodEnum<["none", "low", "medium", "high"]>>;
+            }, "strip", z.ZodTypeAny, {
+                when: {
+                    character?: string | string[] | undefined;
+                    basin?: string | string[] | undefined;
+                    beatType?: string | string[] | undefined;
+                    scope?: "main" | "guest" | undefined;
+                };
+                name?: string | undefined;
+                model?: string | undefined;
+                reasoningEffort?: "none" | "low" | "medium" | "high" | undefined;
+            }, {
+                when: {
+                    character?: string | string[] | undefined;
+                    basin?: string | string[] | undefined;
+                    beatType?: string | string[] | undefined;
+                    scope?: "main" | "guest" | undefined;
+                };
+                name?: string | undefined;
+                model?: string | undefined;
+                reasoningEffort?: "none" | "low" | "medium" | "high" | undefined;
+            }>, "many">>;
+        }, "strip", z.ZodTypeAny, {
+            rules: {
+                when: {
+                    character?: string | string[] | undefined;
+                    basin?: string | string[] | undefined;
+                    beatType?: string | string[] | undefined;
+                    scope?: "main" | "guest" | undefined;
+                };
+                name?: string | undefined;
+                model?: string | undefined;
+                reasoningEffort?: "none" | "low" | "medium" | "high" | undefined;
+            }[];
+            default: {
+                model?: string | undefined;
+                reasoningEffort?: "none" | "low" | "medium" | "high" | undefined;
+            };
+        }, {
+            rules?: {
+                when: {
+                    character?: string | string[] | undefined;
+                    basin?: string | string[] | undefined;
+                    beatType?: string | string[] | undefined;
+                    scope?: "main" | "guest" | undefined;
+                };
+                name?: string | undefined;
+                model?: string | undefined;
+                reasoningEffort?: "none" | "low" | "medium" | "high" | undefined;
+            }[] | undefined;
+            default?: {
+                model?: string | undefined;
+                reasoningEffort?: "none" | "low" | "medium" | "high" | undefined;
+            } | undefined;
+        }>>;
         escalation: z.ZodDefault<z.ZodObject<{
             lowConfidence: z.ZodDefault<z.ZodNumber>;
             highConfidence: z.ZodDefault<z.ZodNumber>;
@@ -591,6 +682,23 @@ export declare const ConfigSchema: z.ZodObject<{
             temperature: number;
             beatTemperatures: Record<string, number>;
         };
+        briefRouting: {
+            rules: {
+                when: {
+                    character?: string | string[] | undefined;
+                    basin?: string | string[] | undefined;
+                    beatType?: string | string[] | undefined;
+                    scope?: "main" | "guest" | undefined;
+                };
+                name?: string | undefined;
+                model?: string | undefined;
+                reasoningEffort?: "none" | "low" | "medium" | "high" | undefined;
+            }[];
+            default: {
+                model?: string | undefined;
+                reasoningEffort?: "none" | "low" | "medium" | "high" | undefined;
+            };
+        };
         escalation: {
             lowConfidence: number;
             highConfidence: number;
@@ -653,6 +761,23 @@ export declare const ConfigSchema: z.ZodObject<{
             floor?: number | undefined;
             temperature?: number | undefined;
             beatTemperatures?: Record<string, number> | undefined;
+        } | undefined;
+        briefRouting?: {
+            rules?: {
+                when: {
+                    character?: string | string[] | undefined;
+                    basin?: string | string[] | undefined;
+                    beatType?: string | string[] | undefined;
+                    scope?: "main" | "guest" | undefined;
+                };
+                name?: string | undefined;
+                model?: string | undefined;
+                reasoningEffort?: "none" | "low" | "medium" | "high" | undefined;
+            }[] | undefined;
+            default?: {
+                model?: string | undefined;
+                reasoningEffort?: "none" | "low" | "medium" | "high" | undefined;
+            } | undefined;
         } | undefined;
         escalation?: {
             lowConfidence?: number | undefined;
@@ -795,6 +920,23 @@ export declare const ConfigSchema: z.ZodObject<{
             temperature: number;
             beatTemperatures: Record<string, number>;
         };
+        briefRouting: {
+            rules: {
+                when: {
+                    character?: string | string[] | undefined;
+                    basin?: string | string[] | undefined;
+                    beatType?: string | string[] | undefined;
+                    scope?: "main" | "guest" | undefined;
+                };
+                name?: string | undefined;
+                model?: string | undefined;
+                reasoningEffort?: "none" | "low" | "medium" | "high" | undefined;
+            }[];
+            default: {
+                model?: string | undefined;
+                reasoningEffort?: "none" | "low" | "medium" | "high" | undefined;
+            };
+        };
         escalation: {
             lowConfidence: number;
             highConfidence: number;
@@ -924,6 +1066,23 @@ export declare const ConfigSchema: z.ZodObject<{
             floor?: number | undefined;
             temperature?: number | undefined;
             beatTemperatures?: Record<string, number> | undefined;
+        } | undefined;
+        briefRouting?: {
+            rules?: {
+                when: {
+                    character?: string | string[] | undefined;
+                    basin?: string | string[] | undefined;
+                    beatType?: string | string[] | undefined;
+                    scope?: "main" | "guest" | undefined;
+                };
+                name?: string | undefined;
+                model?: string | undefined;
+                reasoningEffort?: "none" | "low" | "medium" | "high" | undefined;
+            }[] | undefined;
+            default?: {
+                model?: string | undefined;
+                reasoningEffort?: "none" | "low" | "medium" | "high" | undefined;
+            } | undefined;
         } | undefined;
         escalation?: {
             lowConfidence?: number | undefined;

@@ -15,6 +15,7 @@ export const CharacterMoveSchema = z.object({
     holdBack: z.string(),
     physicalTell: z.string(),
 });
+export const ReasoningEffortSchema = z.enum(['none', 'low', 'medium', 'high']);
 export const CharacterBriefSchema = z
     .object({
     character: z.string().min(1),
@@ -22,6 +23,9 @@ export const CharacterBriefSchema = z
     book: z.string().min(1),
     chapter: z.union([z.number(), z.string()]),
     beatType: z.string().optional(),
+    /** Optional audit fields recording which model & reasoning effort generated this brief. */
+    briefModel: z.string().optional(),
+    reasoningEffort: ReasoningEffortSchema.optional(),
     moves: z.tuple([CharacterMoveSchema, CharacterMoveSchema, CharacterMoveSchema]),
 })
     .superRefine((brief, ctx) => {

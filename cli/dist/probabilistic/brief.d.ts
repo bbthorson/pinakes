@@ -11,7 +11,7 @@ import type { Config } from '../config.js';
 import type { Registry } from '../registry/entities.js';
 import type { LinterEngine } from '../linter/engine.js';
 import { type ContextBundle } from '../context/bundle.js';
-import type { CharacterBrief, CharacterMove, MoveId, MoveMaskResult, SecretConstraintRule } from './schemas.js';
+import type { BriefRouteDecision, CharacterBrief, CharacterMove, MoveId, MoveMaskResult, SecretConstraintRule } from './schemas.js';
 export interface SceneBriefRequest {
     story: string;
     book: string;
@@ -19,6 +19,7 @@ export interface SceneBriefRequest {
     asOf: string;
     characters: string[];
     sceneSetup: string;
+    beatType?: string;
 }
 export interface CharacterBriefPromptBundle {
     character: {
@@ -28,6 +29,9 @@ export interface CharacterBriefPromptBundle {
     asOf: string;
     book: string;
     chapter: number | string;
+    beatType?: string;
+    /** Recommended model / reasoningEffort from `probabilistic.briefRouting`. */
+    route: BriefRouteDecision;
     /** Strictly Scene-Mode (`fullState: false`), looking backward only. */
     context: ContextBundle;
     contextMarkdown: string;
@@ -39,6 +43,18 @@ export interface BuildSceneBriefsResult {
     bundles: CharacterBriefPromptBundle[];
     errors: string[];
 }
+/**
+ * Resolves the recommended model and reasoning effort for generating a
+ * character's 3-Move Brief based on `probabilistic.briefRouting` rules
+ * (affect attractor basin, beat type, main vs. guest scope, or character).
+ */
+export declare function resolveBriefRoute(config: Config, input: {
+    characterId: string;
+    characterName: string;
+    basin?: string;
+    beatType?: string;
+    scope: 'main' | 'guest';
+}): BriefRouteDecision;
 export declare const THREE_MOVE_BRIEF_CONTRACT: string;
 export declare function buildSceneBriefBundles(root: string, config: Config, registry: Registry, engine: LinterEngine, records: any[], req: SceneBriefRequest): BuildSceneBriefsResult;
 export declare function renderCharacterBriefPrompt(bundle: CharacterBriefPromptBundle): string;

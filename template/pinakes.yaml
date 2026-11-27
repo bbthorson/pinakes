@@ -52,6 +52,21 @@ paths:
 #     beatTemperatures:
 #       plot-pivot: 0.6
 #       banter: 1.1
+#   briefRouting:
+#     default:
+#       model: "claude-opus-4-6"
+#       reasoningEffort: "medium"
+#     rules:
+#       - name: "system-1-exhausted-or-pressured"
+#         when:
+#           basin: ["depressive-exhaustion", "hyper-vigilant"]
+#         reasoningEffort: "none"
+#       - name: "guest-banter-fast"
+#         when:
+#           scope: "guest"
+#           beatType: "banter"
+#         model: "claude-haiku-4-5"
+#         reasoningEffort: "none"
 #   escalation:
 #     lowConfidence: 0.35
 #     highConfidence: 0.65

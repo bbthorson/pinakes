@@ -31,12 +31,23 @@ export declare const CharacterMoveSchema: z.ZodObject<{
     physicalTell: string;
 }>;
 export type CharacterMove = z.infer<typeof CharacterMoveSchema>;
+export declare const ReasoningEffortSchema: z.ZodEnum<["none", "low", "medium", "high"]>;
+export type ReasoningEffort = z.infer<typeof ReasoningEffortSchema>;
+export interface BriefRouteDecision {
+    model?: string;
+    reasoningEffort?: ReasoningEffort;
+    matchedRule?: string;
+    reason: string;
+}
 export declare const CharacterBriefSchema: z.ZodEffects<z.ZodObject<{
     character: z.ZodString;
     asOf: z.ZodString;
     book: z.ZodString;
     chapter: z.ZodUnion<[z.ZodNumber, z.ZodString]>;
     beatType: z.ZodOptional<z.ZodString>;
+    /** Optional audit fields recording which model & reasoning effort generated this brief. */
+    briefModel: z.ZodOptional<z.ZodString>;
+    reasoningEffort: z.ZodOptional<z.ZodEnum<["none", "low", "medium", "high"]>>;
     moves: z.ZodTuple<[z.ZodObject<{
         id: z.ZodEnum<["A", "B", "C"]>;
         tactic: z.ZodString;
@@ -128,7 +139,9 @@ export declare const CharacterBriefSchema: z.ZodEffects<z.ZodObject<{
         holdBack: string;
         physicalTell: string;
     }];
+    reasoningEffort?: "none" | "low" | "medium" | "high" | undefined;
     beatType?: string | undefined;
+    briefModel?: string | undefined;
 }, {
     character: string;
     book: string;
@@ -156,7 +169,9 @@ export declare const CharacterBriefSchema: z.ZodEffects<z.ZodObject<{
         holdBack: string;
         physicalTell: string;
     }];
+    reasoningEffort?: "none" | "low" | "medium" | "high" | undefined;
     beatType?: string | undefined;
+    briefModel?: string | undefined;
 }>, {
     character: string;
     book: string;
@@ -184,7 +199,9 @@ export declare const CharacterBriefSchema: z.ZodEffects<z.ZodObject<{
         holdBack: string;
         physicalTell: string;
     }];
+    reasoningEffort?: "none" | "low" | "medium" | "high" | undefined;
     beatType?: string | undefined;
+    briefModel?: string | undefined;
 }, {
     character: string;
     book: string;
@@ -212,7 +229,9 @@ export declare const CharacterBriefSchema: z.ZodEffects<z.ZodObject<{
         holdBack: string;
         physicalTell: string;
     }];
+    reasoningEffort?: "none" | "low" | "medium" | "high" | undefined;
     beatType?: string | undefined;
+    briefModel?: string | undefined;
 }>;
 export type CharacterBrief = z.infer<typeof CharacterBriefSchema>;
 export interface HoldUntil {
@@ -240,6 +259,8 @@ export interface SampleRollLog {
     floor: number;
     temperature: number;
     beatType?: string;
+    briefModel?: string;
+    reasoningEffort?: ReasoningEffort;
     reroll?: string | number;
     scorer: string;
     rawProbs: Record<MoveId, number>;

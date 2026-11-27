@@ -105,6 +105,7 @@ const SCENE_TOOLS: McpToolDefinition[] = [
         asOf: { type: 'string', description: 'Story date, YYYY-MM-DD' },
         characters: { type: 'array', items: { type: 'string' }, description: 'Characters present in the scene' },
         sceneSetup: { type: 'string', description: 'Immediate observable scene setup (no future beats or author secrets)' },
+        beatType: { type: 'string', description: 'Optional beat type for briefRouting (e.g. banter, plot-pivot)' },
         format: { type: 'string', enum: ['markdown', 'json'], default: 'markdown' },
       },
       required: ['story', 'chapter', 'asOf', 'characters'],
@@ -295,6 +296,7 @@ export class PinakesMcpServer {
           asOf: String(args.asOf),
           characters: Array.isArray(args.characters) ? args.characters.map(String) : [],
           sceneSetup: String(args.sceneSetup ?? ''),
+          beatType: args.beatType ? String(args.beatType) : undefined,
         });
         if (res.errors.length > 0) return errText(res.errors.join('\n'));
         return okText(

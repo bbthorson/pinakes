@@ -234,6 +234,85 @@ describe('3. Scene-Mode 3-Move Brief Firewall, Hard Constraint Mask & Seeded Sam
     });
   });
 
+  test('briefRouting selects model and reasoningEffort by basin, scope, and beatType and logs them in SampleRollLog', () => {
+    const cfg = `spec: 0.1
+project:
+  name: Test Universe
+  nsid: test.universe
+paths:
+  registry: codex/entities.yaml
+  stories: stories
+  output: records
+context:
+  codex:
+    include: [Overview]
+probabilistic:
+  briefRouting:
+    default:
+      model: claude-opus-4-6
+      reasoningEffort: medium
+    rules:
+      - name: system-1-exhausted
+        when:
+          basin: [depressive-exhaustion, hyper-vigilant]
+        reasoningEffort: none
+      - name: guest-banter
+        when:
+          scope: guest
+          beatType: banter
+        model: claude-haiku-4-5
+        reasoningEffort: none
+`;
+    const files = {
+      'pinakes.yaml': cfg,
+      'codex/entities.yaml': GUEST_REGISTRY.replace(
+        'displayName: Emma',
+        'displayName: Emma\n    sourceFile: codex/characters/emma.md'
+      ),
+      'codex/characters/emma.md': '# Emma\n\n## Overview\nMain cast.\n',
+      'stories/01_book/characters/marta.md': '# Marta\n\n## Overview\nGuest neighbor.\n',
+      [CH1]: chapter({ num: 1, date: '2026-10-01', extra: 'characters_present: [Emma, Marta Diaz]\n' }),
+    };
+
+    withUniverse(files, (root) => {
+      const { bundles, errors } = pinakes.briefBundles(root, {
+        story: '01_book',
+        chapter: 1,
+        asOf: '2026-10-01',
+        characters: ['Emma', 'Marta Diaz'],
+        sceneSetup: 'Quick hallway banter.',
+        beatType: 'banter',
+      });
+      assert.deepEqual(errors, []);
+      const emma = bundles.find((b) => b.character.id === 'char.emma')!;
+      const marta = bundles.find((b) => b.character.id === 'char.marta')!;
+      assert.equal(emma.route.model, 'claude-opus-4-6');
+      assert.equal(emma.route.reasoningEffort, 'medium');
+      assert.equal(marta.route.model, 'claude-haiku-4-5');
+      assert.equal(marta.route.reasoningEffort, 'none');
+      assert.equal(marta.route.matchedRule, 'guest-banter');
+      assert.match(pinakes.renderCharacterBriefPrompt(marta), /claude-haiku-4-5/);
+
+      const u = pinakes.openUniverse(root);
+      const exhaustedRoute = pinakes.resolveBriefRoute(u.config, {
+        characterId: 'char.emma',
+        characterName: 'Emma',
+        basin: 'depressive-exhaustion',
+        scope: 'main',
+      });
+      assert.equal(exhaustedRoute.model, 'claude-opus-4-6');
+      assert.equal(exhaustedRoute.reasoningEffort, 'none');
+      assert.equal(exhaustedRoute.matchedRule, 'system-1-exhausted');
+
+      const rolled = pinakes.sampleCharacterMove(
+        { ...sampleBriefObj, briefModel: 'claude-haiku-4-5', reasoningEffort: 'none' },
+        { rawProbs: { A: 0.5, B: 0.3, C: 0.2 } }
+      );
+      assert.equal(rolled.log?.briefModel, 'claude-haiku-4-5');
+      assert.equal(rolled.log?.reasoningEffort, 'none');
+    });
+  });
+
   test('pre-sampling hard constraint mask zeroes out moves violating doNotReveal before sampling', async () => {
     const cfg = `spec: 0.1
 project:

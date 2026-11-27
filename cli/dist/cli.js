@@ -159,6 +159,7 @@ program
     .requiredOption('--characters <list>', 'Comma-separated list of characters in the scene')
     .option('--setup <file>', 'Markdown/text file describing the immediate scene setup')
     .option('--setup-text <text>', 'Inline scene setup text')
+    .option('--beat-type <type>', 'Optional beat type for briefRouting (e.g. banter, plot-pivot, snap-reaction)')
     .option('-r, --root <path>', 'Project root directory', process.cwd())
     .option('--json', 'Emit bundles as JSON instead of Markdown')
     .option('-o, --out <dir>', 'Write one file per character into this directory')
@@ -178,6 +179,7 @@ program
             asOf: options.asOf,
             characters,
             sceneSetup,
+            beatType: options.beatType,
         });
         if (errors.length > 0) {
             for (const e of errors)

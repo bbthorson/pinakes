@@ -28,6 +28,10 @@ pinakes brief -s book2 -c 6 --as-of 2026-10-12 \
 
 Each character produces a **3-Move Character Brief** (`A`, `B`, `C`) matching `{ id, tactic, notice, say, holdBack, physicalTell }`.
 
+### Cognitive-State Brief Routing (`probabilistic.briefRouting`)
+
+You can optionally configure `probabilistic.briefRouting` in `pinakes.yaml` to map a character's current affect attractor basin (`depressive-exhaustion`, `hyper-vigilant`, `grounded-stoic`, etc.), scene `beatType` (`--beat-type`), scope (`main` vs. `guest`), or character name to a recommended `model` and `reasoningEffort` (`none` | `low` | `medium` | `high`). Each prompt bundle carries its resolved `route`, and `briefModel` / `reasoningEffort` are preserved in `SampleRollLog` for auditing A/B runs.
+
 ## 3. Clef Scoring, Pre-Sampling Mask & Seeded Sampler (`pinakes sample`)
 
 Because generative LLMs are poorly calibrated when scoring their own options, `pinakes sample` supports a pluggable `DecisionScorer` with a first-class **Cloudflare Clef** adapter (`@cf/cloudflare/clef`, `@cf/cloudflare/clef-flash`, or any Jev-API endpoint) plus local `mock` and generic LLM fallbacks.

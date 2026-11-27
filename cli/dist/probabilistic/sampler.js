@@ -123,6 +123,8 @@ export function sampleCharacterMove(brief, options) {
             floor,
             temperature,
             beatType: brief.beatType,
+            ...(brief.briefModel ? { briefModel: brief.briefModel } : {}),
+            ...(brief.reasoningEffort ? { reasoningEffort: brief.reasoningEffort } : {}),
             reroll: options.reroll,
             scorer: options.scorer ?? 'manual',
             rawProbs: rawNorm,

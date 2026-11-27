@@ -258,6 +258,35 @@ export const ConfigSchema = z.object({
             beatTemperatures: z.record(z.number().positive()).default({}),
         })
             .default({}),
+        /**
+         * Optional System-1 vs. System-2 brief generation routing: maps character
+         * affect basin, beat type, scope (`main` vs. `guest`), or character name
+         * to a recommended `model` and/or `reasoningEffort` (`none` | `low` |
+         * `medium` | `high`). First matching rule wins, falling back to `default`.
+         */
+        briefRouting: z
+            .object({
+            default: z
+                .object({
+                model: z.string().optional(),
+                reasoningEffort: z.enum(['none', 'low', 'medium', 'high']).optional(),
+            })
+                .default({}),
+            rules: z
+                .array(z.object({
+                name: z.string().optional(),
+                when: z.object({
+                    basin: z.union([z.string(), z.array(z.string())]).optional(),
+                    beatType: z.union([z.string(), z.array(z.string())]).optional(),
+                    scope: z.enum(['main', 'guest']).optional(),
+                    character: z.union([z.string(), z.array(z.string())]).optional(),
+                }),
+                model: z.string().optional(),
+                reasoningEffort: z.enum(['none', 'low', 'medium', 'high']).optional(),
+            }))
+                .default([]),
+        })
+            .default({}),
         escalation: z
             .object({
             lowConfidence: z.number().min(0).max(1).default(0.35),

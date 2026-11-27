@@ -13,6 +13,7 @@ import type { LinterEngine } from '../linter/engine.js';
 import { buildContext, renderMarkdown, type ContextBundle } from '../context/bundle.js';
 import { compareBookChapter } from '../compiler/first-appearances.js';
 import type {
+  BriefRouteDecision,
   CharacterBrief,
   CharacterMove,
   MoveId,
@@ -27,6 +28,7 @@ export interface SceneBriefRequest {
   asOf: string;
   characters: string[];
   sceneSetup: string;
+  beatType?: string;
 }
 
 export interface CharacterBriefPromptBundle {
@@ -34,6 +36,9 @@ export interface CharacterBriefPromptBundle {
   asOf: string;
   book: string;
   chapter: number | string;
+  beatType?: string;
+  /** Recommended model / reasoningEffort from `probabilistic.briefRouting`. */
+  route: BriefRouteDecision;
   /** Strictly Scene-Mode (`fullState: false`), looking backward only. */
   context: ContextBundle;
   contextMarkdown: string;
@@ -45,6 +50,65 @@ export interface CharacterBriefPromptBundle {
 export interface BuildSceneBriefsResult {
   bundles: CharacterBriefPromptBundle[];
   errors: string[];
+}
+
+function matchesFilter(value: string | undefined, expected: string | string[] | undefined): boolean {
+  if (expected === undefined) return true;
+  if (!value) return false;
+  const list = Array.isArray(expected) ? expected : [expected];
+  const low = value.trim().toLowerCase();
+  return list.some((e) => e.trim().toLowerCase() === low);
+}
+
+/**
+ * Resolves the recommended model and reasoning effort for generating a
+ * character's 3-Move Brief based on `probabilistic.briefRouting` rules
+ * (affect attractor basin, beat type, main vs. guest scope, or character).
+ */
+export function resolveBriefRoute(
+  config: Config,
+  input: {
+    characterId: string;
+    characterName: string;
+    basin?: string;
+    beatType?: string;
+    scope: 'main' | 'guest';
+  }
+): BriefRouteDecision {
+  const routing = config.probabilistic.briefRouting;
+  const baseModel = routing.default.model;
+  const baseEffort = routing.default.reasoningEffort;
+
+  for (let i = 0; i < routing.rules.length; i++) {
+    const rule = routing.rules[i];
+    const w = rule.when;
+    const basinOk = matchesFilter(input.basin, w.basin);
+    const beatOk = matchesFilter(input.beatType, w.beatType);
+    const scopeOk = w.scope === undefined || w.scope === input.scope;
+    const charOk =
+      w.character === undefined ||
+      matchesFilter(input.characterId, w.character) ||
+      matchesFilter(input.characterName, w.character);
+
+    if (basinOk && beatOk && scopeOk && charOk) {
+      const label = rule.name ?? `rule[${i}]`;
+      return {
+        model: rule.model ?? baseModel,
+        reasoningEffort: rule.reasoningEffort ?? baseEffort,
+        matchedRule: label,
+        reason: `Matched briefRouting rule '${label}' (basin=${input.basin ?? 'none'}, beatType=${input.beatType ?? 'none'}, scope=${input.scope})`,
+      };
+    }
+  }
+
+  return {
+    model: baseModel,
+    reasoningEffort: baseEffort,
+    reason:
+      baseModel || baseEffort
+        ? 'Used probabilistic.briefRouting.default'
+        : 'No briefRouting rules configured',
+  };
 }
 
 export const THREE_MOVE_BRIEF_CONTRACT = [
@@ -84,11 +148,20 @@ export function buildSceneBriefBundles(
       errors.push(...res.errors);
       continue;
     }
+    const route = resolveBriefRoute(config, {
+      characterId: res.bundle.character.id,
+      characterName: res.bundle.character.displayName,
+      basin: res.bundle.affect?.state?.attractorBasin,
+      beatType: req.beatType,
+      scope: res.bundle.long.sourceScope === 'series' ? 'main' : 'guest',
+    });
     bundles.push({
       character: res.bundle.character,
       asOf: req.asOf,
       book: req.book,
       chapter: req.chapter,
+      ...(req.beatType ? { beatType: req.beatType } : {}),
+      route,
       context: res.bundle,
       contextMarkdown: renderMarkdown(res.bundle),
       sceneSetup: req.sceneSetup,
@@ -100,10 +173,17 @@ export function buildSceneBriefBundles(
 }
 
 export function renderCharacterBriefPrompt(bundle: CharacterBriefPromptBundle): string {
+  const routeBits = [
+    bundle.route.model ? `Model: \`${bundle.route.model}\`` : null,
+    bundle.route.reasoningEffort ? `Reasoning: \`${bundle.route.reasoningEffort}\`` : null,
+    bundle.route.matchedRule ? `Rule: \`${bundle.route.matchedRule}\`` : null,
+  ].filter(Boolean);
+
   return [
     `# Scene-Mode Brief Input — ${bundle.character.displayName}`,
     '',
-    `Book: \`${bundle.book}\` | Chapter: \`${bundle.chapter}\` | Date: \`${bundle.asOf}\``,
+    `Book: \`${bundle.book}\` | Chapter: \`${bundle.chapter}\` | Date: \`${bundle.asOf}\`${bundle.beatType ? ` | Beat: \`${bundle.beatType}\`` : ''}`,
+    ...(routeBits.length ? [`Routing: ${routeBits.join(' | ')}`] : []),
     '',
     '## Scene Setup',
     '',

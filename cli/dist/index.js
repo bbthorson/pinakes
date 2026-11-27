@@ -129,8 +129,8 @@ export function affectStateAt(input, character, asOf) {
 }
 // ------------------------------------------------------------------ probabilistic & review layer
 import { buildFirstAppearanceLedgerFromEngine, filterLedgerBeforeChapter, getBookKeyFromDir, renderFirstAppearancesMarkdown, } from './compiler/first-appearances.js';
-import { CharacterBriefSchema, CharacterMoveSchema, MoveIdSchema, } from './probabilistic/schemas.js';
-import { THREE_MOVE_BRIEF_CONTRACT, buildSceneBriefBundles, collectConstraintRules, evaluateDeterministicMask, isConstraintActive, renderCharacterBriefPrompt, } from './probabilistic/brief.js';
+import { CharacterBriefSchema, CharacterMoveSchema, MoveIdSchema, ReasoningEffortSchema, } from './probabilistic/schemas.js';
+import { THREE_MOVE_BRIEF_CONTRACT, buildSceneBriefBundles, collectConstraintRules, evaluateDeterministicMask, isConstraintActive, renderCharacterBriefPrompt, resolveBriefRoute, } from './probabilistic/brief.js';
 import { MOVE_IDS, computeSeed, sampleCharacterMove, } from './probabilistic/sampler.js';
 import { DEFAULT_NARRATOR_GUIDANCE, composeNarratorBundle, renderNarratorBundleMarkdown, stripToObservableSurface, } from './probabilistic/compose.js';
 import { CloudflareClefScorer, GenericLlmScorer, MockDecisionScorer, createDecisionScorer, parseClefResponse, scoreBriefWithScorer, } from './probabilistic/scorer.js';
@@ -142,7 +142,7 @@ export {
 // First-appearance ledger
 filterLedgerBeforeChapter, renderFirstAppearancesMarkdown, 
 // Probabilistic schemas & Scene-Mode brief
-MoveIdSchema, CharacterMoveSchema, CharacterBriefSchema, THREE_MOVE_BRIEF_CONTRACT, collectConstraintRules, evaluateDeterministicMask, isConstraintActive, renderCharacterBriefPrompt, 
+MoveIdSchema, CharacterMoveSchema, CharacterBriefSchema, ReasoningEffortSchema, THREE_MOVE_BRIEF_CONTRACT, collectConstraintRules, evaluateDeterministicMask, isConstraintActive, renderCharacterBriefPrompt, resolveBriefRoute, 
 // Seeded sampler
 MOVE_IDS, computeSeed, sampleCharacterMove, 
 // POV-locked narrator handoff
