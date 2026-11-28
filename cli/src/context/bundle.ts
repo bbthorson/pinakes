@@ -57,8 +57,8 @@ export interface ContextBundle {
     configured: boolean;
     /** Relative path to the codex or book-scoped guest stub file that populated the long tier. */
     sourceFile?: string;
-    /** Whether the long tier came from a series codex file or a book-scoped character stub. */
-    sourceScope?: 'series' | 'book';
+    /** Whether the long tier came from a series codex file, a book-scoped stub, or a registry fallback. */
+    sourceScope?: 'series' | 'book' | 'registry';
   };
   mid: {
     latest?: Record<string, any>;
@@ -221,7 +221,7 @@ export function buildContext(
   records: any[],
   characterName: string,
   asOf: string,
-  options: { fullState?: boolean; story?: string } = {}
+  options: { fullState?: boolean; story?: string; registryFallback?: boolean } = {}
 ): BuildResult {
   const errors: string[] = [];
   const NS = config.project.nsid;
@@ -270,7 +270,7 @@ export function buildContext(
   let withheld = 0;
   let srcFile = entity?.sourceFile ? path.resolve(root, entity.sourceFile) : '';
   let srcRel: string | undefined = entity?.sourceFile || undefined;
-  let sourceScope: 'series' | 'book' | undefined = srcFile && engine.ufs.exists(srcFile) ? 'series' : undefined;
+  let sourceScope: 'series' | 'book' | 'registry' | undefined = srcFile && engine.ufs.exists(srcFile) ? 'series' : undefined;
 
   if (!sourceScope) {
     let candidateStories = engine.getStories();
@@ -336,6 +336,56 @@ export function buildContext(
         `context.codex.exclude for ${displayName} has ${cut.unmatchedExcludes.length} heading(s) not found in ` +
           `${srcRel ?? srcFile}. A renamed heading would stop being withheld, so this is an error.`
       );
+    }
+  } else if (!sourceScope && options.registryFallback) {
+    // Graceful fallback for recurring minor characters registered in entities.yaml
+    // who do not yet have a codex/characters/<name>.md file or book stub.
+    sourceScope = 'registry';
+    srcRel = registry.registryFile;
+
+    const desc = entity?.description?.trim();
+    if (desc) {
+      if (unended(desc)) {
+        withheld++;
+      } else {
+        sections.push({ heading: 'Registry Description (Fallback)', level: 2, text: desc });
+      }
+    }
+
+    const priorStateEvents = typed('character.stateEvent')
+      .filter((r) => r.subject === id && ends(r) <= asOf)
+      .sort((a, b) => String(a.storyDate).localeCompare(String(b.storyDate)) || String(a.id).localeCompare(String(b.id)));
+    if (priorStateEvents.length > 0) {
+      const lines = priorStateEvents.map((e) => {
+        const span = e.storyDateEnd ? `${e.storyDate} to ${e.storyDateEnd}` : e.storyDate;
+        const ref = e.chapterRef ? ` [${e.chapterRef}]` : '';
+        const reg = e.registerExpr ?? e.register;
+        const note = options.fullState && e.state ? ` — ${e.state}` : '';
+        return `- ${e.id} (${span}${ref}): \`${reg}\`${note}`;
+      });
+      sections.push({ heading: 'Prior State Events (Fallback)', level: 2, text: lines.join('\n') });
+    }
+
+    const priorAffectEvents = typed('character.affect.event')
+      .filter((r) => r.subject === id && ends(r) <= asOf)
+      .sort((a, b) => String(a.storyDate).localeCompare(String(b.storyDate)) || String(a.id).localeCompare(String(b.id)));
+    if (priorAffectEvents.length > 0) {
+      const fmtVad = (v: any) => `${v.valence}/${v.arousal}/${v.dominance}`;
+      const lines = priorAffectEvents.map((e) => {
+        const span = e.storyDateEnd ? `${e.storyDate} to ${e.storyDateEnd}` : e.storyDate;
+        const ref = e.chapterRef ? ` [${e.chapterRef}]` : '';
+        const move = e.from && e.to ? `${fmtVad(e.from)} → ${fmtVad(e.to)}` : `delta ${fmtVad(e.delta)}`;
+        return `- ${e.id} (${span}${ref}): ${move}`;
+      });
+      sections.push({ heading: 'Prior Affect Events (Fallback)', level: 2, text: lines.join('\n') });
+    }
+
+    if (sections.length === 0) {
+      sections.push({
+        heading: 'Registry Profile (Fallback)',
+        level: 2,
+        text: `Registered as ${displayName} (\`${id}\`); no codex file or prior compiled events as of ${asOf}.`,
+      });
     }
   }
   if (errors.length) return { errors };
@@ -443,7 +493,7 @@ export function renderMarkdown(b: ContextBundle): string {
   );
 
   out.push('', '## Long tier: who they are', '');
-  if (!b.long.configured) {
+  if (!b.long.configured && b.long.sourceScope !== 'registry') {
     out.push('_No codex headings are configured in `context.codex.include`, so the long tier is withheld entirely._');
   } else {
     for (const [k, v] of Object.entries(b.long.frontmatter)) out.push(`- **${k}:** ${v}`);

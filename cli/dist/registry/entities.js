@@ -8,6 +8,7 @@ export const EntitySchema = z.object({
     displayName: z.string(),
     aliases: z.array(z.string()).default([]),
     sourceFile: z.string().nullable().optional(),
+    description: z.string().nullable().optional(),
     status: z.string().nullable().optional().default('active'),
     /**
      * A character's account: its DID, and its handle without the domain.

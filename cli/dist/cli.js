@@ -5,7 +5,13 @@ import readline from 'readline';
 import { Command } from 'commander';
 import path from 'path';
 import fs from 'fs';
-import { openUniverse, lint, compile, context, proseCheck, renderContextMarkdown, briefBundles, renderCharacterBriefPrompt, sampleBrief, composeNarrator, renderNarratorBundleMarkdown, reviewSlices, renderReviewSliceMarkdown, reviewPrepass, renderMergedFindingsMarkdown, createDecisionScorer, loadCalibrationJsonl, runCalibration, renderCalibrationMarkdown, PinakesMcpServer, TEMPORAL_LENSES, } from './index.js';
+import { openUniverse, lint, compile, context, proseCheck, renderContextMarkdown, briefBundles, renderCharacterBriefPrompt, sampleBrief, sampleBriefs, sceneRun, renumber, composeNarrator, renderNarratorBundleMarkdown, reviewSlices, renderReviewSliceMarkdown, reviewPrepass, renderMergedFindingsMarkdown, createDecisionScorer, loadCalibrationJsonl, runCalibration, renderCalibrationMarkdown, PinakesMcpServer, TEMPORAL_LENSES, } from './index.js';
+// Exit cleanly when downstream pipes close early (e.g. `pinakes review --json | head`).
+process.stdout.on('error', (err) => {
+    if (err.code === 'EPIPE')
+        process.exit(0);
+    throw err;
+});
 /**
  * The version comes from package.json rather than a literal here. A
  * hand-maintained copy drifts: `--version` reported 0.2.0 against a 0.2.1
@@ -212,8 +218,8 @@ program
 });
 program
     .command('sample')
-    .description('Score and deterministically sample a winning move from a 3-Move Character Brief JSON')
-    .requiredOption('-b, --brief <file>', 'Path to a 3-Move Character Brief JSON file')
+    .description('Score and deterministically sample winning move(s) from a 3-Move Character Brief JSON, array, or directory')
+    .requiredOption('-b, --brief <path>', 'Path to a brief JSON file, multi-character JSON array, or directory of brief JSONs')
     .option('--probs <pA,pB,pC>', 'Manual raw probabilities for A,B,C (skips scorer call)')
     .option('--scorer <provider>', 'Scorer override: clef | clef-flash | llm | mock')
     .option('--setup <file>', 'Optional scene setup file (passed to scorer)')
@@ -221,28 +227,19 @@ program
     .option('--temp <num>', 'Sampling temperature (default from pinakes.yaml or 0.85)')
     .option('--beat-type <type>', 'Beat type key for per-beat temperature lookup')
     .option('--reroll <token>', 'Optional reroll token appended to the SHA-256 seed')
-    .option('--log <file>', 'Write structured SampleRollLog JSON to this file')
+    .option('--log <path>', 'Write SampleRollLog JSON to this file (single brief) or directory (one roll log per character)')
     .option('-r, --root <path>', 'Project root directory', process.cwd())
     .action(async (options) => {
     const root = path.resolve(options.root);
     try {
-        const brief = JSON.parse(fs.readFileSync(path.resolve(options.brief), 'utf-8'));
+        const { briefs, multi } = loadBriefInputs(path.resolve(options.brief));
         const universe = openUniverse(root);
-        let rawProbs;
-        if (options.probs) {
-            const parts = String(options.probs)
-                .split(',')
-                .map((s) => Number(s.trim()));
-            if (parts.length !== 3 || parts.some((n) => !Number.isFinite(n))) {
-                throw new Error('--probs must be three comma-separated numbers: pA,pB,pC');
-            }
-            rawProbs = { A: parts[0], B: parts[1], C: parts[2] };
-        }
+        const rawProbs = parseProbsOption(options.probs);
         const scorer = options.scorer
             ? createDecisionScorer(universe.config, { provider: options.scorer })
             : undefined;
         const sceneSetup = options.setup ? fs.readFileSync(path.resolve(options.setup), 'utf-8') : '';
-        const outcome = await sampleBrief(universe, brief, {
+        const sampleOpts = {
             rawProbs,
             scorer,
             sceneSetup,
@@ -250,17 +247,116 @@ program
             temperature: options.temp !== undefined ? Number(options.temp) : undefined,
             beatType: options.beatType,
             reroll: options.reroll,
-        });
-        if (!outcome.ok || !outcome.log) {
-            console.error(`Error: ${outcome.error ?? 'Sampling failed.'}`);
+        };
+        if (!multi) {
+            const outcome = await sampleBrief(universe, briefs[0], sampleOpts);
+            if (!outcome.ok || !outcome.log) {
+                console.error(`Error: ${outcome.error ?? 'Sampling failed.'}`);
+                process.exit(1);
+            }
+            const json = JSON.stringify(outcome.log, null, 2) + '\n';
+            if (options.log) {
+                const logTarget = path.resolve(options.log);
+                if (fs.existsSync(logTarget) && fs.statSync(logTarget).isDirectory()) {
+                    writePerCharacterRollLogs(logTarget, [{ character: briefs[0].character, log: outcome.log }]);
+                }
+                else {
+                    fs.mkdirSync(path.dirname(logTarget), { recursive: true });
+                    fs.writeFileSync(logTarget, json, 'utf-8');
+                    console.error(`Wrote roll log to ${options.log}`);
+                }
+            }
+            process.stdout.write(json);
+            return;
+        }
+        const batch = await sampleBriefs(universe, briefs, sampleOpts);
+        if (batch.errors.length > 0) {
+            for (const e of batch.errors)
+                console.error(`Error: ${e}`);
             process.exit(1);
         }
-        const json = JSON.stringify(outcome.log, null, 2) + '\n';
         if (options.log) {
-            fs.writeFileSync(path.resolve(options.log), json, 'utf-8');
-            console.error(`Wrote roll log to ${options.log}`);
+            const logTarget = path.resolve(options.log);
+            const treatAsFile = logTarget.toLowerCase().endsWith('.json') && !(fs.existsSync(logTarget) && fs.statSync(logTarget).isDirectory());
+            if (treatAsFile) {
+                fs.mkdirSync(path.dirname(logTarget), { recursive: true });
+                fs.writeFileSync(logTarget, JSON.stringify(batch.logs, null, 2) + '\n', 'utf-8');
+                console.error(`Wrote ${batch.logs.length} roll logs to ${options.log}`);
+            }
+            else {
+                writePerCharacterRollLogs(logTarget, batch.outcomes.map((o) => ({ character: o.brief.character, log: o.outcome.log })));
+            }
         }
-        process.stdout.write(json);
+        process.stdout.write(JSON.stringify(batch.logs, null, 2) + '\n');
+    }
+    catch (e) {
+        console.error(`Error: ${e.message}`);
+        process.exit(1);
+    }
+});
+program
+    .command('scene-run')
+    .description('Chain sample -> compose in one invocation from a brief JSON, multi-character array, or directory')
+    .requiredOption('-b, --brief <path>', 'Path to a brief JSON file, multi-character JSON array, or directory of brief JSONs')
+    .requiredOption('--pov <character>', 'POV character (receives full interiority; all others stripped to observable surface)')
+    .option('--probs <pA,pB,pC>', 'Manual raw probabilities for A,B,C (skips scorer call)')
+    .option('--scorer <provider>', 'Scorer override: clef | clef-flash | llm | mock')
+    .option('--setup <file>', 'Scene setup file')
+    .option('--setup-text <text>', 'Inline scene setup text')
+    .option('--writing-guide <file>', 'Path to writing guide (overrides pinakes.yaml)')
+    .option('--floor <num>', 'Plausibility floor (default from pinakes.yaml or 0.08)')
+    .option('--temp <num>', 'Sampling temperature (default from pinakes.yaml or 0.85)')
+    .option('--beat-type <type>', 'Beat type key for per-beat temperature lookup')
+    .option('--reroll <token>', 'Optional reroll token appended to the SHA-256 seed')
+    .option('--log-dir <dir>', 'Optional directory to write one SampleRollLog JSON per character')
+    .option('--book <key>', 'Book key metadata override')
+    .option('--chapter <num>', 'Chapter number metadata override')
+    .option('--as-of <date>', 'Story date metadata override')
+    .option('--json', 'Emit narrator handoff bundle as JSON instead of Markdown')
+    .option('-o, --out <file>', 'Write narrator handoff bundle to this file instead of stdout')
+    .option('-r, --root <path>', 'Project root directory', process.cwd())
+    .action(async (options) => {
+    const root = path.resolve(options.root);
+    try {
+        const { briefs } = loadBriefInputs(path.resolve(options.brief));
+        const universe = openUniverse(root);
+        const rawProbs = parseProbsOption(options.probs);
+        const scorer = options.scorer
+            ? createDecisionScorer(universe.config, { provider: options.scorer })
+            : undefined;
+        const sceneSetup = options.setup
+            ? fs.readFileSync(path.resolve(options.setup), 'utf-8')
+            : (options.setupText ?? '');
+        const res = await sceneRun(universe, briefs, {
+            povCharacter: options.pov,
+            rawProbs,
+            scorer,
+            sceneSetup,
+            floor: options.floor !== undefined ? Number(options.floor) : undefined,
+            temperature: options.temp !== undefined ? Number(options.temp) : undefined,
+            beatType: options.beatType,
+            reroll: options.reroll,
+            book: options.book,
+            chapter: options.chapter,
+            asOf: options.asOf,
+            writingGuidePath: options.writingGuide,
+        });
+        if (!res.bundle || res.errors.length > 0) {
+            for (const e of res.errors)
+                console.error(`Error: ${e}`);
+            process.exit(1);
+        }
+        if (options.logDir) {
+            writePerCharacterRollLogs(path.resolve(options.logDir), briefs.map((b, i) => ({ character: b.character, log: res.logs[i] })));
+        }
+        const output = options.json ? JSON.stringify(res.bundle, null, 2) + '\n' : renderNarratorBundleMarkdown(res.bundle);
+        if (options.out) {
+            fs.writeFileSync(path.resolve(options.out), output, 'utf-8');
+            console.error(`Wrote ${options.out}`);
+        }
+        else {
+            process.stdout.write(output);
+        }
     }
     catch (e) {
         console.error(`Error: ${e.message}`);
@@ -531,7 +627,126 @@ program
         process.exit(1);
     }
 });
-program.parse(process.argv);
+program
+    .command('renumber')
+    .description('Safely shift chapter filenames, frontmatter chapter numbers, and Chapter <Word> headings, and report stale Ch N references')
+    .requiredOption('-s, --story <name>', 'Story directory name or book key')
+    .requiredOption('--from <num>', 'First chapter number to shift (inclusive)')
+    .requiredOption('--delta <offset>', 'Chapter offset (e.g. +1 or -1)')
+    .option('--dry-run', 'Preview changes and stale references without modifying files')
+    .option('--json', 'Emit structured JSON report')
+    .option('-r, --root <path>', 'Project root directory', process.cwd())
+    .action((options) => {
+    const root = path.resolve(options.root);
+    try {
+        const from = Number(options.from);
+        const delta = Number(options.delta);
+        const res = renumber(root, {
+            story: options.story,
+            from,
+            delta,
+            dryRun: Boolean(options.dryRun),
+        });
+        if (options.json) {
+            process.stdout.write(JSON.stringify(res, null, 2) + '\n');
+            return;
+        }
+        const mode = res.dryRun ? 'DRY RUN' : 'RENUMBERED';
+        console.log(`${mode}: ${res.storyDir} (chapters >= ${res.from}, delta ${res.delta > 0 ? `+${res.delta}` : res.delta})`);
+        if (res.changes.length === 0) {
+            console.log('  No chapters matched.');
+        }
+        else {
+            for (const c of res.changes) {
+                const headingNote = c.headingsUpdated > 0 ? ` (${c.headingsUpdated} heading(s) updated)` : '';
+                console.log(`  Ch ${c.oldChapter} -> Ch ${c.newChapter}: ${c.oldFile} -> ${c.newFile}${headingNote}`);
+            }
+        }
+        if (res.staleReferences.length > 0) {
+            console.log(`\nStale chapter references to review (${res.staleReferences.length}):`);
+            for (const ref of res.staleReferences) {
+                console.log(`  ${ref.file}:${ref.line}  [${ref.match} -> Ch ${ref.suggestedNum}]  ${ref.snippet}`);
+            }
+        }
+        else {
+            console.log('\nNo stale Ch N references found in audit_notes, 00_story_outline.md, or tracking/*.md.');
+        }
+    }
+    catch (e) {
+        console.error(`Error: ${e.message}`);
+        process.exit(1);
+    }
+});
+// Allow negative numbers like `--delta -1` without Commander treating `-1` as a short flag.
+const normalizedArgv = [...process.argv];
+for (let i = 0; i < normalizedArgv.length - 1; i++) {
+    if (normalizedArgv[i] === '--delta' && /^-\d+$/.test(normalizedArgv[i + 1])) {
+        normalizedArgv.splice(i, 2, `--delta=${normalizedArgv[i + 1]}`);
+    }
+}
+program.parse(normalizedArgv);
+function parseProbsOption(raw) {
+    if (!raw)
+        return undefined;
+    const parts = String(raw)
+        .split(',')
+        .map((s) => Number(s.trim()));
+    if (parts.length !== 3 || parts.some((n) => !Number.isFinite(n))) {
+        throw new Error('--probs must be three comma-separated numbers: pA,pB,pC');
+    }
+    return { A: parts[0], B: parts[1], C: parts[2] };
+}
+function loadBriefInputs(targetPath) {
+    if (!fs.existsSync(targetPath)) {
+        throw new Error(`Brief path not found: ${targetPath}`);
+    }
+    const stat = fs.statSync(targetPath);
+    if (stat.isDirectory()) {
+        const files = fs
+            .readdirSync(targetPath)
+            .filter((f) => f.endsWith('.json'))
+            .sort();
+        if (files.length === 0) {
+            throw new Error(`No .json brief files found in directory: ${targetPath}`);
+        }
+        const briefs = [];
+        for (const f of files) {
+            const parsed = JSON.parse(fs.readFileSync(path.join(targetPath, f), 'utf-8'));
+            if (Array.isArray(parsed))
+                briefs.push(...parsed);
+            else
+                briefs.push(parsed);
+        }
+        return { briefs, multi: true };
+    }
+    const parsed = JSON.parse(fs.readFileSync(targetPath, 'utf-8'));
+    if (Array.isArray(parsed)) {
+        if (parsed.length === 0)
+            throw new Error(`Brief array in ${targetPath} is empty.`);
+        return { briefs: parsed, multi: true };
+    }
+    return { briefs: [parsed], multi: false };
+}
+function slugifyCharacter(name) {
+    const bare = name.includes('.') ? name.split('.', 2)[1] : name;
+    return bare
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, '_')
+        .replace(/^_|_$/g, '') || 'character';
+}
+function writePerCharacterRollLogs(dir, entries) {
+    fs.mkdirSync(dir, { recursive: true });
+    const seen = new Map();
+    for (const { character, log } of entries) {
+        const base = slugifyCharacter(character);
+        const n = (seen.get(base) ?? 0) + 1;
+        seen.set(base, n);
+        const fileName = n === 1 ? `${base}_roll.json` : `${base}_${n}_roll.json`;
+        const full = path.join(dir, fileName);
+        fs.writeFileSync(full, JSON.stringify(log, null, 2) + '\n', 'utf-8');
+        console.error(`Wrote roll log to ${full}`);
+    }
+}
 function reportDiagnostics(diagnostics) {
     console.log('='.repeat(70));
     console.log('PINAKES CONTINUITY CHECK');

@@ -34,13 +34,15 @@ FAIL — pinakes found errors.
 On top of the deterministic core, Pinakes includes an optional probabilistic Scene-Mode writing pipeline, an Author-Mode six-lens review board, and a firewall-enforced MCP server (local stdio and hosted Cloudflare Worker):
 
 ```sh
-pinakes brief -s book2 -c 6 --as-of 2026-10-12 --characters "Emma,Marta"   # firewalled 3-move brief prompts
-pinakes sample -b emma_brief.json --scorer clef --log emma_roll.json      # Clef scoring + doNotReveal mask + SHA-256 draw
-pinakes compose --pov Emma --moves emma_roll.json marta_roll.json         # POV-locked narrator handoff (strips non-POV interiority)
-pinakes review -s book2 -c 6 --lens all                                   # 6-lens temporal review slices
-pinakes review -s book2 -c 6 --prepass                                    # Clef-flash -> Clef 27B probabilistic lint pre-pass
-pinakes calibrate -d beats.jsonl --scorers clef-flash,clef                # JSONL calibration harness (accuracy, Brier, ECE)
-pinakes mcp --mode scene                                                  # local MCP server over stdio (scene or author mode)
+pinakes brief -s book2 -c 6 --as-of 2026-10-12 --characters "Emma,Marta"   # firewalled 3-move brief prompts (with registry fallback)
+pinakes sample -b briefs/ --scorer clef --log rolls/                       # Clef scoring + doNotReveal mask + SHA-256 draw (file, array, or dir)
+pinakes scene-run -b briefs/ --pov Emma --scorer clef --log-dir rolls/     # chain sample -> compose in one POV-locked invocation
+pinakes compose --pov Emma --moves emma_roll.json marta_roll.json          # POV-locked narrator handoff (strips non-POV interiority)
+pinakes review -s book2 -c 6 --lens all                                    # 6-lens temporal review slices
+pinakes review -s book2 -c 6 --prepass                                     # Clef-flash -> Clef 27B pre-pass + off-page witness check
+pinakes renumber -s book2 --from 12 --delta +1                             # shift chapter files, frontmatter, headings & report stale Ch N refs
+pinakes calibrate -d beats.jsonl --scorers clef-flash,clef                 # JSONL calibration harness (accuracy, Brier, ECE)
+pinakes mcp --mode scene                                                   # local MCP server over stdio (scene or author mode)
 ```
 
 For remote web clients (Claude.ai, etc.), [`worker/`](https://github.com/bbthorson/pinakes/tree/main/worker) provides a hosted Cloudflare Worker with Streamable HTTP MCP (`/mcp/scene` and `/mcp/author`), GitHub-to-R2 snapshot caching, GitHub OAuth 2.1 + allowlist / Bearer auth, and native Workers AI Clef bindings.

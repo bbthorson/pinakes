@@ -74,6 +74,7 @@ paths:
 #     toneCeiling: 7
 #   craftVocabulary:
 #     - "red herring(?:s)?"
+#     - "(?<!poppy[- ]|sesame[- ]|caraway[- ]|mustard[- ]|sunflower[- ]|pumpkin[- ])\\bseed(?:s|ed|ing)?\\b"
 #   heldSecrets: []
 #   doNotReveal: []
 #   review:

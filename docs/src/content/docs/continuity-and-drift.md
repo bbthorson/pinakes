@@ -52,7 +52,9 @@ block is merged over the defaults, so it only needs the rules you change:
 | `affect-malformed` | `error` | An `affect:` value that is not a label, a transition or `{ v, a, d }`; a single label in a chapter (a chapter records a shift); a transition in a stretch (a stretch is a state); a codex `affectBaseline` that is not one resolvable label or triple, or an `affectHalfLifeScale` that is not a positive number |
 | `affect-out-of-range` | `error` | A numeric `affect:` value that is not an integer in [−100, 100] |
 | `affect-declared-no-register` | `warning` | A chapter that declares `affect:` for a character with no `registers:` entry in that chapter |
-| `affect-discontinuity` | `warning` | With `affect.dynamics.discontinuity` set, a chapter's first affect step, or a stretch's affect, further from the replayed state than that distance |
+| `affect-discontinuity` | `warning` | With `affect.dynamics.discontinuity` set, a chapter's first affect step, or a stretch's affect, further from the replayed state than that distance (exempt when `affect_shock: true` is set in frontmatter; threshold widened 2× on `Bad Guys Close In`, `All Is Lost`, or `Catalyst` beats) |
+| `day-of-week-mismatch` | `error` | Chapter frontmatter `day:` (e.g. `Saturday`, `Tuesday`) disagrees with the actual calendar weekday of ISO `date:` |
+| `weekend-weekday-phrase` | `warning` | A weekend chapter (`Saturday`/`Sunday`) contains weekday-only phrases (`after-school`, `school pickup`, `morning commute`, `rush hour`) outside dialogue referencing another day |
 
 The stretch rules run against *compiled* records, because
 `stretch-source-future` needs every other record's end date. `lint` builds the

@@ -107,8 +107,10 @@ import { CalibrationExampleSchema, loadCalibrationJsonl, parseCalibrationJsonl, 
 import { TEMPORAL_LENSES, numberLines, renderReviewSliceMarkdown, type BuildReviewSlicesOptions, type BuildReviewSlicesResult, type ReviewSlice, type SliceDocument, type TemporalLens } from './review/slices.js';
 import { ReviewFindingSchema, defaultCategoryForLens, mergeReviewFindings, parseLineSpan, renderMergedFindingsMarkdown, type ConvergenceCluster, type FindingCategory, type FindingSeverity, type MergedReviewFinding, type MergedReviewReport, type ReviewFinding, type ReviewLens } from './review/findings.js';
 import { collectAmbiguousTellHits, runProbabilisticLintPrepass, type EscalatedItem, type LensReviewer, type PlantedClue, type ProbabilisticPrepassOptions, type ProbabilisticPrepassResult } from './review/runner.js';
-export { filterLedgerBeforeChapter, renderFirstAppearancesMarkdown, MoveIdSchema, CharacterMoveSchema, CharacterBriefSchema, ReasoningEffortSchema, THREE_MOVE_BRIEF_CONTRACT, collectConstraintRules, evaluateDeterministicMask, isConstraintActive, renderCharacterBriefPrompt, resolveBriefRoute, MOVE_IDS, computeSeed, sampleCharacterMove, DEFAULT_NARRATOR_GUIDANCE, composeNarratorBundle, stripToObservableSurface, renderNarratorBundleMarkdown, CloudflareClefScorer, MockDecisionScorer, GenericLlmScorer, createDecisionScorer, parseClefResponse, scoreBriefWithScorer, CalibrationExampleSchema, loadCalibrationJsonl, parseCalibrationJsonl, runCalibration, renderCalibrationMarkdown, TEMPORAL_LENSES, numberLines, renderReviewSliceMarkdown, ReviewFindingSchema, defaultCategoryForLens, parseLineSpan, mergeReviewFindings, renderMergedFindingsMarkdown, collectAmbiguousTellHits, runProbabilisticLintPrepass, };
-export type { EntityAppearancePoint, EntityFirstAppearance, MoveId, CharacterMove, CharacterBrief, ReasoningEffort, BriefRouteDecision, HoldUntil, SecretConstraintRule, MoveMaskResult, SampleRollLog, ObservableCharacterMove, PovCharacterMove, NarratorHandoffBundle, SceneBriefRequest, CharacterBriefPromptBundle, BuildSceneBriefsResult, SeedResult, SampleOptions, SampleOutcome, WinningCharacterMove, ComposeNarratorOptions, QuestionType, DecisionQuestion, ScoredAnswer, DecisionScoreRequest, DecisionScorer, ClefScorerOptions, GenericLlmScorerOptions, BriefScoreResult, CalibrationExample, CalibrationBucket, ScorerCalibrationMetrics, CalibrationReport, TemporalLens, SliceDocument, ReviewSlice, BuildReviewSlicesOptions, BuildReviewSlicesResult, ReviewLens, FindingSeverity, FindingCategory, ReviewFinding, MergedReviewFinding, ConvergenceCluster, MergedReviewReport, PlantedClue, ProbabilisticPrepassOptions, EscalatedItem, ProbabilisticPrepassResult, LensReviewer, };
+import { detectWitnessKnowledgeIssues, type PriorChapterWitnessInfo, type TargetCharacterSurface, type WitnessCheckInput } from './review/witness.js';
+import { chapterWordToNumber, numberToChapterWord, type RenumberFileChange, type RenumberOptions, type RenumberResult, type StaleChapterReference } from './renumber.js';
+export { filterLedgerBeforeChapter, renderFirstAppearancesMarkdown, MoveIdSchema, CharacterMoveSchema, CharacterBriefSchema, ReasoningEffortSchema, THREE_MOVE_BRIEF_CONTRACT, collectConstraintRules, evaluateDeterministicMask, isConstraintActive, renderCharacterBriefPrompt, resolveBriefRoute, MOVE_IDS, computeSeed, sampleCharacterMove, DEFAULT_NARRATOR_GUIDANCE, composeNarratorBundle, stripToObservableSurface, renderNarratorBundleMarkdown, CloudflareClefScorer, MockDecisionScorer, GenericLlmScorer, createDecisionScorer, parseClefResponse, scoreBriefWithScorer, CalibrationExampleSchema, loadCalibrationJsonl, parseCalibrationJsonl, runCalibration, renderCalibrationMarkdown, TEMPORAL_LENSES, numberLines, renderReviewSliceMarkdown, ReviewFindingSchema, defaultCategoryForLens, parseLineSpan, mergeReviewFindings, renderMergedFindingsMarkdown, collectAmbiguousTellHits, runProbabilisticLintPrepass, detectWitnessKnowledgeIssues, numberToChapterWord, chapterWordToNumber, };
+export type { EntityAppearancePoint, EntityFirstAppearance, MoveId, CharacterMove, CharacterBrief, ReasoningEffort, BriefRouteDecision, HoldUntil, SecretConstraintRule, MoveMaskResult, SampleRollLog, ObservableCharacterMove, PovCharacterMove, NarratorHandoffBundle, SceneBriefRequest, CharacterBriefPromptBundle, BuildSceneBriefsResult, SeedResult, SampleOptions, SampleOutcome, WinningCharacterMove, ComposeNarratorOptions, QuestionType, DecisionQuestion, ScoredAnswer, DecisionScoreRequest, DecisionScorer, ClefScorerOptions, GenericLlmScorerOptions, BriefScoreResult, CalibrationExample, CalibrationBucket, ScorerCalibrationMetrics, CalibrationReport, TemporalLens, SliceDocument, ReviewSlice, BuildReviewSlicesOptions, BuildReviewSlicesResult, ReviewLens, FindingSeverity, FindingCategory, ReviewFinding, MergedReviewFinding, ConvergenceCluster, MergedReviewReport, PlantedClue, ProbabilisticPrepassOptions, EscalatedItem, ProbabilisticPrepassResult, LensReviewer, PriorChapterWitnessInfo, TargetCharacterSurface, WitnessCheckInput, RenumberOptions, RenumberFileChange, StaleChapterReference, RenumberResult, };
 /** Builds the deterministic First-Appearance Entity Ledger for a universe. Never writes to disk. */
 export declare function firstAppearances(input: UniverseInput): EntityFirstAppearance[];
 /** Assembles Scene-Mode 3-Move Character Brief prompt bundles with the information firewall enforced. */
@@ -132,6 +134,38 @@ export interface SampleBriefOptions {
  * scores candidate moves when a scorer is provided, and draws deterministically.
  */
 export declare function sampleBrief(input: UniverseInput, brief: CharacterBrief, options?: SampleBriefOptions): Promise<SampleOutcome>;
+export interface SampleBriefsResult {
+    outcomes: {
+        brief: CharacterBrief;
+        outcome: SampleOutcome;
+    }[];
+    logs: SampleRollLog[];
+    errors: string[];
+}
+/**
+ * Samples a batch of 3-Move Character Briefs in a single invocation,
+ * preserving deterministic per-character seeds and returning all roll logs.
+ */
+export declare function sampleBriefs(input: UniverseInput, briefs: CharacterBrief[], options?: SampleBriefOptions): Promise<SampleBriefsResult>;
+export interface SceneRunOptions extends SampleBriefOptions {
+    povCharacter: string;
+    book?: string;
+    chapter?: number | string;
+    asOf?: string;
+    writingGuidePath?: string;
+}
+export interface SceneRunResult {
+    logs: SampleRollLog[];
+    bundle?: NarratorHandoffBundle;
+    errors: string[];
+}
+/**
+ * Chains `sampleBriefs` -> `composeNarrator` in a single Scene-Mode ensemble
+ * invocation, enforcing the POV-locked narrator handoff firewall.
+ */
+export declare function sceneRun(input: UniverseInput, briefs: CharacterBrief[], options: SceneRunOptions): Promise<SceneRunResult>;
+/** Safely shifts chapter filenames, frontmatter `chapter:` numbers, and `#/### Chapter <Word>` headings. */
+export declare function renumber(input: UniverseInput, options: RenumberOptions): RenumberResult;
 /** Assembles a POV-locked Single Narrator Pen Handoff bundle. */
 export declare function composeNarrator(input: UniverseInput, options: Omit<ComposeNarratorOptions, 'projectRoot' | 'ufs'>): {
     bundle?: NarratorHandoffBundle;

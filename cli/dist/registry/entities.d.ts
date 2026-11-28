@@ -6,6 +6,7 @@ export declare const EntitySchema: z.ZodObject<{
     displayName: z.ZodString;
     aliases: z.ZodDefault<z.ZodArray<z.ZodString, "many">>;
     sourceFile: z.ZodOptional<z.ZodNullable<z.ZodString>>;
+    description: z.ZodOptional<z.ZodNullable<z.ZodString>>;
     status: z.ZodDefault<z.ZodOptional<z.ZodNullable<z.ZodString>>>;
     /**
      * A character's account: its DID, and its handle without the domain.
@@ -21,6 +22,7 @@ export declare const EntitySchema: z.ZodObject<{
     aliases: string[];
     id: string;
     displayName: string;
+    description?: string | null | undefined;
     sourceFile?: string | null | undefined;
     did?: unknown;
     handle?: unknown;
@@ -30,6 +32,7 @@ export declare const EntitySchema: z.ZodObject<{
     displayName: string;
     status?: string | null | undefined;
     aliases?: string[] | undefined;
+    description?: string | null | undefined;
     sourceFile?: string | null | undefined;
     did?: unknown;
     handle?: unknown;

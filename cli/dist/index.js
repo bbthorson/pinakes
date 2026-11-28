@@ -138,6 +138,8 @@ import { CalibrationExampleSchema, loadCalibrationJsonl, parseCalibrationJsonl, 
 import { TEMPORAL_LENSES, buildReviewSlices, numberLines, renderReviewSliceMarkdown, } from './review/slices.js';
 import { ReviewFindingSchema, defaultCategoryForLens, mergeReviewFindings, parseLineSpan, renderMergedFindingsMarkdown, } from './review/findings.js';
 import { collectAmbiguousTellHits, runProbabilisticLintPrepass, } from './review/runner.js';
+import { detectWitnessKnowledgeIssues, } from './review/witness.js';
+import { chapterWordToNumber, numberToChapterWord, renumberChapters, } from './renumber.js';
 export { 
 // First-appearance ledger
 filterLedgerBeforeChapter, renderFirstAppearancesMarkdown, 
@@ -152,7 +154,9 @@ CloudflareClefScorer, MockDecisionScorer, GenericLlmScorer, createDecisionScorer
 // Calibration
 CalibrationExampleSchema, loadCalibrationJsonl, parseCalibrationJsonl, runCalibration, renderCalibrationMarkdown, 
 // Six-lens review board
-TEMPORAL_LENSES, numberLines, renderReviewSliceMarkdown, ReviewFindingSchema, defaultCategoryForLens, parseLineSpan, mergeReviewFindings, renderMergedFindingsMarkdown, collectAmbiguousTellHits, runProbabilisticLintPrepass, };
+TEMPORAL_LENSES, numberLines, renderReviewSliceMarkdown, ReviewFindingSchema, defaultCategoryForLens, parseLineSpan, mergeReviewFindings, renderMergedFindingsMarkdown, collectAmbiguousTellHits, runProbabilisticLintPrepass, detectWitnessKnowledgeIssues, 
+// Chapter renumber helper
+numberToChapterWord, chapterWordToNumber, };
 /** Builds the deterministic First-Appearance Entity Ledger for a universe. Never writes to disk. */
 export function firstAppearances(input) {
     const u = open(input);
@@ -224,6 +228,66 @@ export async function sampleBrief(input, brief, options = {}) {
         scorer: scorerName,
     });
 }
+/**
+ * Samples a batch of 3-Move Character Briefs in a single invocation,
+ * preserving deterministic per-character seeds and returning all roll logs.
+ */
+export async function sampleBriefs(input, briefs, options = {}) {
+    const u = open(input);
+    const outcomes = [];
+    const logs = [];
+    const errors = [];
+    for (const raw of briefs) {
+        const validated = CharacterBriefSchema.parse(raw);
+        const outcome = await sampleBrief(u, validated, options);
+        outcomes.push({ brief: validated, outcome });
+        if (outcome.ok && outcome.log) {
+            logs.push(outcome.log);
+        }
+        else {
+            errors.push(`${validated.character}: ${outcome.error ?? 'Sampling failed.'}`);
+        }
+    }
+    return { outcomes, logs, errors };
+}
+/**
+ * Chains `sampleBriefs` -> `composeNarrator` in a single Scene-Mode ensemble
+ * invocation, enforcing the POV-locked narrator handoff firewall.
+ */
+export async function sceneRun(input, briefs, options) {
+    const u = open(input);
+    if (briefs.length === 0) {
+        return { logs: [], errors: ['sceneRun requires at least one character brief.'] };
+    }
+    const sampled = await sampleBriefs(u, briefs, options);
+    if (sampled.errors.length > 0) {
+        return { logs: sampled.logs, errors: sampled.errors };
+    }
+    const winningMoves = sampled.outcomes.map(({ brief, outcome }) => ({
+        character: brief.character,
+        move: outcome.log.chosenMove,
+    }));
+    const first = sampled.outcomes[0].brief;
+    const composed = composeNarrator(u, {
+        book: options.book ?? first.book,
+        chapter: options.chapter ?? first.chapter,
+        asOf: options.asOf ?? first.asOf,
+        povCharacter: options.povCharacter,
+        sceneSetup: options.sceneSetup ?? '',
+        winningMoves,
+        writingGuidePath: options.writingGuidePath,
+    });
+    return {
+        logs: sampled.logs,
+        bundle: composed.bundle,
+        errors: composed.errors,
+    };
+}
+/** Safely shifts chapter filenames, frontmatter `chapter:` numbers, and `#/### Chapter <Word>` headings. */
+export function renumber(input, options) {
+    const u = open(input);
+    return renumberChapters(u.root, u.engine, options);
+}
 /** Assembles a POV-locked Single Narrator Pen Handoff bundle. */
 export function composeNarrator(input, options) {
     const u = open(input);
@@ -257,17 +321,66 @@ export async function reviewPrepass(input, options) {
         .getStories()
         .find((s) => path.basename(s).toLowerCase().includes(options.story.toLowerCase()) ||
         getBookKeyFromDir(s) === options.story.toLowerCase());
-    const ch = storyDir
-        ? u.engine.loadChapters(storyDir).find((c) => String(c.chapterNum) === String(options.chapter))
-        : undefined;
+    const allChapters = storyDir ? u.engine.loadChapters(storyDir) : [];
+    const targetIdx = allChapters.findIndex((c) => String(c.chapterNum) === String(options.chapter));
+    const ch = targetIdx >= 0 ? allChapters[targetIdx] : undefined;
     if (!ch)
         return { errors: [`Could not load chapter body for ${options.story} ch ${options.chapter}.`] };
+    // Build witness / off-page knowledge check input from compiled scene `participants`
+    // (`characters_present`) of prior chapters in the same book.
+    const NS = u.config.project.nsid;
+    const book = slice.book;
+    const sceneParticipantsByChapter = new Map();
+    for (const r of records) {
+        if (r.$type !== `${NS}.scene`)
+            continue;
+        const m = String(r.id).match(/^scene\.(.+)\.ch(.+)$/);
+        if (!m || m[1] !== book)
+            continue;
+        sceneParticipantsByChapter.set(m[2], Array.isArray(r.participants) ? r.participants : []);
+    }
+    const priorChapters = allChapters.slice(0, targetIdx).map((p) => {
+        const compiledParticipants = sceneParticipantsByChapter.get(String(p.chapterNum));
+        const participants = compiledParticipants ??
+            p.charactersPresent
+                .map((n) => u.registry.resolve(n, 'character')?.id)
+                .filter((id) => Boolean(id));
+        return {
+            chapterNum: p.chapterNum,
+            title: p.title,
+            participants,
+            body: p.body,
+            beatPurpose: p.beatPurpose,
+        };
+    });
+    const targetCharIds = new Set();
+    const targetPovId = ch.pov ? (u.registry.resolve(ch.pov, 'character')?.id ?? null) : null;
+    if (targetPovId)
+        targetCharIds.add(targetPovId);
+    for (const name of ch.charactersPresent) {
+        const resolved = u.registry.resolve(name, 'character');
+        if (resolved)
+            targetCharIds.add(resolved.id);
+    }
+    const targetCharacters = [...targetCharIds].map((id) => {
+        const ent = u.registry.getEntity(id);
+        const displayName = ent?.displayName ?? id;
+        const names = [displayName, ...(ent?.aliases ?? [])];
+        return { id, displayName, names };
+    });
     const flashScorer = options.flashScorer ?? createDecisionScorer(u.config, { provider: u.config.probabilistic.scorer.provider === 'mock' ? 'mock' : 'clef-flash' });
     const deepScorer = options.deepScorer ?? (u.config.probabilistic.scorer.provider === 'clef' ? createDecisionScorer(u.config, { provider: 'clef' }) : undefined);
     const result = await runProbabilisticLintPrepass(ch.body, slice, u.config, {
         flashScorer,
         deepScorer,
         plantedClues: options.plantedClues,
+        witnessCheck: {
+            targetChapterNum: ch.chapterNum,
+            targetBody: ch.body,
+            targetPovId,
+            targetCharacters,
+            priorChapters,
+        },
     });
     return { result, errors: [] };
 }

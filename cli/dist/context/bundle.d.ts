@@ -29,8 +29,8 @@ export interface ContextBundle {
         configured: boolean;
         /** Relative path to the codex or book-scoped guest stub file that populated the long tier. */
         sourceFile?: string;
-        /** Whether the long tier came from a series codex file or a book-scoped character stub. */
-        sourceScope?: 'series' | 'book';
+        /** Whether the long tier came from a series codex file, a book-scoped stub, or a registry fallback. */
+        sourceScope?: 'series' | 'book' | 'registry';
     };
     mid: {
         latest?: Record<string, any>;
@@ -87,5 +87,6 @@ withholdParagraph?: (text: string) => boolean): {
 export declare function buildContext(root: string, config: Config, registry: Registry, engine: LinterEngine, records: any[], characterName: string, asOf: string, options?: {
     fullState?: boolean;
     story?: string;
+    registryFallback?: boolean;
 }): BuildResult;
 export declare function renderMarkdown(b: ContextBundle): string;

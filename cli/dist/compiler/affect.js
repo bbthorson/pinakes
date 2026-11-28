@@ -59,6 +59,10 @@ export const CORE_AFFECT_LABELS = {
     animated: { valence: 0.5, arousal: 0.5, dominance: 0.3 },
     conflicted: { valence: -0.3, arousal: 0.4, dominance: -0.1 },
     softening: { valence: 0.3, arousal: -0.2, dominance: 0.1 },
+    focused: { valence: 0.2, arousal: 0.3, dominance: 0.5 },
+    proud: { valence: 0.7, arousal: 0.3, dominance: 0.6 },
+    guilty: { valence: -0.6, arousal: 0.2, dominance: -0.5 },
+    stricken: { valence: -0.8, arousal: 0.5, dominance: -0.7 },
 };
 /** Case- and whitespace-insensitive; nothing looser. */
 export function normalizeAffectLabel(label) {

@@ -20,6 +20,7 @@ import type { Config } from '../config.js';
 import type { DecisionQuestion, DecisionScorer, ScoredAnswer } from '../probabilistic/scorer.js';
 import type { ReviewSlice } from './slices.js';
 import { type MergedReviewReport, type ReviewFinding } from './findings.js';
+import { type WitnessCheckInput } from './witness.js';
 export interface PlantedClue {
     id: string;
     description: string;
@@ -32,6 +33,8 @@ export interface ProbabilisticPrepassOptions {
     deepScorer?: DecisionScorer;
     /** Optional clues planted in this chapter to check for telegraphing. */
     plantedClues?: PlantedClue[];
+    /** Optional witness / off-page knowledge check input derived from compiled prior chapters. */
+    witnessCheck?: WitnessCheckInput;
     /** Override escalation thresholds from config. */
     lowConfidence?: number;
     highConfidence?: number;

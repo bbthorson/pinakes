@@ -2,6 +2,7 @@ import path from 'path';
 import YAML from 'yaml';
 import { parseRegister } from './registers.js';
 import { ACCOUNT_FIELDS, readAccountField } from './identity.js';
+import { isCalendarDate } from './stretches.js';
 import { nodeFS } from '../fs.js';
 export class LinterEngine {
     config;
@@ -580,6 +581,70 @@ export class LinterEngine {
                     }
                 }
             }
+            // 6. Built-in: Calendar day-of-week check (`day:` frontmatter matches ISO `date:`)
+            if (this.config.rules['day-of-week-mismatch'] !== 'off') {
+                const severity = (this.config.rules['day-of-week-mismatch'] ?? 'error');
+                for (const ch of chapters) {
+                    if (typeof ch.frontmatter.day !== 'string' || ch.dates.length === 0)
+                        continue;
+                    const declaredDays = extractWeekdayNames(ch.frontmatter.day);
+                    if (declaredDays.length === 0)
+                        continue;
+                    const dayLine = findFrontmatterFieldLine(ch.frontmatterText, 'day');
+                    const actualStart = weekdayOfIsoDate(ch.dates[0]);
+                    if (actualStart && declaredDays[0] !== actualStart) {
+                        diagnostics.push({
+                            file: ch.relativeFilePath,
+                            line: dayLine,
+                            rule: 'day-of-week-mismatch',
+                            severity,
+                            message: `Frontmatter \`day\` says '${declaredDays[0]}', but ${ch.dates[0]} is a ${actualStart}.`,
+                        });
+                    }
+                    if (ch.dates.length >= 2 && declaredDays.length >= 2) {
+                        const endDate = ch.dates[ch.dates.length - 1];
+                        const declaredEnd = declaredDays[declaredDays.length - 1];
+                        const actualEnd = weekdayOfIsoDate(endDate);
+                        if (actualEnd && declaredEnd !== actualEnd) {
+                            diagnostics.push({
+                                file: ch.relativeFilePath,
+                                line: dayLine,
+                                rule: 'day-of-week-mismatch',
+                                severity,
+                                message: `Frontmatter \`day\` ends on '${declaredEnd}', but ${endDate} is a ${actualEnd}.`,
+                            });
+                        }
+                    }
+                }
+            }
+            // 7. Built-in: Weekend chapters containing weekday-only phrases
+            // (unless inside dialogue referencing another day)
+            if (this.config.rules['weekend-weekday-phrase'] !== 'off') {
+                const severity = (this.config.rules['weekend-weekday-phrase'] ?? 'warning');
+                for (const ch of chapters) {
+                    const weekendDay = chapterWeekendLabel(ch);
+                    if (!weekendDay || !ch.body)
+                        continue;
+                    const fmLinesCount = ch.frontmatterText ? ch.frontmatterText.split(/\r?\n/).length + 2 : 0;
+                    const dialogueSpans = findDialogueSpans(ch.body);
+                    for (const m of ch.body.matchAll(WEEKDAY_ONLY_PHRASE_RE)) {
+                        const idx = m.index ?? 0;
+                        const end = idx + m[0].length;
+                        const enclosingDialogue = dialogueSpans.find((sp) => idx >= sp.start && end <= sp.end);
+                        if (enclosingDialogue && OTHER_DAY_REF_RE.test(enclosingDialogue.text)) {
+                            continue;
+                        }
+                        const bodyLine = ch.body.slice(0, idx).split(/\r?\n/).length;
+                        diagnostics.push({
+                            file: ch.relativeFilePath,
+                            line: fmLinesCount + bodyLine,
+                            rule: 'weekend-weekday-phrase',
+                            severity,
+                            message: `Weekend chapter (${weekendDay}) contains weekday-only phrase '${m[0]}' outside dialogue referencing another day.`,
+                        });
+                    }
+                }
+            }
         }
         return diagnostics;
     }
@@ -613,4 +678,75 @@ export class LinterEngine {
                 : `Unresolved reference to ${type} '${norm}' in field '${field}'`,
         });
     }
+}
+const WEEKDAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+const WEEKDAY_ALIASES = {
+    sunday: 'Sunday',
+    sun: 'Sunday',
+    monday: 'Monday',
+    mon: 'Monday',
+    tuesday: 'Tuesday',
+    tues: 'Tuesday',
+    tue: 'Tuesday',
+    wednesday: 'Wednesday',
+    wed: 'Wednesday',
+    thursday: 'Thursday',
+    thurs: 'Thursday',
+    thu: 'Thursday',
+    friday: 'Friday',
+    fri: 'Friday',
+    saturday: 'Saturday',
+    sat: 'Saturday',
+};
+const WEEKDAY_TOKEN_RE = /\b(sunday|monday|tuesday|wednesday|thursday|friday|saturday|sun|mon|tues?|wed|thurs?|fri|sat)\b/gi;
+const WEEKDAY_ONLY_PHRASE_RE = /\b(after[- ]school|school pick[- ]?up|morning commute|rush[- ]hour)\b/gi;
+const OTHER_DAY_REF_RE = /\b(monday|tuesday|wednesday|thursday|friday|weekday(?:s)?|workday(?:s)?|school day(?:s)?|tomorrow|yesterday|last week|next week|this week|during the week|all week)\b/i;
+function extractWeekdayNames(raw) {
+    const out = [];
+    for (const m of raw.matchAll(WEEKDAY_TOKEN_RE)) {
+        const canon = WEEKDAY_ALIASES[m[1].toLowerCase()];
+        if (canon)
+            out.push(canon);
+    }
+    return out;
+}
+function weekdayOfIsoDate(isoDate) {
+    if (!isCalendarDate(isoDate))
+        return null;
+    const [y, m, d] = isoDate.split('-').map(Number);
+    return WEEKDAYS[new Date(Date.UTC(y, m - 1, d)).getUTCDay()];
+}
+function findFrontmatterFieldLine(fmText, field) {
+    const re = new RegExp(`^\\s*${field}\\s*:`);
+    const lines = fmText.split(/\r?\n/);
+    for (let i = 0; i < lines.length; i++) {
+        if (re.test(lines[i]))
+            return i + 2; // starts after opening ---
+    }
+    return undefined;
+}
+function chapterWeekendLabel(ch) {
+    if (ch.dates.length > 0) {
+        const days = ch.dates.map(weekdayOfIsoDate).filter((d) => d !== null);
+        if (days.length === ch.dates.length && days.every((d) => d === 'Saturday' || d === 'Sunday')) {
+            return [...new Set(days)].join('/');
+        }
+        return null;
+    }
+    if (typeof ch.frontmatter.day === 'string') {
+        const days = extractWeekdayNames(ch.frontmatter.day);
+        if (days.length > 0 && days.every((d) => d === 'Saturday' || d === 'Sunday')) {
+            return [...new Set(days)].join('/');
+        }
+    }
+    return null;
+}
+function findDialogueSpans(body) {
+    const spans = [];
+    const re = /["“]([^"”\n]+)["”]/g;
+    for (const m of body.matchAll(re)) {
+        const start = m.index ?? 0;
+        spans.push({ start, end: start + m[0].length, text: m[1] });
+    }
+    return spans;
 }

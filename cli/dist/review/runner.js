@@ -1,6 +1,7 @@
 import { DEFAULT_SIGNALS } from '../prose/check.js';
 import { isConstraintActive } from '../probabilistic/brief.js';
 import { mergeReviewFindings, } from './findings.js';
+import { detectWitnessKnowledgeIssues } from './witness.js';
 const TRIAGED_PROSE_SIGNALS = new Set([
     'negative-parallelism-split',
     'corporate-filler',
@@ -13,6 +14,19 @@ function findLineNumber(text, index) {
             line++;
     }
     return line;
+}
+const SEED_COMPOUND_LOOKBEHIND = '(?<!poppy[- ]|sesame[- ]|caraway[- ]|mustard[- ]|sunflower[- ]|pumpkin[- ])';
+const BARE_SEED_PATTERN_RE = /^(?:\\b)?(?:\(\?:)?seed(?:s\??|\(\?:[^)]*\)\??|\([^)]*\)\??)?\)?(?:\\b)?$/i;
+function compileCraftVocabRegex(vocab) {
+    const trimmed = vocab.trim();
+    if (BARE_SEED_PATTERN_RE.test(trimmed)) {
+        const core = trimmed.replace(/^\\b/, '').replace(/\\b$/, '');
+        return new RegExp(`${SEED_COMPOUND_LOOKBEHIND}\\b(?:${core})\\b`, 'gi');
+    }
+    if (trimmed.includes('(?<!') || trimmed.startsWith('\\b') || trimmed.endsWith('\\b')) {
+        return new RegExp(trimmed, 'gi');
+    }
+    return new RegExp(`\\b(?:${trimmed})\\b`, 'gi');
 }
 /**
  * Extracts ambiguous mechanical hits from `prose/check` signals plus
@@ -40,7 +54,7 @@ export function collectAmbiguousTellHits(chapterBody, config) {
         if (!vocab.trim())
             continue;
         try {
-            const re = new RegExp(`\\b(?:${vocab})\\b`, 'gi');
+            const re = compileCraftVocabRegex(vocab);
             for (const m of chapterBody.matchAll(re)) {
                 const idx = m.index ?? 0;
                 const a = Math.max(0, idx - 60);
@@ -287,6 +301,9 @@ export async function runProbabilisticLintPrepass(chapterBody, slice, config, op
                 escalateToLlm,
             });
         }
+    }
+    if (options.witnessCheck) {
+        findings.push(...detectWitnessKnowledgeIssues(options.witnessCheck));
     }
     return {
         questions,

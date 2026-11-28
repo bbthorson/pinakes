@@ -194,12 +194,23 @@ export function computeAffectState(
   };
 }
 
+const CRISIS_BEAT_RE = /\b(?:bad guys close in|all is lost|catalyst)\b/i;
+const CRISIS_THRESHOLD_MULTIPLIER = 2;
+
 /**
  * `affect-discontinuity`: where the author's declarations disagree with the
  * replay. A chapter's first step is checked against the state it is entered
  * in, and each stretch against the state replayed from the stretch before it.
  * The stretch still re-anchors either way; the finding only asks whether the
  * jump was meant.
+ *
+ * Crisis/shock tolerance:
+ * - Setting `affect_shock: true` in chapter (or stretch) frontmatter exempts
+ *   that file from discontinuity warnings (e.g. a character walking into an
+ *   off-page group-chat shock or sudden crisis without an artificially padded
+ *   entry state).
+ * - A chapter whose `beat:` contains `Bad Guys Close In`, `All Is Lost`, or
+ *   `Catalyst` widens the discontinuity threshold by 2x.
  */
 export function discontinuityFindings(
   projectRoot: string,
@@ -214,6 +225,38 @@ export function discontinuityFindings(
   const NS = config.project.nsid;
   const vocab = buildAffectVocabulary(config.affect.labels);
   const out: { file: string; message: string }[] = [];
+
+  const frontmatterCache = new Map<string, Record<string, any> | null>();
+  const readSourceFrontmatter = (relFile: string): Record<string, any> | null => {
+    if (frontmatterCache.has(relFile)) return frontmatterCache.get(relFile)!;
+    const abs = path.resolve(projectRoot, relFile);
+    if (!engine.ufs.exists(abs)) {
+      frontmatterCache.set(relFile, null);
+      return null;
+    }
+    const { data } = engine.parseFrontmatter(engine.ufs.readFile(abs));
+    const fm = data && typeof data === 'object' ? (data as Record<string, any>) : null;
+    frontmatterCache.set(relFile, fm);
+    return fm;
+  };
+
+  const shockTolerance = (relFile: string): { exempt: boolean; effectiveThreshold: number; crisisBeat?: string } => {
+    const fm = readSourceFrontmatter(relFile);
+    if (!fm) return { exempt: false, effectiveThreshold: threshold };
+    if (fm.affect_shock === true) {
+      return { exempt: true, effectiveThreshold: threshold };
+    }
+    const beat = typeof fm.beat === 'string' ? fm.beat : '';
+    const match = beat.match(CRISIS_BEAT_RE);
+    if (match) {
+      return {
+        exempt: false,
+        effectiveThreshold: threshold * CRISIS_THRESHOLD_MULTIPLIER,
+        crisisBeat: match[0],
+      };
+    }
+    return { exempt: false, effectiveThreshold: threshold };
+  };
 
   const subjects = new Set(
     records
@@ -235,6 +278,8 @@ export function discontinuityFindings(
 
     for (const event of events) {
       if (!event.from) continue;
+      const tol = shockTolerance(event.sourceFile);
+      if (tol.exempt) continue;
       const anchor = anchors.filter((a) => a.asOf < event.end).pop();
       if (!anchor) continue;
       const step = replayAffect(unscale(anchor.coordinates), anchor.asOf, events, event.end, rates).steps.find(
@@ -242,12 +287,13 @@ export function discontinuityFindings(
       );
       if (!step) continue;
       const d = affectDistance(step.entering, event.from);
-      if (d > threshold) {
+      if (d > tol.effectiveThreshold) {
+        const beatNote = tol.crisisBeat ? `, crisis beat '${tol.crisisBeat}'` : '';
         out.push({
           file: event.sourceFile,
           message:
             `${event.id} says ${subject} enters at ${fmt(event.from)}, but the replay from ${anchor.id} ` +
-            `has them at ${fmt(step.entering)} (distance ${Math.round(d)}, threshold ${threshold}).`,
+            `has them at ${fmt(step.entering)} (distance ${Math.round(d)}, threshold ${tol.effectiveThreshold}${beatNote}).`,
         });
       }
     }
@@ -255,15 +301,17 @@ export function discontinuityFindings(
     for (let i = 1; i < anchors.length; i++) {
       const prev = anchors[i - 1];
       const cur = anchors[i];
+      const tol = shockTolerance(cur.sourceFile);
+      if (tol.exempt) continue;
       const { vad } = replayAffect(unscale(prev.coordinates), prev.asOf, events, cur.asOf, rates);
       const declared = unscale(cur.coordinates);
       const d = affectDistance(vad, declared);
-      if (d > threshold) {
+      if (d > tol.effectiveThreshold) {
         out.push({
           file: cur.sourceFile,
           message:
             `${cur.id} declares ${fmt(declared)}, but the replay from ${prev.id} has ${subject} at ${fmt(vad)} ` +
-            `(distance ${Math.round(d)}, threshold ${threshold}). The stretch still re-anchors; this asks whether the jump was meant.`,
+            `(distance ${Math.round(d)}, threshold ${tol.effectiveThreshold}). The stretch still re-anchors; this asks whether the jump was meant.`,
         });
       }
     }

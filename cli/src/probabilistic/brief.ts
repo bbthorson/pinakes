@@ -143,6 +143,7 @@ export function buildSceneBriefBundles(
     const res = buildContext(root, config, registry, engine, records, name, req.asOf, {
       fullState: false,
       story: req.story,
+      registryFallback: true,
     });
     if (!res.bundle) {
       errors.push(...res.errors);

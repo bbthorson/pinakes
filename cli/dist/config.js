@@ -23,6 +23,8 @@ const DEFAULT_RULES = {
     'affect-out-of-range': 'error',
     'affect-declared-no-register': 'warning',
     'affect-discontinuity': 'warning',
+    'day-of-week-mismatch': 'error',
+    'weekend-weekday-phrase': 'warning',
 };
 const vadInt = z.number().int().min(-100).max(100);
 const bound = z
@@ -332,7 +334,12 @@ export const ConfigSchema = z.object({
         }))
             .default([]),
         /** Craft-vocabulary words/regexes to flag in review pre-passes (e.g. `red herring(s)?`). */
-        craftVocabulary: z.array(z.string()).default(['red herring(?:s)?']),
+        craftVocabulary: z
+            .array(z.string())
+            .default([
+            'red herring(?:s)?',
+            '(?<!poppy[- ]|sesame[- ]|caraway[- ]|mustard[- ]|sunflower[- ]|pumpkin[- ])\\bseed(?:s|ed|ing)?\\b',
+        ]),
         review: z
             .object({
             priorChapters: z.number().int().min(0).default(3),

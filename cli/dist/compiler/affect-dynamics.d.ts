@@ -70,6 +70,14 @@ export declare function computeAffectState(projectRoot: string, config: Config, 
  * in, and each stretch against the state replayed from the stretch before it.
  * The stretch still re-anchors either way; the finding only asks whether the
  * jump was meant.
+ *
+ * Crisis/shock tolerance:
+ * - Setting `affect_shock: true` in chapter (or stretch) frontmatter exempts
+ *   that file from discontinuity warnings (e.g. a character walking into an
+ *   off-page group-chat shock or sudden crisis without an artificially padded
+ *   entry state).
+ * - A chapter whose `beat:` contains `Bad Guys Close In`, `All Is Lost`, or
+ *   `Catalyst` widens the discontinuity threshold by 2x.
  */
 export declare function discontinuityFindings(projectRoot: string, config: Config, registry: Registry, engine: LinterEngine, records: any[]): {
     file: string;
